@@ -1,255 +1,101 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MSTAR 寶物庫存管理後台</title>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>🤎內內的小倉倉🤎</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:"Microsoft JhengHei",Arial,sans-serif;background:#f4f6fa;color:#1f2937}
-header{background:linear-gradient(135deg,#202938,#3b4a63);color:#fff;padding:22px 30px}
-header h1{margin:0 0 6px;font-size:25px}header p{margin:0;opacity:.82}
-.container{max-width:1400px;margin:22px auto;padding:0 20px}
-.card{background:#fff;border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 4px 18px #0000000d}
-.drop{border:2px dashed #9aa7b8;border-radius:14px;padding:38px;text-align:center;background:#fafcff;cursor:pointer}
-.drop.drag{background:#eef5ff;border-color:#4f8cff}.drop strong{font-size:19px}.drop small{display:block;margin-top:8px;color:#6b7280}
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
-button,.btn{border:0;border-radius:9px;padding:10px 16px;background:#334155;color:white;cursor:pointer;font-size:14px}
-button.primary{background:#2563eb}button.green{background:#059669}button.gray{background:#64748b}button.danger{background:#dc2626}
-button:hover{filter:brightness(1.08)}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.stat{padding:17px;border-radius:12px;background:#f8fafc;border:1px solid #e5e7eb}.stat b{display:block;font-size:27px;margin-top:5px}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.toolbar input,.toolbar select{padding:10px;border:1px solid #d1d5db;border-radius:8px;background:white}
-table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid #e5e7eb;text-align:left}th{background:#f8fafc;position:sticky;top:0}
-.thumb{width:62px;height:46px;object-fit:contain;background:#f3f4f6;border-radius:6px}
-.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8f0ff;color:#2563eb;font-size:12px}
-.progress{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:#2563eb;transition:.2s}
-.log{max-height:180px;overflow:auto;background:#111827;color:#d1fae5;border-radius:9px;padding:12px;font:12px Consolas,monospace;white-space:pre-wrap}
-.note{font-size:13px;color:#6b7280;line-height:1.7}.ocr-settings{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px}.ocr-settings label{font-size:13px;color:#475569;display:flex;align-items:center;gap:7px}.ocr-settings select{padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff}
-@media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}table{font-size:13px}}
-</style>
-</head>
-<body>
-<header><h1>🎮 MSTAR 寶物庫存管理後台</h1><p>圖片匯入 → OCR 辨識 → 人物 / 寶物 / 數量整理 → 自動累計 → Excel/CSV 匯出</p></header>
-
-<div class="container">
-  <div class="card">
-    <div id="drop" class="drop">
-      <strong>📷 將 MSTAR 遊戲截圖拖曳到這裡</strong>
-      <small>或點擊選擇多張 JPG / PNG / WEBP 圖片</small>
-      <input id="files" type="file" accept="image/*" multiple hidden>
-    </div>
-    <div class="actions">
-      <button class="primary" onclick="document.getElementById('files').click()">選擇圖片</button>
-      <button class="green" id="ocrBtn">開始 OCR 辨識</button>
-      <button class="gray" id="demoBtn">載入測試資料</button>
-      <button class="gray" id="csvBtn">匯出 CSV</button>
-      <button class="gray" id="jsonBtn">備份 JSON</button>
-      <button class="danger" id="clearBtn">清除全部資料</button>
-    </div>
-    <div class="ocr-settings">
-      <label>辨識模式
-        <select id="ocrMode">
-          <option value="auto" selected>自動強化＋多模式辨識</option>
-          <option value="normal">原圖＋多模式辨識</option>
-          <option value="bw">黑白強化＋多模式辨識</option>
-        </select>
-      </label>
-      <label>放大倍數
-        <select id="scale">
-          <option value="2">2×</option>
-          <option value="3" selected>3×</option>
-          <option value="4">4×</option>
-        </select>
-      </label>
-    </div>
-    <div class="progress"><div id="bar" class="bar"></div></div>
-    <p id="status" class="note">尚未匯入圖片。OCR 使用瀏覽器端 Tesseract.js；會先自動放大、灰階、對比強化並進行多模式辨識，首次使用需要網路載入 OCR 引擎。</p>
-  </div>
-
-  <div class="stats">
-    <div class="stat">人物數<b id="people">0</b></div>
-    <div class="stat">寶物種類<b id="items">0</b></div>
-    <div class="stat">總庫存數<b id="total">0</b></div>
-    <div class="stat">已處理圖片<b id="images">0</b></div>
-  </div>
-
-  <div class="card">
-    <div class="toolbar">
-      <select id="personFilter"><option value="">全部人物</option></select>
-      <input id="search" placeholder="搜尋人物或寶物名稱">
-    </div>
-    <div style="overflow:auto;max-height:560px">
-      <table>
-        <thead><tr><th>圖片</th><th>人物</th><th>寶物名稱</th><th>數量</th><th>來源</th><th>操作</th></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>📋 OCR 辨識紀錄</h3>
-    <div id="log" class="log">等待開始……</div>
-    <p class="note">
-      ※ 本版已加入圖片放大、灰階/黑白強化、PSM 6/11/12 多模式 OCR；遊戲字體很小時可使用 4×。真正要做到「完全依照 MSTAR 畫面自動判斷人物、寶物名稱與數量」，
-      需要用你的實際遊戲截圖建立辨識規則。上傳幾張真實截圖後即可針對版面調整。
-    </p>
-  </div>
+:root{--bg:#f3ebe4;--p:#fffaf6;--line:#d9c1b0;--text:#4d392f;--muted:#8d7467;--a:#b78167}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#f8f2ed,#eee1d7);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{max-width:1050px;margin:auto;padding:22px}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#e5d3c6;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:230px 1fr;gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#f0e3d9;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:var(--a);color:white}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:74px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:74px;height:74px;border-radius:10px;object-fit:cover;background:#e8ddd5}.recFields{display:grid;grid-template-columns:1fr 90px;gap:6px}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
+@media(max-width:700px){.wrap{padding:13px}.stats{grid-template-columns:repeat(2,1fr)}.main{grid-template-columns:1fr}.accounts{flex-direction:row;overflow:auto}.acc{min-width:100px}.items{grid-template-columns:1fr}}
+#shotDlg{
+ width:min(1180px,94vw);
+ max-width:none;
+ height:min(860px,92vh);
+ max-height:92vh;
+ padding:22px;
+ overflow:auto;
+}
+#shotDlg #shotImg{max-height:420px!important}
+#shotDlg #recognized{max-height:none}
+@media(max-width:700px){
+ #shotDlg{width:96vw;height:94vh;max-height:94vh;padding:14px}
+ #shotDlg #shotImg{max-height:300px!important}
+}
+#authGate{position:fixed;inset:0;z-index:9999;background:linear-gradient(#f8f2ed,#eee1d7);display:grid;place-items:center;padding:20px}
+#authGate .loginCard{width:min(430px,92vw);background:var(--p);border:1px solid var(--line);border-radius:22px;padding:28px;text-align:center;box-shadow:0 18px 55px #6d514322}
+#authGate h2{margin:0 0 8px}#authGate p{color:var(--muted);margin:0 0 18px}.hidden{display:none!important}
+#app{visibility:hidden}
+.authbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+</style></head><body>
+<div id="authGate"><div class="loginCard"><h2>🤎內內的小倉倉🤎</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
+<div id="app"><div class="wrap">
+<div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>🤎內內的小倉倉🤎</h1><p>庫存管理</p></header>
+<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
+<div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
+<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><button class="btn" id="newA">＋</button></div><div class="accounts" id="accounts"></div></aside>
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
+<button class="btn primary catTab active" data-cat="家具">家具</button>
+<button class="btn catTab" data-cat="玩偶">玩偶</button>
+<button class="btn catTab" data-cat="花盆">花盆</button>
+<button class="btn catTab" data-cat="戒指">戒指</button>
+<button class="btn catTab" data-cat="作物">作物</button>
+<button class="btn catTab" data-cat="寵物">寵物</button>
+<button class="btn catTab" data-cat="材料">材料</button>
 </div>
+<div class="genderTabs" id="genderTabs" style="display:none">
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script>
-const state={files:[],rows:[],processed:0};
-const $=id=>document.getElementById(id);
-const log=m=>{$('log').textContent += "\\n"+m;$('log').scrollTop=$('log').scrollHeight};
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function render(){
- const q=$('search').value.trim().toLowerCase(), pf=$('personFilter').value;
- const data=state.rows.filter(r=>(!pf||r.person===pf)&&(!q||(r.person+' '+r.item).toLowerCase().includes(q)));
- $('tbody').innerHTML=data.map((r,i)=>`<tr>
- <td>${r.src?`<img class="thumb" src="${r.src}">`:'—'}</td>
- <td><span class="badge">${esc(r.person)}</span></td>
- <td>${esc(r.item)}</td><td><b>${r.qty}</b></td><td>${esc(r.file||'')}</td>
- <td><button onclick="editRow(${state.rows.indexOf(r)})">編輯</button></td></tr>`).join('');
- const people=[...new Set(state.rows.map(r=>r.person))].filter(Boolean);
- $('personFilter').innerHTML='<option value="">全部人物</option>'+people.map(p=>`<option>${esc(p)}</option>`).join('');
- $('people').textContent=people.length;
- $('items').textContent=new Set(state.rows.map(r=>r.person+'|'+r.item)).size;
- $('total').textContent=state.rows.reduce((a,r)=>a+(Number(r.qty)||0),0);
- $('images').textContent=state.processed;
-}
-window.editRow=i=>{
- const r=state.rows[i]; if(!r)return;
- const person=prompt('人物名稱',r.person); if(person===null)return;
- const item=prompt('寶物名稱',r.item); if(item===null)return;
- const qty=prompt('數量',r.qty); if(qty===null)return;
- r.person=person.trim()||r.person;r.item=item.trim()||r.item;r.qty=Math.max(0,parseInt(qty)||0);render();
-};
-$('files').onchange=e=>addFiles([...e.target.files]);
-function addFiles(fs){state.files.push(...fs);$('status').textContent=`已加入 ${state.files.length} 張圖片，按「開始 OCR 辨識」。`;render();}
-$('drop').onclick=()=> $('files').click();
-$('drop').ondragover=e=>{e.preventDefault();$('drop').classList.add('drag')};
-$('drop').ondragleave=()=> $('drop').classList.remove('drag');
-$('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('drag');addFiles([...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')))};
+<button class="btn genderTab" data-gender="限男">限男</button>
+<button class="btn genderTab" data-gender="限女">限女</button>
+</div>
+<div class="items" id="items"></div><div class="note">資料會儲存在你的 Firebase Firestore；只有指定的 Google 帳號可讀寫。</div></main></div></div></div>
+<dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div><div class="actions"><button class="btn" onclick="editAd.close()">取消</button><button class="btn primary" id="eas">儲存</button></div></div></dialog><dialog id="ad"><h3>新增帳號</h3><div class="field"><label>帳號名稱／編號</label><input id="an" placeholder="例如：457"></div><div class="actions"><button class="btn" onclick="ad.close()">取消</button><button class="btn primary" id="as">新增</button></div></dialog>
+<dialog id="editItemDlg"><div class="modal">
+<h3>修改道具</h3>
+<div class="field"><label>名稱</label><input id="editItemName"></div>
+<div class="field"><label>分類</label><select id="editItemCat">
+<option value="家具">家具</option>
+<option value="玩偶">玩偶</option>
+<option value="花盆">花盆</option>
+<option value="戒指">戒指</option>
+<option value="作物">作物</option>
+<option value="寵物">寵物</option>
+<option value="材料">材料</option>
+</select></div>
+<div class="field" id="editItemGenderField"><label>限制</label><select id="editItemGender">
+<option value="限男">限男</option><option value="限女">限女</option>
+</select></div>
+<div class="field"><label>款式／顏色</label><input id="editItemVariant"></div>
+<div class="field"><label>數量</label><input id="editItemQty" type="number" min="1"></div>
+<div class="actions"><button class="btn" id="editItemCancel">取消</button><button class="btn primary" id="editItemSave">儲存修改</button></div>
+</div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>物品名稱</label><input id="in" placeholder="例如：海底珊瑚拍照區"></div><div class="field"><label>分類</label><select id="ic">
+<option value="家具">家具</option>
+<option value="玩偶">玩偶</option>
+<option value="花盆">花盆</option>
+<option value="戒指">戒指</option>
+<option value="作物">作物</option>
+<option value="寵物">寵物</option>
+<option value="材料">材料</option>
+</select></div>
+<div class="field" id="genderField"><label>限制</label><select id="ig">
+<option value="限男">限男</option>
+<option value="限女">限女</option>
+</select></div><div class="field"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
+<dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
+<div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
+<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
+<div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
+<div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-function loadImage(file){
-  return new Promise((resolve,reject)=>{
-    const img=new Image(), url=URL.createObjectURL(file);
-    img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};
-    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('圖片載入失敗'))};
-    img.src=url;
-  });
-}
-function canvasFromImage(img, mode='auto', scale=3){
-  let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
-  const maxSide=5000, s=Math.min(scale,maxSide/Math.max(w,h));
-  w=Math.max(1,Math.round(w*s)); h=Math.max(1,Math.round(h*s));
-  const c=document.createElement('canvas'); c.width=w;c.height=h;
-  const ctx=c.getContext('2d',{willReadFrequently:true});
-  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-  ctx.drawImage(img,0,0,w,h);
-  if(mode==='normal') return c;
-  const d=ctx.getImageData(0,0,w,h), a=d.data;
-  for(let i=0;i<a.length;i+=4){
-    const g=.299*a[i]+.587*a[i+1]+.114*a[i+2];
-    let v=Math.max(0,Math.min(255,(g-128)*1.55+128));
-    if(mode==='bw') v=v>170?255:0;
-    a[i]=a[i+1]=a[i+2]=v;
-  }
-  ctx.putImageData(d,0,0);
-  return c;
-}
-async function recognizePass(image, psm, label, file){
-  return await Tesseract.recognize(image,'chi_tra+eng',{
-    logger:m=>{
-      if(m.status==='recognizing text'){
-        $('status').textContent=`OCR：${file.name}｜${label}｜${Math.round((m.progress||0)*100)}%`;
-      }
-    },
-    config:{tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1',user_defined_dpi:'300'}
-  });
-}
-function normalizeOCR(text){
-  return String(text||'').replace(/\r/g,'\n').replace(/[ \t]+/g,' ')
-    .split('\n').map(x=>x.trim()).filter(Boolean).join('\n');
-}
-function scoreOCR(text){
-  const s=normalizeOCR(text); if(!s)return -1;
-  return Math.min(s.length,500)+(s.match(/[\u4e00-\u9fff]/g)||[]).length*4
-    +(s.match(/\d+/g)||[]).length*8
-    -(s.match(/[^\u4e00-\u9fffA-Za-z0-9\s:：,.，×xX_+\-]/g)||[]).length*2;
-}
-function parseText(text){
-  const raw=normalizeOCR(text), lines=raw.split('\n').map(x=>x.trim()).filter(Boolean);
-  let person='',item='',qty=0;
-  const pl=lines.find(x=>/(人物|角色|玩家|player|name)\s*[:：]/i.test(x));
-  const il=lines.find(x=>/(寶物|道具|物品|item)\s*[:：]/i.test(x));
-  if(pl) person=pl.replace(/.*?(人物|角色|玩家|player|name)\s*[:：]?\s*/i,'').trim();
-  if(il) item=il.replace(/.*?(寶物|道具|物品|item)\s*[:：]?\s*/i,'').trim();
-  const nums=[...raw.matchAll(/(?:数量|數量|qty|quantity)\s*[:：]?\s*(\d{1,6})/gi),...raw.matchAll(/[x×]\s*(\d{1,6})/gi)]
-    .map(m=>Number(m[1])).filter(n=>n>=1&&n<=999999);
-  if(nums.length) qty=nums[nums.length-1];
-  if(!person){
-    const c=lines.find(x=>/[\u4e00-\u9fff]/.test(x)&&x.length<=24&&!/(寶物|道具|物品|商城|背包|數量|返回|確定|取消)/.test(x));
-    if(c) person=c;
-  }
-  if(!item){
-    const c=lines.find(x=>/[\u4e00-\u9fff]/.test(x)&&x.length<=40&&/(寶物|道具|物品|箱|石|星|券|卡|服|武器)/.test(x));
-    if(c) item=c;
-  }
-  if(!item){
-    const c=lines.find(x=>/[\u4e00-\u9fff]/.test(x)&&x.length<=50);
-    if(c) item=c;
-  }
-  return {person:person||'未辨識人物',item:item||'未辨識寶物',qty:qty||1,raw};
-}
-async function ocrFile(file){
-  const img=await loadImage(file), mode=$('ocrMode').value, scale=Number($('scale').value||3);
-  const passes=mode==='normal'
-    ? [{img:canvasFromImage(img,'normal',scale),psm:6,label:'原圖'}]
-    : [{img:canvasFromImage(img,mode,scale),psm:6,label:'區塊文字'},
-       {img:canvasFromImage(img,mode,scale),psm:11,label:'稀疏文字'},
-       {img:canvasFromImage(img,mode,scale),psm:12,label:'稀疏文字2'}];
-  let best={text:'',score:-1};
-  for(const p of passes){
-    const r=await recognizePass(p.img,p.psm,p.label,file), text=normalizeOCR(r.data.text), score=scoreOCR(text);
-    if(score>best.score) best={text,score};
-  }
-  return {text:best.text,src:URL.createObjectURL(file)};
-}
-
-$('ocrBtn').onclick=async()=>{
-  if(!state.files.length){alert('請先放入圖片');return}
-  $('ocrBtn').disabled=true; state.processed=0; state.rows=[]; $('bar').style.width='0%'; render();
-  for(const file of state.files){
-    try{
-      log(`\n[處理] ${file.name}`);
-      const o=await ocrFile(file), p=parseText(o.text);
-      state.rows.push({file:file.name,src:o.src,...p});
-      log(`[結果] 人物=${p.person} | 寶物=${p.item} | 數量=${p.qty}`);
-      log(`[OCR文字] ${p.raw.slice(0,500).replace(/\n/g,' / ')}`);
-    }catch(e){log(`[錯誤] ${file.name}: ${e.message}`)}
-    state.processed++; $('bar').style.width=Math.round(state.processed/state.files.length*100)+'%'; render();
-  }
-  $('status').textContent='OCR 處理完成。若仍有錯字，可切換辨識模式或 4× 後重新辨識。';
-  $('ocrBtn').disabled=false;
+const firebaseConfig={
+  apiKey:"AIzaSyB9z86iYzYFqZSSzhGXaeks5TSuD_Hyoow",
+  authDomain:"nene-items.firebaseapp.com",
+  projectId:"nene-items",
+  storageBucket:"nene-items.firebasestorage.app",
+  messagingSenderId:"202198636789",
+  appId:"1:202198636789:web:39602fb7a9354bd29e8dbc"
 };
-
-$('demoBtn').onclick=()=>{
- state.rows=[
-  {file:'小明_01.png',person:'小明',item:'黃金寶箱',qty:3},
-  {file:'小明_02.png',person:'小明',item:'黃金寶箱',qty:5},
-  {file:'小明_03.png',person:'小明',item:'幸運星',qty:7},
-  {file:'小美_01.png',person:'小美',item:'黃金寶箱',qty:4},
-  {file:'小美_02.png',person:'小美',item:'愛心寶石',qty:8}
- ];state.processed=5;render();log('[測試] 已載入範例庫存資料。');
-};
-function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();}
-$('csvBtn').onclick=()=>{
- let s='人物,寶物名稱,數量,來源圖片\\n'+state.rows.map(r=>[r.person,r.item,r.qty,r.file].map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(',')).join('\\n');
- download('MSTAR_寶物庫存.csv','\\ufeff'+s,'text/csv;charset=utf-8');
-};
-$('jsonBtn').onclick=()=>download('MSTAR_寶物庫存備份.json',JSON.stringify(state.rows.map(({src,...r})=>r),null,2),'application/json');
-$('clearBtn').onclick=()=>{if(confirm('確定清除全部辨識資料？')){state.rows=[];state.files=[];state.processed=0;$('bar').style.width='0';render();}};
-$('search').oninput=render;$('personFilter').onchange=render;render();
-</script>
-</body>
-</html>
+const ADMIN_UID="VH01zo4CmggCXzoOC5UKqUMm2Xp1";
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
+... (還剩 429 行)
