@@ -88,12 +88,13 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRe
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
-  apiKey:"OO_FIREBASE_API_KEY",
-  authDomain:"OO_PROJECT_ID.firebaseapp.com",
-  projectId:"OO_PROJECT_ID",
-  storageBucket:"OO_PROJECT_ID.firebasestorage.app",
-  messagingSenderId:"OO_MESSAGING_SENDER_ID",
-  appId:"OO_APP_ID"
+  apiKey:"AIzaSyCPcOUY5K5mc-uil7c4k2abU8uu74uQRyk",
+  authDomain:"oo-items-web.firebaseapp.com",
+  projectId:"oo-items-web",
+  storageBucket:"oo-items-web.firebasestorage.app",
+  messagingSenderId:"163929322708",
+  appId:"1:163929322708:web:1013bafd19150e94a97741",
+  measurementId:"G-0DPHJWK51T"
 };
 const ADMIN_UID="OO_GOOGLE_UID";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
