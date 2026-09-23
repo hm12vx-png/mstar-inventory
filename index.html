@@ -23,7 +23,7 @@ table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8f0ff;color:#2563eb;font-size:12px}
 .progress{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:#2563eb;transition:.2s}
 .log{max-height:180px;overflow:auto;background:#111827;color:#d1fae5;border-radius:9px;padding:12px;font:12px Consolas,monospace;white-space:pre-wrap}
-.note{font-size:13px;color:#6b7280;line-height:1.7}
+.note{font-size:13px;color:#6b7280;line-height:1.7}.ocr-settings{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px}.ocr-settings label{font-size:13px;color:#475569;display:flex;align-items:center;gap:7px}.ocr-settings select{padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff}
 @media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}table{font-size:13px}}
 </style>
 </head>
@@ -45,8 +45,24 @@ table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:
       <button class="gray" id="jsonBtn">備份 JSON</button>
       <button class="danger" id="clearBtn">清除全部資料</button>
     </div>
+    <div class="ocr-settings">
+      <label>辨識模式
+        <select id="ocrMode">
+          <option value="auto" selected>自動強化＋多模式辨識</option>
+          <option value="normal">原圖＋多模式辨識</option>
+          <option value="bw">黑白強化＋多模式辨識</option>
+        </select>
+      </label>
+      <label>放大倍數
+        <select id="scale">
+          <option value="2">2×</option>
+          <option value="3" selected>3×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+    </div>
     <div class="progress"><div id="bar" class="bar"></div></div>
-    <p id="status" class="note">尚未匯入圖片。OCR 功能使用瀏覽器端 Tesseract.js；首次使用需要網路載入 OCR 引擎。</p>
+    <p id="status" class="note">尚未匯入圖片。OCR 使用瀏覽器端 Tesseract.js；會先自動放大、灰階、對比強化並進行多模式辨識，首次使用需要網路載入 OCR 引擎。</p>
   </div>
 
   <div class="stats">
@@ -73,7 +89,7 @@ table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:
     <h3>📋 OCR 辨識紀錄</h3>
     <div id="log" class="log">等待開始……</div>
     <p class="note">
-      ※ 這是可直接在 Windows 瀏覽器開啟的 HTML 第一版。真正要做到「完全依照 MSTAR 畫面自動判斷人物、寶物名稱與數量」，
+      ※ 本版已加入圖片放大、灰階/黑白強化、PSM 6/11/12 多模式 OCR；遊戲字體很小時可使用 4×。真正要做到「完全依照 MSTAR 畫面自動判斷人物、寶物名稱與數量」，
       需要用你的實際遊戲截圖建立辨識規則。上傳幾張真實截圖後即可針對版面調整。
     </p>
   </div>
@@ -114,40 +130,109 @@ $('drop').ondragover=e=>{e.preventDefault();$('drop').classList.add('drag')};
 $('drop').ondragleave=()=> $('drop').classList.remove('drag');
 $('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('drag');addFiles([...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')))};
 
-async function ocrFile(file){
- const src=URL.createObjectURL(file);
- const result=await Tesseract.recognize(src,'chi_tra+eng',{logger:m=>{
-   if(m.status==='recognizing text') $('status').textContent=`OCR：${file.name} ${Math.round((m.progress||0)*100)}%`;
- }});
- return {text:result.data.text,src};
+function loadImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('圖片載入失敗'))};
+    img.src=url;
+  });
+}
+function canvasFromImage(img, mode='auto', scale=3){
+  let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+  const maxSide=5000, s=Math.min(scale,maxSide/Math.max(w,h));
+  w=Math.max(1,Math.round(w*s)); h=Math.max(1,Math.round(h*s));
+  const c=document.createElement('canvas'); c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(img,0,0,w,h);
+  if(mode==='normal') return c;
+  const d=ctx.getImageData(0,0,w,h), a=d.data;
+  for(let i=0;i<a.length;i+=4){
+    const g=.299*a[i]+.587*a[i+1]+.114*a[i+2];
+    let v=Math.max(0,Math.min(255,(g-128)*1.55+128));
+    if(mode==='bw') v=v>170?255:0;
+    a[i]=a[i+1]=a[i+2]=v;
+  }
+  ctx.putImageData(d,0,0);
+  return c;
+}
+async function recognizePass(image, psm, label, file){
+  return await Tesseract.recognize(image,'chi_tra+eng',{
+    logger:m=>{
+      if(m.status==='recognizing text'){
+        $('status').textContent=`OCR：${file.name}｜${label}｜${Math.round((m.progress||0)*100)}%`;
+      }
+    },
+    config:{tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1',user_defined_dpi:'300'}
+  });
+}
+function normalizeOCR(text){
+  return String(text||'').replace(/\r/g,'\n').replace(/[ \t]+/g,' ')
+    .split('\n').map(x=>x.trim()).filter(Boolean).join('\n');
+}
+function scoreOCR(text){
+  const s=normalizeOCR(text); if(!s)return -1;
+  return Math.min(s.length,500)+(s.match(/[\u4e00-\u9fff]/g)||[]).length*4
+    +(s.match(/\d+/g)||[]).length*8
+    -(s.match(/[^\u4e00-\u9fffA-Za-z0-9\s:：,.，×xX_+\-]/g)||[]).length*2;
 }
 function parseText(text){
- // 通用第一版：嘗試抓「人物／寶物／數量」關鍵字；MSTAR 專用規則之後依實際截圖調整。
- const lines=text.split(/\\n+/).map(x=>x.trim()).filter(Boolean);
- let person='未辨識人物', item='未辨識寶物', qty=0;
- const pm=lines.find(x=>/人物|角色|player|name/i.test(x));
- if(pm) person=pm.replace(/人物|角色|player|name/ig,'').replace(/[:：]/,'').trim()||person;
- const nm=lines.find(x=>/寶物|道具|item/i.test(x));
- if(nm) item=nm.replace(/寶物|道具|item/ig,'').replace(/[:：]/,'').trim()||item;
- const nums=[...text.matchAll(/(?:x|×|数量|數量|qty)?\\s*[:：]?\\s*(\\d{1,6})/gi)].map(m=>+m[1]).filter(n=>n>=1);
- if(nums.length) qty=nums[nums.length-1];
- if(item==='未辨識寶物' && lines.length) item=lines[0];
- return {person,item,qty:qty||1};
+  const raw=normalizeOCR(text), lines=raw.split('\n').map(x=>x.trim()).filter(Boolean);
+  let person='',item='',qty=0;
+  const pl=lines.find(x=>/(人物|角色|玩家|player|name)\s*[:：]/i.test(x));
+  const il=lines.find(x=>/(寶物|道具|物品|item)\s*[:：]/i.test(x));
+  if(pl) person=pl.replace(/.*?(人物|角色|玩家|player|name)\s*[:：]?\s*/i,'').trim();
+  if(il) item=il.replace(/.*?(寶物|道具|物品|item)\s*[:：]?\s*/i,'').trim();
+  const nums=[...raw.matchAll(/(?:数量|數量|qty|quantity)\s*[:：]?\s*(\d{1,6})/gi),...raw.matchAll(/[x×]\s*(\d{1,6})/gi)]
+    .map(m=>Number(m[1])).filter(n=>n>=1&&n<=999999);
+  if(nums.length) qty=nums[nums.length-1];
+  if(!person){
+    const c=lines.find(x=>/[\u4e00-\u9fff]/.test(x)&&x.length<=24&&!/(寶物|道具|物品|商城|背包|數量|返回|確定|取消)/.test(x));
+    if(c) person=c;
+  }
+  if(!item){
+    const c=lines.find(x=>/[\u4e00-\u9fff]/.test(x)&&x.length<=40&&/(寶物|道具|物品|箱|石|星|券|卡|服|武器)/.test(x));
+    if(c) item=c;
+  }
+  if(!item){
+    const c=lines.find(x=>/[\u4e00-\u9fff]/.test(x)&&x.length<=50);
+    if(c) item=c;
+  }
+  return {person:person||'未辨識人物',item:item||'未辨識寶物',qty:qty||1,raw};
 }
+async function ocrFile(file){
+  const img=await loadImage(file), mode=$('ocrMode').value, scale=Number($('scale').value||3);
+  const passes=mode==='normal'
+    ? [{img:canvasFromImage(img,'normal',scale),psm:6,label:'原圖'}]
+    : [{img:canvasFromImage(img,mode,scale),psm:6,label:'區塊文字'},
+       {img:canvasFromImage(img,mode,scale),psm:11,label:'稀疏文字'},
+       {img:canvasFromImage(img,mode,scale),psm:12,label:'稀疏文字2'}];
+  let best={text:'',score:-1};
+  for(const p of passes){
+    const r=await recognizePass(p.img,p.psm,p.label,file), text=normalizeOCR(r.data.text), score=scoreOCR(text);
+    if(score>best.score) best={text,score};
+  }
+  return {text:best.text,src:URL.createObjectURL(file)};
+}
+
 $('ocrBtn').onclick=async()=>{
- if(!state.files.length){alert('請先放入圖片');return}
- $('ocrBtn').disabled=true;state.processed=0;
- for(const file of state.files){
-  try{
-   log(`\\n[處理] ${file.name}`);
-   const o=await ocrFile(file), p=parseText(o.text);
-   state.rows.push({file:file.name,src:o.src,...p});
-   state.processed++; log(`[結果] 人物=${p.person} | 寶物=${p.item} | 數量=${p.qty}`);
-  }catch(e){log(`[錯誤] ${file.name}: ${e.message}`)}
-  $('bar').style.width=Math.round(state.processed/state.files.length*100)+'%';render();
- }
- $('status').textContent='OCR 處理完成。請檢查表格並修正辨識結果。';$('ocrBtn').disabled=false;
+  if(!state.files.length){alert('請先放入圖片');return}
+  $('ocrBtn').disabled=true; state.processed=0; state.rows=[]; $('bar').style.width='0%'; render();
+  for(const file of state.files){
+    try{
+      log(`\n[處理] ${file.name}`);
+      const o=await ocrFile(file), p=parseText(o.text);
+      state.rows.push({file:file.name,src:o.src,...p});
+      log(`[結果] 人物=${p.person} | 寶物=${p.item} | 數量=${p.qty}`);
+      log(`[OCR文字] ${p.raw.slice(0,500).replace(/\n/g,' / ')}`);
+    }catch(e){log(`[錯誤] ${file.name}: ${e.message}`)}
+    state.processed++; $('bar').style.width=Math.round(state.processed/state.files.length*100)+'%'; render();
+  }
+  $('status').textContent='OCR 處理完成。若仍有錯字，可切換辨識模式或 4× 後重新辨識。';
+  $('ocrBtn').disabled=false;
 };
+
 $('demoBtn').onclick=()=>{
  state.rows=[
   {file:'小明_01.png',person:'小明',item:'黃金寶箱',qty:3},
