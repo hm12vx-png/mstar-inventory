@@ -23,9 +23,9 @@
 #app{visibility:hidden}
 .authbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--muted)}
 </style></head><body>
-<div id="authGate"><div class="loginCard"><h2>🤎內內的小倉倉🤎</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
+<div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
-<div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>🤎內內的小倉倉🤎</h1><p>庫存管理</p></header>
+<div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>MSTAR 庫存管理</h1><p>庫存管理</p></header>
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><button class="btn" id="newA">＋</button></div><div class="accounts" id="accounts"></div></aside>
@@ -98,4 +98,432 @@ const firebaseConfig={
 const ADMIN_UID="OO_GOOGLE_UID";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
-... (還剩 429 行)
+const ad=$("#ad"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
+let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="", activeGender="";
+const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dataRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
+function cur(){return d.accounts.find(a=>a.id===active)}
+async function loadCloud(){
+  const snap=await getDoc(dataRef());
+  d=snap.exists()?snap.data():{accounts:[]};
+  if(!Array.isArray(d.accounts)) d.accounts=[]; if(!Array.isArray(d.itemMemory)) d.itemMemory=[];
+  active=d.accounts[0]?.id||null;
+  render();
+}
+async function save(){
+  if(!currentUser)return;
+  d.updated=new Date().toLocaleString("zh-TW");
+  saving=true;
+  try{await setDoc(dataRef(),d);render()}
+  catch(err){console.error(err);alert("雲端儲存失敗，請稍後再試。")}
+  finally{saving=false}
+}
+function render(){
+  let a=cur();
+  $("#accounts").innerHTML=d.accounts.length?d.accounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}</span><small>${x.items.reduce((n,i)=>n+i.qty,0)}件</small></div>`).join(""):'<div class="empty">還沒有帳號</div>';
+  document.querySelectorAll(".acc").forEach(x=>x.onclick=()=>{active=x.dataset.id;render()});
+  $("#title").textContent=a?`帳號 ${a.number||a.name||""}${a.gameId?`｜${a.gameId}`:""}｜物品庫`:"請先選擇帳號";
+  $("#deleteAccount").style.display=a?"inline-block":"none";$("#editAccount").style.display=a?"inline-block":"none";
+  const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>(!activeCategory || x.category===activeCategory) && (!activeGender || x.gender===activeGender)) : [];
+  $("#items").innerHTML=!a?'<div class="empty">先新增／選擇帳號</div>':visibleItems.length?visibleItems.map(x=>`<div class="item"><div class="thumb">${x.image?`<img src="${x.image}" alt="">`:"🎁"}</div><div><h3>${e(x.name)}</h3><div class="meta">${e(x.category||"未分類")}${x.gender?"｜"+e(x.gender):""}｜${x.variant?"款式："+e(x.variant):"無款式"}</div></div><div class="itemActions"><div class="qty">× ${x.qty}</div><button class="mini editItem" data-i="${x._index}">修改</button><button class="mini del deleteItem" data-i="${x._index}">刪除</button></div></div>`).join(""):'<div class="empty">這個分類目前沒有物品</div>';
+  document.querySelectorAll(".editItem").forEach(b=>b.onclick=()=>{
+    const a=cur(), i=+b.dataset.i, x=a.items[i];
+    editItemDlg.dataset.index=i;
+    $("#editItemName").value=x.name||"";
+    $("#editItemCat").value=x.category||"家具";
+    $("#editItemGender").value=x.gender||"限男";
+    $("#editItemVariant").value=x.variant||"";
+    $("#editItemQty").value=x.qty||1;
+    $("#editItemGenderField").style.display=(x.category==="戒指"||x.category==="作物")?"block":"none";
+    editItemDlg.showModal();
+  });
+  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=async()=>{let a=cur(),x=a.items[+b.dataset.i];if(confirm(`確定刪除「${x.name}${x.variant?"－"+x.variant:""}」？`)){a.items.splice(+b.dataset.i,1);await save()}});
+  let all=d.accounts.flatMap(a=>a.items);
+  $("#sa").textContent=d.accounts.length;
+  $("#sk").textContent=new Set(all.map(x=>x.name+"|"+x.variant)).size;
+  $("#sq").textContent=all.reduce((n,x)=>n+x.qty,0);
+  $("#su").textContent=d.updated||"尚未";
+}
+$("#editItemCat").onchange=()=>{$("#editItemGenderField").style.display=($("#editItemCat").value==="戒指"||$("#editItemCat").value==="作物")?"block":"none"};
+$("#editItemCancel").onclick=()=>editItemDlg.close();
+$("#editItemSave").onclick=async()=>{
+  const a=cur(),i=+editItemDlg.dataset.index,x=a?.items?.[i];
+  if(!x)return;
+  const name=$("#editItemName").value.trim();
+  if(!name)return alert("請輸入道具名稱");
+  const cat=$("#editItemCat").value;
+  x.name=name;
+  x.category=cat;
+  x.gender=(cat==="戒指"||cat==="作物")?$("#editItemGender").value:"";
+  x.variant=$("#editItemVariant").value.trim();
+  x.qty=Math.max(1,+$("#editItemQty").value||1);
+  await rememberItemName(x.image,x.name,x.variant);
+  editItemDlg.close();
+  await save();
+};
+document.querySelectorAll(".catTab").forEach(btn=>btn.onclick=()=>{activeCategory=btn.dataset.cat||"";activeGender=(activeCategory==="作物"||activeCategory==="戒指")?"限男":"";document.querySelectorAll(".catTab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");document.querySelectorAll(".genderTab").forEach(x=>x.classList.toggle("active",x.dataset.gender===activeGender));$("#genderTabs").style.display=(activeCategory==="作物"||activeCategory==="戒指")?"flex":"none";render()});
+document.querySelectorAll(".genderTab").forEach(btn=>btn.onclick=()=>{activeGender=btn.dataset.gender||"";document.querySelectorAll(".genderTab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");render()});
+$("#ic").onchange=()=>{$("#genderField").style.display=($("#ic").value==="作物"||$("#ic").value==="戒指")?"block":"none"};
+$("#newA").onclick=()=>ad.showModal();
+$("#as").onclick=async()=>{let n=$("#an").value.trim();if(!n)return;let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:"",items:[]});active=id;$("#an").value="";ad.close();await save()};
+$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");idg.showModal()};
+$("#is").onclick=async()=>{let a=cur(),n=$("#in").value.trim(),v=$("#iv").value.trim(),cat=$("#ic").value||"家具",gender=(cat==="作物"||cat==="戒指")?($("#ig").value||"限男"):"",q=Math.max(1,+$("#iq").value||1);if(!n)return;let same=a.items.find(x=>x.name===n&&x.variant===v&&x.category===cat&&(x.gender||"")===gender);same?same.qty+=q:a.items.push({name:n,category:cat,gender,variant:v,qty:q});$("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()};
+function search(){
+  const raw=$("#q").value.trim();
+  const q=raw.toLowerCase();
+  if(!q){
+    $("#results").style.display="none";
+    $("#grandTotal").style.display="none";
+    return;
+  }
+  const r=[];
+  d.accounts.forEach(a=>(a.items||[]).forEach(x=>{
+    const hay=[x.name,x.variant,x.category,x.gender].filter(Boolean).join(" ").toLowerCase();
+    if(hay.includes(q)) r.push({account:a.name||a.number||"",gameId:a.gameId||"",...x});
+  }));
+  const total=r.reduce((n,x)=>n+(Number(x.qty)||0),0);
+  const maleTotal=r.filter(x=>x.gender==="限男").reduce((n,x)=>n+(Number(x.qty)||0),0);
+  const femaleTotal=r.filter(x=>x.gender==="限女").reduce((n,x)=>n+(Number(x.qty)||0),0);
+
+  const groups=new Map();
+  r.forEach(x=>{
+    const key=[x.name||"",x.variant||"",x.category||"",x.gender||""].join("|");
+    const g=groups.get(key)||{...x,qty:0};
+    g.qty+=(Number(x.qty)||0);
+    groups.set(key,g);
+  });
+
+  $("#grandTotal").innerHTML=`<b>🔎「${e(raw)}」搜尋結果</b>
+    <div class="total" style="font-size:18px;margin-top:8px">共 ${r.length} 筆紀錄｜總數量 ${total} 個</div>
+    ${(maleTotal||femaleTotal)?`<div class="meta" style="margin-top:5px">限男：${maleTotal} 個　｜　限女：${femaleTotal} 個</div>`:""}`;
+  $("#grandTotal").style.display="block";
+
+  if(!r.length){
+    $("#results").innerHTML='<div class="empty">找不到符合的道具</div>';
+  }else{
+    const summary=[...groups.values()].map(x=>`<div class="row"><span>${e(x.name||"未命名")}${x.variant?"－"+e(x.variant):""}｜${e(x.category||"未分類")}${x.gender?"／"+e(x.gender):""}</span><b>共 × ${x.qty}</b></div>`).join("");
+    const details=r.map(x=>`<div class="row"><span>${e(x.account)}${x.gameId?"｜"+e(x.gameId):""}｜${e(x.name||"未命名")}${x.variant?"－"+e(x.variant):""}</span><b>× ${Number(x.qty)||0}</b></div>`).join("");
+    $("#results").innerHTML=`<b>道具總計</b>${summary}<div style="border-top:1px dashed var(--line);margin:10px 0"></div><b>各 ID 庫存</b>${details}`;
+  }
+  $("#results").style.display="block";
+}
+$("#go").onclick=search;$("#q").onkeydown=x=>x.key==="Enter"&&search();
+$("#editAccount").onclick=()=>{const a=cur();if(!a)return;$("#ean").value=a.number||a.name||"";$("#eid").value=a.gameId||"";editAd.showModal()};
+$("#eas").onclick=async()=>{const a=cur();if(!a)return;const n=$("#ean").value.trim(),gid=$("#eid").value.trim();if(!n)return alert("請輸入編號");a.number=n;a.name=n;a.gameId=gid;editAd.close();await save()};
+
+$("#deleteAccount").onclick=async()=>{let a=cur();if(!a)return;if(confirm(`確定刪除帳號「${a.name}」？\n這只會刪除這個帳號與它的庫存，其他帳號不受影響。`)){d.accounts=d.accounts.filter(x=>x.id!==a.id);active=d.accounts[0]?.id||null;await save()}};
+
+let recognizedRows=[];
+$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
+$("#dropShot").onclick=()=>$("#shotFile").click();
+$("#dropShot").ondragover=e=>{e.preventDefault()};
+$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
+$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
+let sourceImage=null;
+function loadShot(f){
+  let u=URL.createObjectURL(f), img=new Image();
+  img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
+  img.src=u;
+}
+function cropGridImage(img,index,cols=4){
+  if(!img)return "";
+  const rows=Math.ceil(16/cols), col=index%cols, row=Math.floor(index/cols);
+  const cw=img.naturalWidth/cols, ch=img.naturalHeight/rows;
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.round(cw); canvas.height=Math.round(ch);
+  const ctx=canvas.getContext("2d");
+  ctx.drawImage(img,col*cw,row*ch,cw,ch,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL("image/jpeg",.88);
+}
+function drawRecognized(){
+ $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
+   ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
+   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改；你修正後按確認，網站會把「道具圖片＝你輸入的名稱」記到雲端。下次遇到相同道具會優先使用你修正過的名稱。OCR 信心不足時顯示「待確認」。</div></div>
+   <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
+ </div>`).join("");
+ document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
+ document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()});
+}
+function inferCardGrid(img){
+  // MSTAR item cards keep a nearly fixed card aspect ratio (~0.84–0.87 W/H).
+  // Infer rows/columns from the screenshot itself, so 2 items and full pages both work.
+  let best=null;
+  for(let cols=1;cols<=6;cols++){
+    for(let rows=1;rows<=8;rows++){
+      const cw=img.naturalWidth/cols, ch=img.naturalHeight/rows;
+      const aspect=cw/ch;
+      const score=Math.abs(aspect-.85) + (cols===1&&img.naturalWidth>250?.25:0);
+      if(!best || score<best.score) best={cols,rows,cw,ch,score};
+    }
+  }
+  return best;
+}
+function cropRect(img,sx,sy,sw,sh,quality=.9){
+  const c=document.createElement("canvas");
+  c.width=Math.max(1,Math.round(sw)); c.height=Math.max(1,Math.round(sh));
+  c.getContext("2d").drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+  return c.toDataURL("image/jpeg",quality);
+}
+function cardCrop(img,col,row,g){
+  return cropRect(img,col*g.cw,row*g.ch,g.cw,g.ch,.9);
+}
+function cardNameCrop(img,col,row,g){
+  // In the supplied MSTAR screenshots, the item-name line sits directly
+  // above the "查看詳情" button. OCR only this narrow band, not the whole UI.
+  const x=col*g.cw, y=row*g.ch;
+  return cropRect(img,x+g.cw*.02,y+g.ch*.70,g.cw*.96,g.ch*.145,1);
+}
+function cardRestrictionCrop(img,col,row,g){
+  const x=col*g.cw, y=row*g.ch;
+  return cropRect(img,x+g.cw*.18,y+g.ch*.56,g.cw*.64,g.ch*.14,1);
+}
+function preprocessNameForOCR(img,col,row,g){
+  const x=col*g.cw, y=row*g.ch;
+  // Crop only the item-name band and enlarge it substantially for tiny MSTAR text.
+  const sx=x+g.cw*.015, sy=y+g.ch*.685, sw=g.cw*.97, sh=g.ch*.17;
+  const scale=5;
+  const c=document.createElement("canvas");
+  c.width=Math.max(1,Math.round(sw*scale));
+  c.height=Math.max(1,Math.round(sh*scale));
+  const ctx=c.getContext("2d");
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+  const im=ctx.getImageData(0,0,c.width,c.height);
+  const p=im.data;
+  // Grayscale + contrast/threshold tuned for light MSTAR text on dark card backgrounds.
+  for(let i=0;i<p.length;i+=4){
+    const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+    const v=lum>145?255:0;
+    p[i]=p[i+1]=p[i+2]=v;
+  }
+  ctx.putImageData(im,0,0);
+  return c.toDataURL("image/png");
+}
+function ocrLooksBroken(text,confidence){
+  const t=String(text||"").trim();
+  if(!t) return true;
+  // MSTAR item names are expected to contain CJK characters. Do not present
+  // low-confidence Latin gibberish as an item name.
+  const hasCJK=/[\u3400-\u9FFF]/.test(t);
+  return !hasCJK || (Number(confidence||0)<22 && cjkCount(t)<3);
+}
+function cjkCount(t){return (String(t||"").match(/[\u3400-\u9FFF]/g)||[]).length}
+async function recognizeBestName(worker,img,col,row,g){
+  const variants=[];
+  const base=preprocessNameForOCR(img,col,row,g);
+  variants.push(base);
+
+  // Second variant: enlarged original color crop. Sometimes antialiasing survives
+  // better than hard thresholding for thin Traditional Chinese strokes.
+  const x=col*g.cw, y=row*g.ch, sw=g.cw*.98, sh=g.ch*.18;
+  const raw=cropRect(img,x+g.cw*.01,y+g.ch*.675,sw,sh,1);
+  const temp=new Image();
+  await new Promise((ok,bad)=>{temp.onload=ok;temp.onerror=bad;temp.src=raw});
+  const c=document.createElement("canvas"),scale=6;
+  c.width=Math.round(temp.width*scale);c.height=Math.round(temp.height*scale);
+  const cx=c.getContext("2d");cx.imageSmoothingEnabled=false;
+  cx.drawImage(temp,0,0,c.width,c.height);
+  variants.push(c.toDataURL("image/png"));
+
+  let best={text:"",confidence:0,score:-1};
+  for(const v of variants){
+    const res=await worker.recognize(v);
+    const text=cleanItemName(res?.data?.text||"");
+    const confidence=Number(res?.data?.confidence||0);
+    const score=cjkCount(text)*18 + confidence - Math.max(0,text.length-24)*2;
+    if(score>best.score) best={text,confidence,score};
+  }
+  return best;
+}
+async function imageFingerprint(dataUrl){
+  const img=new Image();
+  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
+  const c=document.createElement("canvas"),w=16,h=16;
+  c.width=w;c.height=h;
+  const ctx=c.getContext("2d");
+  ctx.drawImage(img,0,0,w,h);
+  const p=ctx.getImageData(0,0,w,h).data;
+  let bits="",avg=0,vals=[];
+  for(let i=0;i<p.length;i+=4){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];vals.push(v);avg+=v}
+  avg/=vals.length;
+  vals.forEach(v=>bits+=v>=avg?"1":"0");
+  let hex="";
+  for(let i=0;i<bits.length;i+=4)hex+=parseInt(bits.slice(i,i+4),2).toString(16);
+  return hex;
+}
+function hamming(a,b){
+  if(!a||!b||a.length!==b.length)return 999;
+  let n=0;
+  for(let i=0;i<a.length;i++){
+    let x=parseInt(a[i],16)^parseInt(b[i],16);
+    n+=((x>>0)&1)+((x>>1)&1)+((x>>2)&1)+((x>>3)&1);
+  }
+  return n;
+}
+async function learnedNameFor(image){
+  const fp=await imageFingerprint(image);
+  let best=null;
+  for(const m of (d.itemMemory||[])){
+    const dist=hamming(fp,m.fp);
+    if(!best||dist<best.dist)best={...m,dist};
+  }
+  // conservative threshold: prefer no match over a wrong remembered name
+  return best&&best.dist<=18?best:null;
+}
+async function rememberItemName(image,name,variant=""){
+  if(!image||!name||name==="待確認")return;
+  d.itemMemory=d.itemMemory||[];
+  const fp=await imageFingerprint(image);
+  let best=null,idx=-1;
+  d.itemMemory.forEach((m,i)=>{const dist=hamming(fp,m.fp);if(!best||dist<best.dist){best={...m,dist};idx=i}});
+  const rec={fp,name,variant};
+  if(best&&best.dist<=18)d.itemMemory[idx]=rec;else d.itemMemory.push(rec);
+}
+function cleanItemName(text){
+  let t=String(text||"")
+    .replace(/查看詳情|NEW|新品|無限制|限男|限女/gi," ")
+    .replace(/[|¦]/g," ")
+    .replace(/[—–－]+/g,"-")
+    .replace(/\s+/g," ")
+    .trim();
+  // Tesseract often inserts spaces between Chinese glyphs in tiny game text.
+  // Remove only whitespace whose neighbours are both CJK, preserving useful spaces elsewhere.
+  let prev;
+  do{
+    prev=t;
+    t=t.replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g,"$1$2");
+  }while(t!==prev);
+  return t.trim();
+}
+function looksLikeItem(text){
+  const t=cleanItemName(text).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");
+  return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
+}
+$("#mockRecognize").onclick=async()=>{
+  if(!sourceImage)return alert("先放一張截圖");
+  const btn=$("#mockRecognize");
+  btn.disabled=true; btn.textContent="辨識中…";
+  recognizedRows=[];
+  $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 道具卡片版型辨識…</div>';
+  $("#confirmRecognized").style.display="none";
+
+  let createWorker,worker=null;
+  try{
+    const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
+    createWorker=mod.createWorker||mod.default?.createWorker;
+    if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
+    worker=await createWorker("chi_tra+eng",1);
+
+    const g=inferCardGrid(sourceImage);
+    const found=[];
+    for(let row=0;row<g.rows;row++){
+      for(let col=0;col<g.cols;col++){
+        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
+        let name=bestName.text;
+        const confidence=bestName.confidence;
+        if(ocrLooksBroken(name,confidence)) name="待確認";
+        if(name!=="待確認" && !looksLikeItem(name)) continue;
+
+        // A valid card must have a plausible item-name line. This prevents
+        // buttons/page text elsewhere on the screenshot from becoming items.
+        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
+        let restriction="";
+        try{
+          const rr=await worker.recognize(restrictionImg);
+          const rt=String(rr?.data?.text||"");
+          if(/限男/.test(rt)) restriction="限男";
+          else if(/限女/.test(rt)) restriction="限女";
+          else if(/無限制/.test(rt)) restriction="無限制";
+        }catch(_){}
+
+        // Split the common "道具名稱-顏色" format.
+        let itemName=name,variant="";
+        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+        if(m){itemName=m[1].trim();variant=m[2].trim()}
+
+        const cardImage=cardCrop(sourceImage,col,row,g);
+        const learned=await learnedNameFor(cardImage);
+        if(learned){
+          itemName=learned.name;
+          if(learned.variant)variant=learned.variant;
+        }
+        found.push({
+          name:itemName,
+          variant,
+          restriction,
+          qty:1,
+          image:cardImage,
+          learned:!!learned
+        });
+      }
+    }
+    recognizedRows=found;
+    if(!found.length){
+      $("#recognized").innerHTML='<div class="meta">沒有辨識到道具卡片。請確認截圖包含完整的 MSTAR 道具格。</div>';
+      return;
+    }
+    drawRecognized();
+    $("#confirmRecognized").style.display="inline-block";
+  }catch(err){
+    console.error(err);
+    $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
+  }finally{
+    if(worker){try{await worker.terminate()}catch(_){}}
+    btn.disabled=false; btn.textContent="辨識這張截圖";
+  }
+};
+
+$("#confirmRecognized").onclick=async()=>{let a=cur();for(const x of recognizedRows){await rememberItemName(x.image,x.name,x.variant);let same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&(y.restriction||"")===(x.restriction||""));if(same){same.qty+=(x.qty||1);if(!same.image&&x.image)same.image=x.image}else a.items.push({...x,qty:x.qty||1})}shotDlg.close();await save()};
+
+
+$("#googleLogin").onclick=async()=>{
+  const msg=$("#loginMsg"), btn=$("#googleLogin");
+  msg.textContent="正在開啟 Google 登入…";
+  btn.disabled=true;
+  try{
+    const result=await signInWithPopup(auth,provider);
+    if(result.user.uid!==ADMIN_UID){
+      await signOut(auth);
+      msg.textContent="這個 Google 帳號沒有使用權限。";
+      return;
+    }
+    msg.textContent="登入成功，正在讀取庫存…";
+  }catch(err){
+    console.error("Google login error:",err);
+    const code=err?.code||"unknown";
+    const detail=err?.message||String(err);
+    if(code==="auth/popup-blocked"){
+      msg.textContent="登入視窗被瀏覽器擋住，正在改用頁面登入…";
+      try{
+        const {signInWithRedirect}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+        await signInWithRedirect(auth,provider);
+        return;
+      }catch(e2){
+        console.error(e2);
+        msg.textContent="登入失敗｜"+(e2?.code||"unknown")+"｜"+(e2?.message||String(e2));
+      }
+    }else if(code==="auth/popup-closed-by-user"){
+      msg.textContent="登入視窗被關閉。請再按一次。錯誤碼："+code;
+    }else if(code==="auth/cancelled-popup-request"){
+      msg.textContent="登入要求被取消，請再按一次。錯誤碼："+code;
+    }else{
+      msg.textContent="登入失敗｜"+code+"｜"+detail;
+    }
+  }finally{
+    btn.disabled=false;
+  }
+};
+$("#logout").onclick=()=>signOut(auth);
+getRedirectResult(auth).catch(err=>{
+  if(err) console.error("Google redirect login error:",err);
+});
+onAuthStateChanged(auth,async user=>{
+  currentUser=user&&user.uid===ADMIN_UID?user:null;
+  if(!currentUser){
+    $("#authGate").classList.remove("hidden");$("#app").style.visibility="hidden";d={accounts:[]};active=null;return;
+  }
+  $("#userLabel").textContent=currentUser.email||"已登入";
+  $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
+  try{await loadCloud()}catch(err){console.error(err);alert("讀取雲端庫存失敗，請確認 Firestore 規則。")}
+});
+</script></body></html>
