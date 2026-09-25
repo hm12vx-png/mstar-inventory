@@ -26,7 +26,7 @@
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
 <div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>MSTAR 庫存管理</h1><p>庫存管理</p></header>
-<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
+<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…" autocomplete="off"><button class="btn primary" id="go" type="button">搜尋</button><button class="btn" id="clearSearch" type="button" title="清除搜尋文字與結果">清除</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="newA">＋</button></div></div><div class="accounts" id="accounts"></div></aside>
 <main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
@@ -102,13 +102,14 @@
 </select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
 <div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG（可一次選多張）</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
+<div id="shotQueue" class="note" style="display:none"></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
-<div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
+<div class="actions"><button class="btn" onclick="shotDlg.close()">關閉</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">加入庫存並繼續</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
@@ -121,8 +122,6 @@ const firebaseConfig={
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
-// 固定使用瀏覽器本機持久登入：切換庫存帳號、重新整理頁面都不需要重新登入 Google。
-try{await setPersistence(auth,browserLocalPersistence)}catch(err){console.error("Auth persistence error:",err)}
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
 let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="家具", activeGender="", activeCandy="";
@@ -174,7 +173,11 @@ function render(){
   let a=cur();
   const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||(x.accountType||"主要培養")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
   $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
-  document.querySelectorAll(".acc").forEach(x=>x.onclick=()=>{active=x.dataset.id;render()});
+  document.querySelectorAll(".acc").forEach(x=>x.onclick=()=>{
+    active=x.dataset.id;
+    render();
+    if(shotDlg.open) updateShotAccount();
+  });
   $("#title").textContent=a?`帳號 ${a.number||a.name||""}${a.gameId?`｜${a.gameId}`:""}｜物品庫`:"請先選擇帳號";
   $("#deleteAccount").style.display=a?"inline-block":"none";$("#editAccount").style.display=a?"inline-block":"none";
   $("#resourceBox").style.display=a?"block":"none";
@@ -373,6 +376,14 @@ searchInput.addEventListener("keydown",ev=>{
     search();
   }
 });
+$("#clearSearch").addEventListener("click",()=>{
+  searchInput.value="";
+  $("#results").innerHTML="";
+  $("#results").style.display="none";
+  $("#grandTotal").innerHTML="";
+  $("#grandTotal").style.display="none";
+  searchInput.focus();
+});
 // 改完關鍵字後可直接再按搜尋；清空時同步收起舊結果。
 searchInput.addEventListener("input",()=>{
   if(!searchInput.value.trim()){
@@ -408,16 +419,97 @@ $("#eas").onclick=async()=>{
 $("#deleteAccount").onclick=async()=>{let a=cur();if(!a)return;if(confirm(`確定刪除帳號「${a.name}」？\n這只會刪除這個帳號與它的庫存，其他帳號不受影響。`)){d.accounts=d.accounts.filter(x=>x.id!==a.id);active=d.accounts[0]?.id||null;await save()}};
 
 let recognizedRows=[];
-$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
-$("#dropShot").onclick=()=>$("#shotFile").click();
-$("#dropShot").ondragover=e=>{e.preventDefault()};
-$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
-$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
 let sourceImage=null;
+let shotQueue=[];
+let shotQueueIndex=-1;
+let shotBusy=false;
+
+function updateShotAccount(){
+  const a=cur();
+  $("#shotAccount").textContent=a?("帳號 "+(a.number||a.name||"")):"尚未選擇帳號";
+}
+
+function updateShotQueue(){
+  const q=$("#shotQueue");
+  if(!shotQueue.length){
+    q.style.display="none";
+    q.textContent="";
+    return;
+  }
+  q.style.display="block";
+  const current=Math.max(0,shotQueueIndex+1);
+  q.textContent=`待處理圖片：${current}/${shotQueue.length}。加入庫存後可直接辨識下一張，不需要重新整理。`;
+}
+
+function resetCurrentShot(){
+  sourceImage=null;
+  recognizedRows=[];
+  $("#shotPreview").style.display="none";
+  $("#recognized").innerHTML="";
+  $("#confirmRecognized").style.display="none";
+  $("#shotImg").removeAttribute("src");
+}
+
+function setShotFileQueue(files){
+  const list=[...files].filter(f=>f&&f.type&&f.type.startsWith("image/"));
+  if(!list.length)return;
+  shotQueue=list;
+  shotQueueIndex=0;
+  loadShot(shotQueue[shotQueueIndex]);
+  updateShotQueue();
+}
+
+$("#importShot").onclick=()=>{
+  if(!cur())return alert("先選擇要匯入的帳號");
+  updateShotAccount();
+  shotQueue=[];
+  shotQueueIndex=-1;
+  $("#shotFile").value="";
+  updateShotQueue();
+  resetCurrentShot();
+  shotDlg.showModal();
+};
+
+$("#dropShot").onclick=()=>$("#shotFile").click();
+$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy"};
+$("#dropShot").ondrop=e=>{
+  e.preventDefault();
+  setShotFileQueue(e.dataTransfer.files);
+};
+$("#shotFile").onchange=e=>{
+  setShotFileQueue(e.target.files);
+  // 同一張圖之後再次選擇時也能觸發 change。
+  e.target.value="";
+};
+
 function loadShot(f){
+  if(!f)return;
   let u=URL.createObjectURL(f), img=new Image();
-  img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
+  img.onload=()=>{
+    if(sourceImage&&sourceImage.src)URL.revokeObjectURL(sourceImage.src);
+    sourceImage=img;
+    $("#shotImg").src=u;
+    $("#shotPreview").style.display="block";
+    recognizedRows=[];
+    $("#recognized").innerHTML="";
+    $("#confirmRecognized").style.display="none";
+    updateShotQueue();
+  };
+  img.onerror=()=>alert("圖片載入失敗，請換一張圖片。");
   img.src=u;
+}
+
+function loadNextShot(){
+  if(shotQueueIndex+1>=shotQueue.length){
+    shotQueue=[];
+    shotQueueIndex=-1;
+    updateShotQueue();
+    resetCurrentShot();
+    return false;
+  }
+  shotQueueIndex++;
+  loadShot(shotQueue[shotQueueIndex]);
+  return true;
 }
 function cropGridImage(img,index,cols=4){
   if(!img)return "";
@@ -665,8 +757,11 @@ function looksLikeItem(text){
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
 $("#mockRecognize").onclick=async()=>{
+  if(!cur())return alert("請先選擇帳號");
   if(!sourceImage)return alert("先放一張截圖");
+  if(shotBusy)return;
   const btn=$("#mockRecognize");
+  shotBusy=true;
   btn.disabled=true; btn.textContent="辨識中…";
   recognizedRows=[];
   $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 實際道具格版型定位辨識…</div>';
@@ -736,22 +831,51 @@ $("#mockRecognize").onclick=async()=>{
   }finally{
     if(worker){try{await worker.terminate()}catch(_){}}
     btn.disabled=false; btn.textContent="辨識這張截圖";
+    shotBusy=false;
   }
 };
 
 $("#confirmRecognized").onclick=async()=>{
   const a=cur(); if(!a||!recognizedRows.length)return;
-  const cat=(activeCategory==="糖果"?"家具":activeCategory)||"家具";
-  const gen=(cat==="戒指"||cat==="作物")?(activeGender||recognizedRows[0]?.restriction||"限男"):"";
-  for(const x of recognizedRows){
-    const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
-    await rememberItemName(item.image,item.name,item.variant);
-    const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
-    if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
-    else a.items.push(item);
+  if(shotBusy)return;
+  shotBusy=true;
+  const btn=$("#confirmRecognized");
+  btn.disabled=true;
+  btn.textContent="加入中…";
+  try{
+    const cat=(activeCategory==="糖果"?"家具":activeCategory)||"家具";
+    const gen=(cat==="戒指"||cat==="作物")?(activeGender||recognizedRows[0]?.restriction||"限男"):"";
+    for(const x of recognizedRows){
+      const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
+      await rememberItemName(item.image,item.name,item.variant);
+      const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
+      if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
+      else a.items.push(item);
+    }
+    activeCategory=cat; activeGender=gen; activeCandy="";
+    await save();
+
+    // 不關閉視窗、不重新整理，直接準備下一張。
+    recognizedRows=[];
+    $("#recognized").innerHTML='<div class="meta">✓ 已加入目前帳號。可以繼續選擇／辨識下一張圖片。</div>';
+    $("#confirmRecognized").style.display="none";
+
+    if(shotQueue.length && shotQueueIndex+1<shotQueue.length){
+      shotQueueIndex++;
+      loadShot(shotQueue[shotQueueIndex]);
+      updateShotQueue();
+    }else{
+      $("#shotFile").value="";
+      updateShotQueue();
+    }
+  }catch(err){
+    console.error(err);
+    alert("加入庫存失敗："+(err?.message||String(err)));
+  }finally{
+    btn.disabled=false;
+    btn.textContent="加入庫存並繼續";
+    shotBusy=false;
   }
-  activeCategory=cat; activeGender=gen; activeCandy="";
-  shotDlg.close(); await save();
 };
 
 $("#googleLogin").onclick=async()=>{
@@ -806,4 +930,5 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
