@@ -29,7 +29,7 @@
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…" autocomplete="off"><button class="btn primary" id="go" type="button">搜尋</button><button class="btn" id="clearSearch" type="button" title="清除搜尋文字與結果">清除</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="newA">＋</button></div></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openGallery">🖼️ 商品圖庫</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
 <button class="btn catTab active" data-cat="家具">家具</button>
 <button class="btn catTab" data-cat="玩偶">玩偶</button>
 <button class="btn catTab" data-cat="花盆">花盆</button>
@@ -86,7 +86,7 @@
 <div class="field"><label>款式／顏色</label><input id="editItemVariant"></div>
 <div class="field"><label>數量</label><input id="editItemQty" type="number" min="1"></div>
 <div class="actions"><button class="btn" id="editItemCancel">取消</button><button class="btn primary" id="editItemSave">儲存修改</button></div>
-</div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>物品名稱</label><input id="in" placeholder="例如：海底珊瑚拍照區"></div><div class="field"><label>分類</label><select id="ic">
+</div></dialog><dialog id="galleryDlg" style="width:min(900px,94vw);max-width:none"><h3>🖼️ 商品圖庫</h3><div class="field"><label>新增商品圖（相同商品只建立一筆）</label><input id="galleryFile" type="file" accept="image/*"></div><div id="galleryList" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px"></div><div class="actions"><button class="btn" id="galleryClose">關閉</button></div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>物品名稱</label><input id="in" placeholder="例如：海底珊瑚拍照區"></div><div class="field"><label>分類</label><select id="ic">
 <option value="家具">家具</option>
 <option value="玩偶">玩偶</option>
 <option value="花盆">花盆</option>
@@ -125,6 +125,7 @@ const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app)
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
 let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="家具", activeGender="", activeCandy="";
+let gallerySelectedImage="";
 let accountTypeFilter="", accountGenderFilter="";
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const dataRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
@@ -138,7 +139,7 @@ function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 async function loadCloud(){
   const snap=await getDoc(dataRef());
   d=snap.exists()?snap.data():{accounts:[]};
-  if(!Array.isArray(d.accounts)) d.accounts=[]; if(!Array.isArray(d.itemMemory)) d.itemMemory=[];
+  if(!Array.isArray(d.accounts)) d.accounts=[]; if(!Array.isArray(d.itemMemory)) d.itemMemory=[]; if(!Array.isArray(d.productGallery)) d.productGallery=[];
   active=d.accounts[0]?.id||null;
   render();
 }
@@ -167,6 +168,24 @@ function migrateCategories(){
     a.items=keep;
   });
 }
+function normalizeProductName(name){return String(name||"").trim().replace(/\s+/g," ").toLowerCase()}
+function galleryFind(name){const key=normalizeProductName(name);return (d.productGallery||[]).find(x=>normalizeProductName(x.name)===key)||null}
+function renderGallery(){
+ const box=$("#galleryList"); if(!box)return;
+ const rows=d.productGallery||[];
+ box.innerHTML=rows.length?rows.map((x,i)=>`<div style="border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff"><img src="${x.image}" style="width:100%;height:150px;object-fit:contain;border-radius:9px;background:#eee"><div style="font-weight:700;font-size:13px;margin-top:6px">${e(x.name)}</div><button class="mini del galleryDel" data-i="${i}" style="margin-top:6px">刪除圖庫圖片</button></div>`).join(""):'<div class="empty" style="grid-column:1/-1">目前還沒有商品圖庫</div>';
+ document.querySelectorAll(".galleryDel").forEach(b=>b.onclick=async()=>{const i=+b.dataset.i;if(confirm("確定刪除這個商品圖庫圖片？")){d.productGallery.splice(i,1);await save();renderGallery()}});
+}
+async function addOrUpdateGallery(name,image){
+ name=String(name||"").trim(); if(!name||!image)return null;
+ d.productGallery=d.productGallery||[];
+ let g=galleryFind(name);
+ if(g){ if(!g.image)g.image=image; return g; }
+ g={id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),name,image,createdAt:new Date().toISOString()};
+ d.productGallery.push(g); return g;
+}
+function galleryImageFor(name,fallback=""){const g=galleryFind(name);return g?.image||fallback||""}
+
 function render(){
   migrateCategories();
   sortAccountsNaturally();
@@ -223,7 +242,10 @@ $("#editItemSave").onclick=async()=>{
   const name=$("#editItemName").value.trim();
   if(!name)return alert("請輸入道具名稱");
   const cat=$("#editItemCat").value;
+  const oldImage=x.image||"";
   x.name=name;
+  x.image=galleryImageFor(name,oldImage);
+  if(x.image) await addOrUpdateGallery(name,x.image);
   x.category=cat;
   x.gender=(cat==="戒指"||cat==="作物")?$("#editItemGender").value:"";x.candyType="";
   x.variant=$("#editItemVariant").value.trim();
@@ -307,7 +329,8 @@ $("#is").onclick=async()=>{
   let same=a.items.find(x=>x.name===n&&x.variant===v&&x.category===cat&&(x.gender||"")===gender&&(x.candyType||"")===candyType);
   if(same && cat==="糖果") same.qty=q;
   else if(same) same.qty+=q;
-  else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
+  else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q,image:galleryImageFor(n)});
+  if(n && !galleryFind(n)){ const img=galleryImageFor(n); if(img) await addOrUpdateGallery(n,img); }
   $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
 };
 $("#saveResources").onclick=async()=>{
@@ -418,6 +441,18 @@ $("#eas").onclick=async()=>{
 
 $("#deleteAccount").onclick=async()=>{let a=cur();if(!a)return;if(confirm(`確定刪除帳號「${a.name}」？\n這只會刪除這個帳號與它的庫存，其他帳號不受影響。`)){d.accounts=d.accounts.filter(x=>x.id!==a.id);active=d.accounts[0]?.id||null;await save()}};
 
+$("#openGallery").onclick=()=>{renderGallery();$("#galleryDlg").showModal()};
+$("#galleryClose").onclick=()=>$("#galleryDlg").close();
+$("#galleryFile").onchange=async ev=>{
+ const f=ev.target.files?.[0]; if(!f)return;
+ const r=new FileReader(); r.onload=async()=>{
+   const name=prompt("請輸入這張商品圖的商品名稱（相同名稱只建立一張）");
+   if(!name||!name.trim())return;
+   const g=await addOrUpdateGallery(name.trim(),r.result);
+   if(g)await save(); renderGallery();
+ }; r.readAsDataURL(f); ev.target.value="";
+};
+
 let recognizedRows=[];
 let sourceImage=null;
 let shotQueue=[];
@@ -527,7 +562,7 @@ function drawRecognized(){
    <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div></div>
    <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
  </div>`).join("");
- document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
+ document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>{const i=+el.dataset.i;recognizedRows[i][el.dataset.k]=el.value;if(el.dataset.k==="name"){const g=galleryFind(el.value);if(g)recognizedRows[i].image=g.image;}});
  document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()});
 }
 function gridLineScore(ctx,pos,vertical,W,H){
@@ -846,7 +881,9 @@ $("#confirmRecognized").onclick=async()=>{
     const cat=(activeCategory==="糖果"?"家具":activeCategory)||"家具";
     const gen=(cat==="戒指"||cat==="作物")?(activeGender||recognizedRows[0]?.restriction||"限男"):"";
     for(const x of recognizedRows){
-      const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
+      const gImg=galleryImageFor(x.name,x.image||"");
+      if(gImg) await addOrUpdateGallery(x.name,gImg);
+      const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:gImg};
       await rememberItemName(item.image,item.name,item.variant);
       const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
       if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
@@ -930,5 +967,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
