@@ -85,7 +85,11 @@
 <div class="head" style="margin-top:16px"><h3 style="margin:0">已建立的商品</h3><span class="meta" id="galleryCount">0 筆</span></div><div id="galleryList" class="items" style="margin-top:10px"></div>
 </div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
-<div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
+<div class="field">
+<label>目前要加入哪個帳號</label>
+<select id="shotAccount" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)"></select>
+<div class="note">加入完成後會自動切換到下一個帳號，可以連續處理下一張截圖，不需要重新登入。</div>
+</div>
 <div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
@@ -145,7 +149,35 @@ function compressGalleryImage(file){return new Promise((resolve,reject)=>{const 
 $("#openGallery").onclick=async()=>{galleryDlg.showModal();try{await loadGallery()}catch(err){console.error(err);alert('讀取商品圖庫失敗：'+(err?.message||err));}};
 $("#galleryCancel").onclick=()=>galleryDlg.close();
 $("#galleryFile").onchange=()=>{const f=$("#galleryFile").files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("#galleryImg").src=r.result;$("#galleryPreview").style.display='block'};r.readAsDataURL(f);};
-$("#gallerySave").onclick=async()=>{const file=$("#galleryFile").files?.[0],name=$("#galleryName").value.trim(),variant=$("#galleryVariant").value.trim();if(!file)return alert('請選擇商品圖片');if(!name)return alert('請輸入商品名稱');const btn=$("#gallerySave");btn.disabled=true;btn.textContent='儲存中…';try{const image=await compressGalleryImage(file);await addDoc(collection(db,'productGallery'),{name,variant,image,category:'家具',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';await loadGallery();$("#galleryNote").textContent=`✅ 已建立「${name}」；可以直接繼續新增下一筆，不需要重新登入。`;$("#galleryName").focus();}catch(err){console.error(err);alert('圖庫儲存失敗：'+(err?.message||err));}finally{btn.disabled=false;btn.textContent='＋ 建立圖庫商品';}};
+$("#gallerySave").onclick=async()=>{const file=$("#galleryFile").files?.[0],name=$("#galleryName").value.trim(),variant=$("#galleryVariant").value.trim();if(!file)return alert('請選擇商品圖片');if(!name)return alert('請輸入商品名稱');const btn=$("#gallerySave");btn.disabled=true;btn.textContent='檢查圖片中…';try{const image=await compressGalleryImage(file);const existing=await galleryMatchFor(image);if(existing){$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';$("#galleryNote").textContent=`⚠️ 這張商品圖已經存在圖庫：「${existing.name||''}」${existing.variant?`｜${existing.variant}`:''}；沒有重複建立。可以直接新增下一張。`;$("#galleryNote").style.color='#9a6a00';$("#galleryName").focus();return;}btn.textContent='儲存中…';await addDoc(collection(db,'productGallery'),{name,variant,image,category:'家具',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';await loadGallery();$("#galleryNote").textContent=`✅ 已建立「${name}」；可以直接繼續新增下一筆，不需要重新登入。`;$("#galleryNote").style.color='#5f7650';$("#galleryName").focus();}catch(err){console.error(err);alert('圖庫儲存失敗：'+(err?.message||err));}finally{btn.disabled=false;btn.textContent='＋ 建立圖庫商品';}};
+
+function refreshShotAccounts(preferredId=null){
+  const sel=$("#shotAccount");
+  if(!sel) return;
+  const accounts=d.accounts||[];
+  if(!accounts.length){
+    sel.innerHTML='<option value="">目前沒有帳號</option>';
+    return;
+  }
+  const keep=preferredId||active||accounts[0].id;
+  sel.innerHTML=accounts.map(a=>{
+    const label=(a.number||a.name||"未命名")+(a.gameId?`｜${a.gameId}`:"");
+    return `<option value="${e(a.id)}">${e(label)}</option>`;
+  }).join("");
+  sel.value=accounts.some(a=>a.id===keep)?keep:accounts[0].id;
+  active=sel.value;
+  render();
+}
+
+function resetShotRecognition(){
+  $("#shotFile").value="";
+  $("#shotPreview").style.display="none";
+  $("#shotImg").removeAttribute("src");
+  $("#recognized").innerHTML="";
+  $("#confirmRecognized").style.display="none";
+  $("#mockRecognize").style.display="inline-block";
+}
+
 function render(){
   let a=cur();
   $("#accounts").innerHTML=d.accounts.length?d.accounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}</span><small>${x.items.reduce((n,i)=>n+i.qty,0)}件</small></div>`).join(""):'<div class="empty">還沒有帳號</div>';
@@ -194,6 +226,15 @@ document.querySelectorAll(".genderTab").forEach(btn=>btn.onclick=()=>{activeGend
 $("#ic").onchange=()=>{$("#genderField").style.display=($("#ic").value==="作物"||$("#ic").value==="戒指")?"block":"none"};
 $("#newA").onclick=()=>ad.showModal();
 $("#as").onclick=async()=>{let n=$("#an").value.trim();if(!n)return;let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:"",items:[]});active=id;$("#an").value="";ad.close();await save()};
+$("#shotAccount").onchange=()=>{
+  const id=$("#shotAccount").value;
+  if(id){
+    active=id;
+    render();
+    resetShotRecognition();
+    recognizedRows=[];
+  }
+};
 $("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");idg.showModal()};
 $("#is").onclick=async()=>{let a=cur(),n=$("#in").value.trim(),v=$("#iv").value.trim(),cat=$("#ic").value||"家具",gender=(cat==="作物"||cat==="戒指")?($("#ig").value||"限男"):"",q=Math.max(1,+$("#iq").value||1);if(!n)return;let same=a.items.find(x=>x.name===n&&x.variant===v&&x.category===cat&&(x.gender||"")===gender);same?same.qty+=q:a.items.push({name:n,category:cat,gender,variant:v,qty:q});$("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()};
 function search(){
@@ -242,7 +283,13 @@ $("#eas").onclick=async()=>{const a=cur();if(!a)return;const n=$("#ean").value.t
 $("#deleteAccount").onclick=async()=>{let a=cur();if(!a)return;if(confirm(`確定刪除帳號「${a.name}」？\n這只會刪除這個帳號與它的庫存，其他帳號不受影響。`)){d.accounts=d.accounts.filter(x=>x.id!==a.id);active=d.accounts[0]?.id||null;await save()}};
 
 let recognizedRows=[];
-$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
+$("#importShot").onclick=()=>{
+  if(!d.accounts.length)return alert("請先新增帳號");
+  refreshShotAccounts(active);
+  resetShotRecognition();
+  recognizedRows=[];
+  shotDlg.showModal();
+};
 $("#dropShot").onclick=()=>$("#shotFile").click();
 $("#dropShot").ondragover=e=>{e.preventDefault()};
 $("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
@@ -398,6 +445,7 @@ async function learnedNameFor(image){
   // conservative threshold: prefer no match over a wrong remembered name
   return best&&best.dist<=18?best:null;
 }
+// 商品圖庫去重：同一張商品圖（指紋距離 <= 18）只保留一筆。
 async function galleryMatchFor(image){
   if(!image) return null;
   if(!galleryItems.length){
@@ -421,6 +469,9 @@ async function addRecognizedToGallery(x){
   // Avoid creating an obvious duplicate if another entry was added during this session.
   const existing=await galleryMatchFor(x.image);
   if(existing){
+    // 同一張商品圖只保留圖庫原本那一筆，並沿用原本的正確名稱。
+    if(existing.name) x.name=existing.name;
+    if(existing.variant!==undefined) x.variant=existing.variant||'';
     x.galleryMatched=true;
     return false;
   }
@@ -566,8 +617,23 @@ $("#confirmRecognized").onclick=async()=>{
       }
     }
     await loadGallery();
-    shotDlg.close();
     await save();
+
+    // 不關閉視窗：直接準備下一個帳號。
+    const accounts=d.accounts||[];
+    const currentIndex=accounts.findIndex(a=>a.id===active);
+    const next=accounts[currentIndex+1] || accounts[0];
+
+    if(next){
+      active=next.id;
+      refreshShotAccounts(active);
+      resetShotRecognition();
+      recognizedRows=[];
+      $("#shotAccount").value=active;
+      $("#shotAccount").focus();
+      $("#shotAccount").dispatchEvent(new Event("change"));
+      alert(`✅ ${accounts[currentIndex]?.number||accounts[currentIndex]?.name||"目前帳號"} 已完成。\n\n已切換到下一個帳號：${next.number||next.name||"未命名"}\n可以直接選下一張截圖，不需要重新登入。`);
+    }
   }catch(err){
     console.error(err);
     alert("加入庫存／建立商品圖庫失敗："+(err?.message||err));
