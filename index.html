@@ -1,8 +1,8 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MSTAR 庫存管理</title>
 <style>
 :root{--bg:#f3ebe4;--p:#fffaf6;--line:#d9c1b0;--text:#4d392f;--muted:#8d7467;--a:#b78167}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(#f8f2ed,#eee1d7);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{max-width:1050px;margin:auto;padding:22px}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#e5d3c6;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:230px 1fr;gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#f0e3d9;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:var(--a);color:white}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:74px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:74px;height:74px;border-radius:10px;object-fit:cover;background:#e8ddd5}.recFields{display:grid;grid-template-columns:1fr 90px;gap:6px}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
-@media(max-width:700px){.wrap{padding:13px}.stats{grid-template-columns:repeat(2,1fr)}.main{grid-template-columns:1fr}.accounts{flex-direction:row;overflow:auto}.acc{min-width:100px}.items{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#f8f2ed,#eee1d7);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{max-width:1050px;margin:auto;padding:22px}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#e5d3c6;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:230px 1fr;gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#f0e3d9;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:var(--a);color:white}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain;background:#e8ddd5}.recFields{display:grid;grid-template-columns:1fr 90px;gap:6px}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
+@media(max-width:700px){#resourceBox>div:nth-child(2){grid-template-columns:1fr!important}.wrap{padding:13px}.stats{grid-template-columns:repeat(2,1fr)}.main{grid-template-columns:1fr}.accounts{flex-direction:row;overflow:auto}.acc{min-width:100px}.items{grid-template-columns:1fr}}
 #shotDlg{
  width:min(1180px,94vw);
  max-width:none;
@@ -13,13 +13,6 @@
 }
 #shotDlg #shotImg{max-height:420px!important}
 #shotDlg #recognized{max-height:none}
-#shotBatchPreview{display:none;margin-top:12px}
-#shotBatchPreview .batchGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-#shotBatchPreview .batchThumb{border:1px solid var(--line);border-radius:12px;background:#ddd;padding:6px}
-#shotBatchPreview .batchThumb img{width:100%;height:120px;object-fit:contain;border-radius:8px;background:#eee;display:block}
-#shotBatchPreview .batchName{font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#shotBatchPreview .batchCount{font-weight:800;margin-bottom:8px}
-@media(max-width:700px){#shotBatchPreview .batchGrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){
  #shotDlg{width:96vw;height:94vh;max-height:94vh;padding:14px}
  #shotDlg #shotImg{max-height:300px!important}
@@ -28,24 +21,32 @@
 #authGate .loginCard{width:min(430px,92vw);background:var(--p);border:1px solid var(--line);border-radius:22px;padding:28px;text-align:center;box-shadow:0 18px 55px #6d514322}
 #authGate h2{margin:0 0 8px}#authGate p{color:var(--muted);margin:0 0 18px}.hidden{display:none!important}
 #app{visibility:hidden}
-#galleryList .item{grid-template-columns:74px 1fr auto}.galleryThumb{width:74px;height:74px;border-radius:12px;object-fit:contain;background:#eee;border:1px solid var(--line)}
 .authbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--muted)}
 </style></head><body>
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
 <div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>MSTAR 庫存管理</h1><p>庫存管理</p></header>
-<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…">
-<button class="btn" id="clearSearch" type="button" style="white-space:nowrap">✕ 清除搜尋</button><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
+<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
-<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><button class="btn" id="newA">＋</button></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openGallery">🖼️ 商品圖庫</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
-<button class="btn primary catTab active" data-cat="家具">家具</button>
+<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="newA">＋</button></div></div><div class="accounts" id="accounts"></div></aside>
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
+<button class="btn catTab active" data-cat="家具">家具</button>
 <button class="btn catTab" data-cat="玩偶">玩偶</button>
 <button class="btn catTab" data-cat="花盆">花盆</button>
 <button class="btn catTab" data-cat="戒指">戒指</button>
 <button class="btn catTab" data-cat="作物">作物</button>
-<button class="btn catTab" data-cat="寵物">寵物</button>
 <button class="btn catTab" data-cat="材料">材料</button>
+<button class="btn catTab" data-cat="寵物">寵物</button>
+<button class="btn catTab" data-cat="釣魚">釣魚</button>
+</div>
+<div id="resourceBox" class="box" style="display:none;margin-top:12px;padding:14px">
+  <div style="font-weight:800;margin-bottom:10px">🍬 資源紀錄</div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+    <div class="field" style="margin:0"><label>糖果</label><input id="resCandy" type="number" min="0" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>活動糖果</label><input id="resEventCandy" type="number" min="0" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>施法糖果</label><input id="resMagicCandy" type="number" min="0" inputmode="numeric"></div>
+  </div>
+  <div class="actions" style="margin-top:8px"><button class="btn primary" id="saveResources">儲存資源</button></div>
 </div>
 <div class="genderTabs" id="genderTabs" style="display:none">
 
@@ -53,7 +54,19 @@
 <button class="btn genderTab" data-gender="限女">限女</button>
 </div>
 <div class="items" id="items"></div><div class="note">資料會儲存在你的 Firebase Firestore；只有指定的 Google 帳號可讀寫。</div></main></div></div></div>
-<dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div><div class="actions"><button class="btn" onclick="editAd.close()">取消</button><button class="btn primary" id="eas">儲存</button></div></div></dialog><dialog id="ad"><h3>新增帳號</h3><div class="field"><label>帳號名稱／編號</label><input id="an" placeholder="例如：457"></div><div class="actions"><button class="btn" onclick="ad.close()">取消</button><button class="btn primary" id="as">新增</button></div></dialog>
+<dialog id="batchAd"><h3>批次新增帳號</h3>
+<div class="field"><label>起始編號</label><input id="ban" inputmode="numeric" placeholder="例如：457"></div>
+<div class="field"><label>ID 清單</label><textarea id="baids" rows="10" placeholder="一行一個 ID，例如：&#10;ABC123&#10;ABC456&#10;ABC789" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;resize:vertical;font:inherit;color:var(--text)"></textarea><div class="note" style="margin-top:5px">一行一個 ID，會從起始編號自動依序編號。空白行會自動忽略。</div></div>
+<div class="field"><label>帳號類型</label><select id="baat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
+<div class="field"><label>角色性別</label><select id="baag"><option value="男">男</option><option value="女">女</option></select></div>
+<div id="batchPreview" class="note"></div>
+<div class="actions"><button class="btn" id="batchCancel">取消</button><button class="btn primary" id="batchSave">全部新增</button></div></dialog><dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div>
+<div class="field"><label>帳號類型</label><select id="eat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
+<div class="field"><label>角色性別</label><select id="eag"><option value="男">男</option><option value="女">女</option></select></div>
+<div class="actions"><button class="btn" onclick="editAd.close()">取消</button><button class="btn primary" id="eas">儲存</button></div></div></dialog><dialog id="ad"><h3>新增帳號</h3><div class="field"><label>編號</label><input id="an" placeholder="例如：457"></div><div class="field"><label>ID</label><input id="agid" placeholder="遊戲 ID"></div>
+<div class="field"><label>帳號類型</label><select id="aat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
+<div class="field"><label>角色性別</label><select id="aag"><option value="男">男</option><option value="女">女</option></select></div>
+<div class="actions"><button class="btn" onclick="ad.close()">取消</button><button class="btn primary" id="as">新增</button></div></dialog>
 <dialog id="editItemDlg"><div class="modal">
 <h3>修改道具</h3>
 <div class="field"><label>名稱</label><input id="editItemName"></div>
@@ -64,6 +77,7 @@
 <option value="戒指">戒指</option>
 <option value="作物">作物</option>
 <option value="寵物">寵物</option>
+<option value="釣魚">釣魚</option>
 <option value="材料">材料</option>
 </select></div>
 <div class="field" id="editItemGenderField"><label>限制</label><select id="editItemGender">
@@ -79,46 +93,23 @@
 <option value="戒指">戒指</option>
 <option value="作物">作物</option>
 <option value="寵物">寵物</option>
+<option value="釣魚">釣魚</option>
 <option value="材料">材料</option>
 </select></div>
 <div class="field" id="genderField"><label>限制</label><select id="ig">
 <option value="限男">限男</option>
 <option value="限女">限女</option>
-</select></div><div class="field"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
-
-<dialog id="galleryDlg" style="width:min(900px,94vw);max-height:90vh;overflow:auto"><div class="modal">
-<h3>🖼️ M★STAR 商品圖庫</h3>
-<div class="note">先建立「商品圖片＋正確名稱」。這個圖庫與帳號庫存分開，之後 OCR 辨識時可以用圖片比對找到正確名稱。</div>
-<div class="box" style="margin-top:12px;padding:14px"><div class="field"><label>商品圖片</label><input id="galleryFile" type="file" accept="image/*"></div><div id="galleryPreview" style="display:none;margin:8px 0"><img id="galleryImg" style="width:150px;height:150px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#eee"></div><div class="field"><label>商品名稱</label><input id="galleryName" maxlength="80" placeholder="例如：仙女的閃閃馬車"></div><div class="field"><label>款式／顏色（可留白）</label><input id="galleryVariant" maxlength="40" placeholder="例如：粉紅、紅色"></div><div id="galleryNote" class="note" style="margin-top:8px"></div><div class="actions"><button class="btn" id="galleryCancel">關閉</button><button class="btn primary" id="gallerySave">＋ 建立圖庫商品</button></div></div>
-<div class="head" style="margin-top:16px"><h3 style="margin:0">已建立的商品</h3><span class="meta" id="galleryCount">0 筆</span></div><div id="galleryList" class="items" style="margin-top:10px"></div>
-</div></dialog>
+</select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
-<div class="field">
-<label>目前要加入哪個帳號</label>
-<select id="shotAccount" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)"></select>
-<div class="note">加入完成後會自動切換到下一個帳號。下方可一次選取多張圖片（Windows 可用 Ctrl / Shift 多選），也可重複按「繼續加入圖片」累積後再一次辨識。</div>
-</div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:20px;text-align:center;background:#fff">
-  <div style="font-weight:800;margin-bottom:7px">📷 一次選擇多張 MSTAR 庫存截圖</div>
-  <div class="toolbar" style="justify-content:center">
-    <button class="btn primary" id="chooseShotFiles" type="button">＋ 選擇多張圖片</button>
-    <button class="btn" id="addMoreShotFiles" type="button">＋ 繼續加入圖片</button>
-    <button class="btn danger" id="clearShotFiles" type="button">清除全部</button>
-  </div>
-  <div class="meta" style="margin-top:8px">也可以直接把多張 JPG / PNG 拖曳到這裡；選完後會全部保留，再一次辨識。</div>
-  <input id="shotFile" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" multiple hidden>
-</div>
-<div id="shotBatchPreview">
-  <div class="batchCount">已選擇 <span id="shotBatchCount">0</span> 張截圖</div>
-  <div id="shotBatchGrid" class="batchGrid"></div>
-</div>
-<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。現在支援多張截圖一次批量辨識，辨識結果會合併在同一份確認清單。</div>
+<div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
+<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyCPcOUY5K5mc-uil7c4k2abU8uu74uQRyk",
@@ -131,13 +122,10 @@ const firebaseConfig={
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
-
-// 固定使用瀏覽器本機登入持續性；不會因新增圖庫商品而要求重新登入。
-try{ await setPersistence(auth,browserLocalPersistence); }catch(err){ console.warn("Auth persistence setup failed:",err); }
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
-const ad=$("#ad"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg"), galleryDlg=$("#galleryDlg");
-let galleryItems=[];
-let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="", activeGender="";
+const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
+let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="家具", activeGender="", activeCandy="";
+let accountTypeFilter="", accountGenderFilter="";
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const dataRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
 function cur(){return d.accounts.find(a=>a.id===active)}
@@ -156,64 +144,64 @@ async function save(){
   catch(err){console.error(err);alert("雲端儲存失敗，請稍後再試。")}
   finally{saving=false}
 }
-async function loadGallery(){
-  const snap=await getDocs(collection(db,"productGallery"));
-  galleryItems=snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.updatedAt?.seconds||0)-(a.updatedAt?.seconds||0));
-  renderGallery();
+function migrateCategories(){
+  (d.accounts||[]).forEach(a=>{
+    a.items=Array.isArray(a.items)?a.items:[];
+    a.resources=a.resources||{candy:0,eventCandy:0,magicCandy:0};
+    const keep=[];
+    a.items.forEach(x=>{
+      if(x.category==="糖果數量")x.category="糖果";
+      if(x.category==="糖果"){
+        const t=x.candyType||x.name||"糖果", q=Math.max(0,Number(x.qty)||0);
+        if(t==="活動糖果") a.resources.eventCandy=Math.max(Number(a.resources.eventCandy)||0,q);
+        else if(t==="施法糖果") a.resources.magicCandy=Math.max(Number(a.resources.magicCandy)||0,q);
+        else a.resources.candy=Math.max(Number(a.resources.candy)||0,q);
+      }else keep.push(x);
+    });
+    a.items=keep;
+  });
 }
-function renderGallery(){
-  $("#galleryCount").textContent=`${galleryItems.length} 筆`;
-  $("#galleryList").innerHTML=galleryItems.length?galleryItems.map(x=>`<div class="item"><img class="galleryThumb" src="${x.image||''}" alt=""><div><h3>${e(x.name)}</h3><div class="meta">家具圖庫${x.variant?`｜${e(x.variant)}`:""}</div></div><div class="itemActions"><button class="mini del galleryDelete" data-id="${x.id}">刪除</button></div></div>`).join(""):'<div class="empty" style="grid-column:1/-1">還沒有商品圖庫資料。先新增第一個商品。</div>';
-  document.querySelectorAll('.galleryDelete').forEach(btn=>btn.onclick=async()=>{if(!confirm('確定刪除這筆圖庫商品？'))return;await deleteDoc(doc(db,'productGallery',btn.dataset.id));await loadGallery();});
-}
-function compressGalleryImage(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const max=700,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',0.82));};img.onerror=reject;img.src=r.result;};r.onerror=reject;r.readAsDataURL(file);});}
-$("#openGallery").onclick=async()=>{galleryDlg.showModal();try{await loadGallery()}catch(err){console.error(err);alert('讀取商品圖庫失敗：'+(err?.message||err));}};
-$("#galleryCancel").onclick=()=>galleryDlg.close();
-$("#galleryFile").onchange=()=>{const f=$("#galleryFile").files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("#galleryImg").src=r.result;$("#galleryPreview").style.display='block'};r.readAsDataURL(f);};
-$("#gallerySave").onclick=async()=>{const file=$("#galleryFile").files?.[0],name=$("#galleryName").value.trim(),variant=$("#galleryVariant").value.trim();if(!file)return alert('請選擇商品圖片');if(!name)return alert('請輸入商品名稱');const btn=$("#gallerySave");btn.disabled=true;btn.textContent='檢查圖片中…';try{const image=await compressGalleryImage(file);const existing=await galleryMatchFor(image);if(existing){$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';$("#galleryNote").textContent=`⚠️ 這張商品圖已經存在圖庫：「${existing.name||''}」${existing.variant?`｜${existing.variant}`:''}；沒有重複建立。可以直接新增下一張。`;$("#galleryNote").style.color='#9a6a00';$("#galleryName").focus();return;}btn.textContent='儲存中…';await addDoc(collection(db,'productGallery'),{name,variant,image,category:'家具',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';await loadGallery();$("#galleryNote").textContent=`✅ 已建立「${name}」；可以直接繼續新增下一筆，不需要重新登入。`;$("#galleryNote").style.color='#5f7650';$("#galleryName").focus();}catch(err){console.error(err);alert('圖庫儲存失敗：'+(err?.message||err));}finally{btn.disabled=false;btn.textContent='＋ 建立圖庫商品';}};
-
-function refreshShotAccounts(preferredId=null){
-  const sel=$("#shotAccount");
-  if(!sel) return;
-  const accounts=d.accounts||[];
-  if(!accounts.length){
-    sel.innerHTML='<option value="">目前沒有帳號</option>';
-    return;
-  }
-  const keep=preferredId||active||accounts[0].id;
-  sel.innerHTML=accounts.map(a=>{
-    const label=(a.number||a.name||"未命名")+(a.gameId?`｜${a.gameId}`:"");
-    return `<option value="${e(a.id)}">${e(label)}</option>`;
-  }).join("");
-  sel.value=accounts.some(a=>a.id===keep)?keep:accounts[0].id;
-  active=sel.value;
-  render();
-}
-
-function resetShotRecognition(){
-  sourceImages.forEach(x=>{try{URL.revokeObjectURL(x.url)}catch(_){}});
-  sourceImages=[];
-  $("#shotFile").value="";
-  $("#shotPreview").style.display="none";
-  $("#chooseShotFiles").disabled=false;
-  $("#addMoreShotFiles").disabled=false;
-  $("#shotBatchPreview").style.display="none";
-  $("#shotBatchCount").textContent="0";
-  $("#shotBatchGrid").innerHTML="";
-  $("#shotImg").removeAttribute("src");
-  $("#recognized").innerHTML="";
-  $("#confirmRecognized").style.display="none";
-  $("#mockRecognize").style.display="inline-block";
-}
-
 function render(){
+  migrateCategories();
   let a=cur();
-  $("#accounts").innerHTML=d.accounts.length?d.accounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}</span><small>${x.items.reduce((n,i)=>n+i.qty,0)}件</small></div>`).join(""):'<div class="empty">還沒有帳號</div>';
+  const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||(x.accountType||"主要培養")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
+  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}" draggable="true"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small><span class="dragHandle" title="拖曳排序">☰</span></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
   document.querySelectorAll(".acc").forEach(x=>x.onclick=()=>{active=x.dataset.id;render()});
+  let draggedId=null;
+  document.querySelectorAll(".acc").forEach(el=>{
+    el.ondragstart=ev=>{draggedId=el.dataset.id;el.classList.add("dragging");ev.dataTransfer.effectAllowed="move"};
+    el.ondragend=()=>{el.classList.remove("dragging");draggedId=null};
+    el.ondragover=ev=>{ev.preventDefault();ev.dataTransfer.dropEffect="move"};
+    el.ondrop=async ev=>{
+      ev.preventDefault();
+      const targetId=el.dataset.id;
+      if(!draggedId||draggedId===targetId)return;
+      const from=d.accounts.findIndex(x=>x.id===draggedId),to=d.accounts.findIndex(x=>x.id===targetId);
+      if(from<0||to<0)return;
+      const [moved]=d.accounts.splice(from,1);
+      d.accounts.splice(to,0,moved);
+      await save();
+    };
+  });
   $("#title").textContent=a?`帳號 ${a.number||a.name||""}${a.gameId?`｜${a.gameId}`:""}｜物品庫`:"請先選擇帳號";
   $("#deleteAccount").style.display=a?"inline-block":"none";$("#editAccount").style.display=a?"inline-block":"none";
-  const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>(!activeCategory || x.category===activeCategory) && (!activeGender || x.gender===activeGender)) : [];
-  $("#items").innerHTML=!a?'<div class="empty">先新增／選擇帳號</div>':visibleItems.length?visibleItems.map(x=>`<div class="item"><div class="thumb">${x.image?`<img src="${x.image}" alt="">`:"🎁"}</div><div><h3>${e(x.name)}</h3><div class="meta">${e(x.category||"未分類")}${x.gender?"｜"+e(x.gender):""}｜${x.variant?"款式："+e(x.variant):"無款式"}</div></div><div class="itemActions"><div class="qty">× ${x.qty}</div><button class="mini editItem" data-i="${x._index}">修改</button><button class="mini del deleteItem" data-i="${x._index}">刪除</button></div></div>`).join(""):'<div class="empty">這個分類目前沒有物品</div>';
+  $("#resourceBox").style.display=a?"block":"none";
+  if(a){
+    a.resources=a.resources||{candy:0,eventCandy:0,magicCandy:0};
+    $("#resCandy").value=Number(a.resources.candy)||0;
+    $("#resEventCandy").value=Number(a.resources.eventCandy)||0;
+    $("#resMagicCandy").value=Number(a.resources.magicCandy)||0;
+  }
+  const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>
+    (!activeCategory || x.category===activeCategory) &&
+    (!activeGender || x.gender===activeGender) &&
+    (!activeCandy || x.candyType===activeCandy)
+  ) : [];
+  if(!a){
+    $("#items").innerHTML='<div class="empty">先新增／選擇帳號</div>';
+  }else{
+    $("#items").innerHTML=visibleItems.length?visibleItems.map(x=>`<div class="item"><div class="thumb">${x.image?`<img src="${x.image}" alt="">`:"🎁"}</div><div><h3>${e(x.name)}</h3><div class="meta">${e(x.category||"未分類")}${x.gender?"｜"+e(x.gender):""}｜${x.variant?"款式："+e(x.variant):"無款式"}</div></div><div class="itemActions"><div class="qty">× ${x.qty}</div><button class="mini editItem" data-i="${x._index}">修改</button><button class="mini del deleteItem" data-i="${x._index}">刪除</button></div></div>`).join(""):'<div class="empty">這個分類目前沒有物品</div>';
+  }
   document.querySelectorAll(".editItem").forEach(b=>b.onclick=()=>{
     const a=cur(), i=+b.dataset.i, x=a.items[i];
     editItemDlg.dataset.index=i;
@@ -226,13 +214,13 @@ function render(){
     editItemDlg.showModal();
   });
   document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=async()=>{let a=cur(),x=a.items[+b.dataset.i];if(confirm(`確定刪除「${x.name}${x.variant?"－"+x.variant:""}」？`)){a.items.splice(+b.dataset.i,1);await save()}});
-  let all=d.accounts.flatMap(a=>a.items);
+  let all=d.accounts.flatMap(a=>(a.items||[]).filter(x=>x.category!=="糖果"&&x.category!=="糖果數量"));
   $("#sa").textContent=d.accounts.length;
   $("#sk").textContent=new Set(all.map(x=>x.name+"|"+x.variant)).size;
   $("#sq").textContent=all.reduce((n,x)=>n+x.qty,0);
   $("#su").textContent=d.updated||"尚未";
 }
-$("#editItemCat").onchange=()=>{$("#editItemGenderField").style.display=($("#editItemCat").value==="戒指"||$("#editItemCat").value==="作物")?"block":"none"};
+$("#editItemCat").onchange=()=>{const c=$("#editItemCat").value;$("#editItemGenderField").style.display=(c==="戒指"||c==="作物")?"block":"none"};
 $("#editItemCancel").onclick=()=>editItemDlg.close();
 $("#editItemSave").onclick=async()=>{
   const a=cur(),i=+editItemDlg.dataset.index,x=a?.items?.[i];
@@ -242,29 +230,90 @@ $("#editItemSave").onclick=async()=>{
   const cat=$("#editItemCat").value;
   x.name=name;
   x.category=cat;
-  x.gender=(cat==="戒指"||cat==="作物")?$("#editItemGender").value:"";
+  x.gender=(cat==="戒指"||cat==="作物")?$("#editItemGender").value:"";x.candyType="";
   x.variant=$("#editItemVariant").value.trim();
   x.qty=Math.max(1,+$("#editItemQty").value||1);
   await rememberItemName(x.image,x.name,x.variant);
   editItemDlg.close();
   await save();
 };
-document.querySelectorAll(".catTab").forEach(btn=>btn.onclick=()=>{activeCategory=btn.dataset.cat||"";activeGender=(activeCategory==="作物"||activeCategory==="戒指")?"限男":"";document.querySelectorAll(".catTab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");document.querySelectorAll(".genderTab").forEach(x=>x.classList.toggle("active",x.dataset.gender===activeGender));$("#genderTabs").style.display=(activeCategory==="作物"||activeCategory==="戒指")?"flex":"none";render()});
-document.querySelectorAll(".genderTab").forEach(btn=>btn.onclick=()=>{activeGender=btn.dataset.gender||"";document.querySelectorAll(".genderTab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");render()});
-$("#ic").onchange=()=>{$("#genderField").style.display=($("#ic").value==="作物"||$("#ic").value==="戒指")?"block":"none"};
-$("#newA").onclick=()=>ad.showModal();
-$("#as").onclick=async()=>{let n=$("#an").value.trim();if(!n)return;let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:"",items:[]});active=id;$("#an").value="";ad.close();await save()};
-$("#shotAccount").onchange=()=>{
-  const id=$("#shotAccount").value;
-  if(id){
-    active=id;
-    render();
-    resetShotRecognition();
-    recognizedRows=[];
-  }
+document.querySelectorAll(".catTab").forEach(btn=>btn.onclick=()=>{
+  activeCategory=btn.dataset.cat||"家具";
+  activeGender=(activeCategory==="戒指"||activeCategory==="作物")?"限男":"";
+  activeCandy="";
+  document.querySelectorAll(".catTab").forEach(x=>x.classList.toggle("active",x===btn));
+  $("#genderTabs").style.display=(activeCategory==="戒指"||activeCategory==="作物")?"flex":"none";
+  
+  document.querySelectorAll(".genderTab").forEach(x=>x.classList.toggle("active",x.dataset.gender===activeGender));
+  
+  render();
+});
+$("#genderTabs").onclick=e=>{
+  const btn=e.target.closest(".genderTab"); if(!btn)return;
+  activeGender=btn.dataset.gender||"";
+  document.querySelectorAll(".genderTab").forEach(x=>x.classList.toggle("active",x===btn));
+  render();
 };
-$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");idg.showModal()};
-$("#is").onclick=async()=>{let a=cur(),n=$("#in").value.trim(),v=$("#iv").value.trim(),cat=$("#ic").value||"家具",gender=(cat==="作物"||cat==="戒指")?($("#ig").value||"限男"):"",q=Math.max(1,+$("#iq").value||1);if(!n)return;let same=a.items.find(x=>x.name===n&&x.variant===v&&x.category===cat&&(x.gender||"")===gender);same?same.qty+=q:a.items.push({name:n,category:cat,gender,variant:v,qty:q});$("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()};
+function syncAddItemFields(){
+  const c=$("#ic").value;
+  $("#genderField").style.display=(c==="作物"||c==="戒指")?"block":"none";
+}
+$("#ic").onchange=syncAddItemFields;
+function batchIds(){return $("#baids").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)}
+function updateBatchPreview(){
+  const start=parseInt($("#ban").value,10), ids=batchIds();
+  if(!Number.isFinite(start)||!ids.length){$("#batchPreview").textContent="";return}
+  const end=start+ids.length-1;
+  $("#batchPreview").textContent=`將新增 ${ids.length} 個帳號：${start}${ids.length>1?` ～ ${end}`:""}`;
+}
+$("#batchA").onclick=()=>{
+  const nums=(d.accounts||[]).map(a=>parseInt(a.number||a.name,10)).filter(Number.isFinite);
+  $("#ban").value=nums.length?Math.max(...nums)+1:"";
+  $("#baids").value="";$("#batchPreview").textContent="";batchAd.showModal();
+};
+$("#ban").oninput=updateBatchPreview;$("#baids").oninput=updateBatchPreview;
+$("#batchCancel").onclick=()=>batchAd.close();
+$("#batchSave").onclick=async()=>{
+  const start=parseInt($("#ban").value,10),ids=batchIds();
+  if(!Number.isFinite(start))return alert("請輸入起始編號");
+  if(!ids.length)return alert("請貼上至少一個 ID");
+  const newNumbers=ids.map((_,i)=>String(start+i));
+  const existingNumbers=new Set((d.accounts||[]).map(a=>String(a.number||a.name||"")));
+  const existingIds=new Set((d.accounts||[]).map(a=>String(a.gameId||"").trim()).filter(Boolean));
+  const dupNumber=newNumbers.find(n=>existingNumbers.has(n));
+  if(dupNumber)return alert(`編號 ${dupNumber} 已經存在，請確認起始編號。`);
+  const dupInput=ids.find((id,i)=>ids.indexOf(id)!==i);
+  if(dupInput)return alert(`ID「${dupInput}」在這次貼上的清單中重複了。`);
+  const dupExisting=ids.find(id=>existingIds.has(id));
+  if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
+  const type=$("#baat").value,gender=$("#baag").value;
+  ids.forEach((gid,i)=>{const n=String(start+i);d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:0,eventCandy:0,magicCandy:0},items:[]})});
+  active=d.accounts[d.accounts.length-ids.length].id;
+  batchAd.close();await save();
+};
+$("#newA").onclick=()=>ad.showModal();
+$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:0,eventCandy:0,magicCandy:0},items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
+$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");syncAddItemFields();idg.showModal()};
+$("#is").onclick=async()=>{
+  let a=cur(),cat=$("#ic").value||"家具",candyType="";
+  let n=$("#in").value.trim(),v=$("#iv").value.trim();
+  let gender=(cat==="作物"||cat==="戒指")?($("#ig").value||"限男"):"",q=Math.max(1,+$("#iq").value||1);
+  if(!n)return;
+  let same=a.items.find(x=>x.name===n&&x.variant===v&&x.category===cat&&(x.gender||"")===gender&&(x.candyType||"")===candyType);
+  if(same && cat==="糖果") same.qty=q;
+  else if(same) same.qty+=q;
+  else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
+  $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
+};
+$("#saveResources").onclick=async()=>{
+  const a=cur(); if(!a)return;
+  a.resources={
+    candy:Math.max(0,Math.floor(Number($("#resCandy").value)||0)),
+    eventCandy:Math.max(0,Math.floor(Number($("#resEventCandy").value)||0)),
+    magicCandy:Math.max(0,Math.floor(Number($("#resMagicCandy").value)||0))
+  };
+  await save();
+};
 function search(){
   const raw=$("#q").value.trim();
   const q=raw.toLowerCase();
@@ -275,7 +324,7 @@ function search(){
   }
   const r=[];
   d.accounts.forEach(a=>(a.items||[]).forEach(x=>{
-    const hay=[x.name,x.variant,x.category,x.gender].filter(Boolean).join(" ").toLowerCase();
+    const hay=[x.name,x.variant,x.category,x.gender,x.candyType].filter(Boolean).join(" ").toLowerCase();
     if(hay.includes(q)) r.push({account:a.name||a.number||"",gameId:a.gameId||"",...x});
   }));
   const total=r.reduce((n,x)=>n+(Number(x.qty)||0),0);
@@ -305,70 +354,43 @@ function search(){
   $("#results").style.display="block";
 }
 $("#go").onclick=search;$("#q").onkeydown=x=>x.key==="Enter"&&search();
-$("#editAccount").onclick=()=>{const a=cur();if(!a)return;$("#ean").value=a.number||a.name||"";$("#eid").value=a.gameId||"";editAd.showModal()};
-$("#eas").onclick=async()=>{const a=cur();if(!a)return;const n=$("#ean").value.trim(),gid=$("#eid").value.trim();if(!n)return alert("請輸入編號");a.number=n;a.name=n;a.gameId=gid;editAd.close();await save()};
+$("#editAccount").onclick=()=>{
+  const a=cur();
+  if(!a)return;
+  $("#ean").value=a.number||a.name||"";
+  $("#eid").value=a.gameId||"";
+  $("#eat").value=a.accountType||"主要培養";
+  $("#eag").value=a.accountGender||"男";
+  editAd.showModal();
+};
+$("#eas").onclick=async()=>{
+  const a=cur();
+  if(!a)return;
+  const n=$("#ean").value.trim(), gid=$("#eid").value.trim();
+  if(!n)return alert("請輸入編號");
+  a.number=n;
+  a.name=n;
+  a.gameId=gid;
+  a.accountType=$("#eat").value;
+  a.accountGender=$("#eag").value;
+  editAd.close();
+  await save();
+};
 
 $("#deleteAccount").onclick=async()=>{let a=cur();if(!a)return;if(confirm(`確定刪除帳號「${a.name}」？\n這只會刪除這個帳號與它的庫存，其他帳號不受影響。`)){d.accounts=d.accounts.filter(x=>x.id!==a.id);active=d.accounts[0]?.id||null;await save()}};
 
 let recognizedRows=[];
-$("#importShot").onclick=()=>{
-  if(!d.accounts.length)return alert("請先新增帳號");
-  refreshShotAccounts(active);
-  resetShotRecognition();
-  recognizedRows=[];
-  shotDlg.showModal();
-};
-$("#chooseShotFiles").onclick=()=>$("#shotFile").click();
-$("#addMoreShotFiles").onclick=()=>$("#shotFile").click();
-$("#clearShotFiles").onclick=()=>resetShotRecognition();
-$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy";$("#dropShot").style.background="#fff8f2"};
-$("#dropShot").ondragleave=()=>{$("#dropShot").style.background="#fff"};
-$("#dropShot").ondrop=e=>{e.preventDefault();$("#dropShot").style.background="#fff";appendShotFiles(e.dataTransfer.files)};
-$("#shotFile").onchange=e=>{appendShotFiles(e.target.files);e.target.value=""};
-
-let sourceImages=[];
-function loadImageFromFile(f){
-  return new Promise((resolve,reject)=>{
-    const u=URL.createObjectURL(f), img=new Image();
-    img.onload=()=>resolve({file:f,url:u,img});
-    img.onerror=()=>{URL.revokeObjectURL(u);reject(new Error(`圖片讀取失敗：${f.name}`))};
-    img.src=u;
-  });
+$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
+$("#dropShot").onclick=()=>$("#shotFile").click();
+$("#dropShot").ondragover=e=>{e.preventDefault()};
+$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
+$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
+let sourceImage=null;
+function loadShot(f){
+  let u=URL.createObjectURL(f), img=new Image();
+  img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
+  img.src=u;
 }
-function shotFileKey(f){return `${f.name}|${f.size}|${f.lastModified}|${f.type}`}
-
-async function appendShotFiles(fileList){
-  const files=Array.from(fileList||[]).filter(f=>f&&f.type&&f.type.startsWith("image/"));
-  if(!files.length)return;
-  const existing=new Set(sourceImages.map(x=>shotFileKey(x.file)));
-  const fresh=files.filter(f=>!existing.has(shotFileKey(f)));
-  if(!fresh.length)return;
-  try{
-    const loaded=await Promise.all(fresh.map(loadImageFromFile));
-    sourceImages.push(...loaded);
-    recognizedRows=[];
-    $("#recognized").innerHTML="";
-    $("#confirmRecognized").style.display="none";
-    $("#shotBatchCount").textContent=sourceImages.length;
-    $("#shotBatchGrid").innerHTML=sourceImages.map((x,i)=>`
-      <div class="batchThumb">
-        <img src="${x.url}" alt="">
-        <div class="batchName" title="${e(x.file.name)}">${i+1}. ${e(x.file.name)}</div>
-      </div>`).join("");
-    $("#shotBatchPreview").style.display="block";
-    if(sourceImages.length===1){
-      $("#shotImg").src=sourceImages[0].url;
-      $("#shotPreview").style.display="block";
-    }else{
-      $("#shotPreview").style.display="none";
-    }
-    $("#mockRecognize").textContent=sourceImages.length>1?`批量辨識 ${sourceImages.length} 張截圖`:"辨識這張截圖";
-  }catch(err){
-    console.error(err);
-    alert(err?.message||String(err));
-  }
-}
-
 function cropGridImage(img,index,cols=4){
   if(!img)return "";
   const rows=Math.ceil(16/cols), col=index%cols, row=Math.floor(index/cols);
@@ -382,236 +404,139 @@ function cropGridImage(img,index,cols=4){
 function drawRecognized(){
  $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
    ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
-   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改。${x.galleryMatched?'🖼️ 已從商品圖庫找到相同商品。':'🆕 圖庫找不到這張圖片；確認後會自動建立到商品圖庫。'}</div></div>
+   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改；左側完整保留 MSTAR 道具圖與遊戲內名稱；直向／橫向、1～4 欄與多排會依卡片格線自動判斷；一般道具與戒指會套用各自版型；戒指支援「1次」黑條與紫色數量條兩種畫面，不把數量條、名稱或「查看詳情」混進圖片記憶。你修正後按確認，網站會把「道具圖片＝你輸入的名稱」記到雲端。下次遇到相同道具會優先使用你修正過的名稱。之後遇到相同道具會優先用圖片辨識，不再依賴 OCR 猜名稱；不確定時顯示「待確認」。</div></div>
    <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
  </div>`).join("");
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
  document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()});
 }
-function axisPeaks(edgeMap, axis, minDistance, prominence){
-  const values=axis==="x" ? edgeMap.mean(0) : edgeMap.mean(1);
-  const arr=Array.from(values);
-  const peaks=[];
-  // Lightweight peak detector so the HTML remains dependency-free.
-  for(let i=1;i<arr.length-1;i++){
-    if(arr[i]<arr[i-1] || arr[i]<arr[i+1] || arr[i]<prominence) continue;
-    let tooClose=-1;
-    for(let p=0;p<peaks.length;p++){
-      if(Math.abs(peaks[p]-i)<minDistance){tooClose=p;break;}
-    }
-    if(tooClose>=0){
-      if(arr[i]>arr[peaks[tooClose]]) peaks[tooClose]=i;
-    }else peaks.push(i);
+function gridLineScore(ctx,pos,vertical,W,H){
+  // Measure how much a candidate boundary behaves like a full card separator.
+  // Real separators continue through most of the screenshot; artwork edges do not.
+  const band=2, samples=72;
+  let edge=0, smooth=0;
+  for(let i=0;i<samples;i++){
+    const t=(i+.5)/samples;
+    const x=vertical?Math.max(2,Math.min(W-3,Math.round(pos))):Math.max(2,Math.min(W-3,Math.round(t*W)));
+    const y=vertical?Math.max(2,Math.min(H-3,Math.round(t*H))):Math.max(2,Math.min(H-3,Math.round(pos)));
+    const a=ctx.getImageData(vertical?x-band:x,vertical?y:y-band,1,1).data;
+    const b=ctx.getImageData(vertical?x+band:x,vertical?y:y+band,1,1).data;
+    edge+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
+    const c=ctx.getImageData(x,y,1,1).data;
+    smooth+=(c[0]+c[1]+c[2])/3;
   }
-  return peaks.sort((a,b)=>a-b);
-}
-
-function detectCardBounds(img){
-  const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
-  const c=document.createElement("canvas");
-  // Downscale only for edge detection; coordinates are mapped back to source pixels.
-  const scale=Math.min(1,1200/w,800/h);
-  c.width=Math.max(1,Math.round(w*scale));
-  c.height=Math.max(1,Math.round(h*scale));
-  const ctx=c.getContext("2d",{willReadFrequently:true});
-  ctx.drawImage(img,0,0,c.width,c.height);
-  const data=ctx.getImageData(0,0,c.width,c.height).data;
-  const g=new Float32Array(c.width*c.height);
-  for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
-    const i=(y*c.width+x)*4;
-    g[y*c.width+x]=.299*data[i]+.587*data[i+1]+.114*data[i+2];
-  }
-  const ex=new Float32Array(c.width*c.height);
-  for(let y=1;y<c.height-1;y++)for(let x=1;x<c.width-1;x++){
-    const i=y*c.width+x;
-    const gx=Math.abs(g[i+1]-g[i-1]);
-    const gy=Math.abs(g[i+c.width]-g[i-c.width]);
-    ex[i]=gx+gy;
-  }
-  const xScore=new Float32Array(c.width), yScore=new Float32Array(c.height);
-  for(let y=1;y<c.height-1;y++)for(let x=1;x<c.width-1;x++){
-    const v=ex[y*c.width+x];
-    xScore[x]+=v; yScore[y]+=v;
-  }
-  // Normalize by axis length and smooth a little.
-  for(let x=0;x<c.width;x++)xScore[x]/=c.height;
-  for(let y=0;y<c.height;y++)yScore[y]/=c.width;
-  function smooth(a,r){
-    const out=new Float32Array(a.length);
-    for(let i=0;i<a.length;i++){
-      let s=0,n=0;
-      for(let k=-r;k<=r;k++){const j=i+k;if(j>=0&&j<a.length){s+=a[j];n++;}}
-      out[i]=s/n;
-    }
-    return out;
-  }
-  const xs=smooth(xScore,2), ys=smooth(yScore,2);
-
-  // Card borders are strong repeated vertical/horizontal lines.
-  function pickBands(a,minGap){
-    const med=[...a].sort((m,n)=>m-n)[Math.floor(a.length/2)]||0;
-    const threshold=Math.max(med*1.65,6);
-    const candidates=[];
-    for(let i=2;i<a.length-2;i++){
-      if(a[i]>=a[i-1]&&a[i]>=a[i+1]&&a[i]>threshold)candidates.push(i);
-    }
-    const chosen=[];
-    for(const p of candidates.sort((u,v)=>a[v]-a[u])){
-      if(chosen.every(q=>Math.abs(q-p)>=minGap))chosen.push(p);
-    }
-    return chosen.sort((u,v)=>u-v);
-  }
-
-  let vx=pickBands(xs,Math.max(12,Math.round(c.width*.07)));
-  let vy=pickBands(ys,Math.max(12,Math.round(c.height*.07)));
-
-  // Prefer boundaries that form a regular card grid.
-  function chooseBounds(peaks,total,maxCells=8){
-    const out=[];
-    for(const p of peaks){
-      if(p>total*.04 && p<total*.96) out.push(p);
-    }
-    // Add outer boundaries using the strongest runs when necessary.
-    return out;
-  }
-  vx=chooseBounds(vx,c.width); vy=chooseBounds(vy,c.height);
-
-  function bestGrid(){
-    let best=null;
-    for(let cols=1;cols<=6;cols++){
-      for(let rows=1;rows<=8;rows++){
-        if(cols*rows>48)continue;
-        // Candidate region: use edge peaks when count matches expected boundaries.
-        if(vx.length>=cols+1 && vy.length>=rows+1){
-          for(let xi=0;xi<=vx.length-(cols+1);xi++){
-            const xb=vx.slice(xi,xi+cols+1);
-            const xw=xb.slice(1).map((v,i)=>v-xb[i]);
-            const xavg=xw.reduce((a,b)=>a+b,0)/xw.length;
-            const xvar=xw.reduce((a,b)=>a+(b-xavg)**2,0)/xw.length;
-            for(let yi=0;yi<=vy.length-(rows+1);yi++){
-              const yb=vy.slice(yi,yi+rows+1);
-              const yw=yb.slice(1).map((v,i)=>v-yb[i]);
-              const yavg=yw.reduce((a,b)=>a+b,0)/yw.length;
-              const yvar=yw.reduce((a,b)=>a+(b-yavg)**2,0)/yw.length;
-              const aspect=xavg/yavg;
-              // MSTAR card width/height is usually around 0.75~0.9.
-              const aspectPenalty=Math.abs(aspect-.84);
-              const regularity=(Math.sqrt(xvar)/Math.max(1,xavg))+(Math.sqrt(yvar)/Math.max(1,yavg));
-              const area=(cols*xavg)*(rows*yavg)/(c.width*c.height);
-              const score=aspectPenalty*2+regularity*.8+Math.max(0,.25-area)*.25;
-              if(!best||score<best.score)best={score,cols,rows,xb,yb};
-            }
-          }
-        }
-      }
-    }
-    return best;
-  }
-
-  const grid=bestGrid();
-  if(grid){
-    const sx=1/scale, sy=1/scale;
-    return {
-      cols:grid.cols, rows:grid.rows,
-      x0:grid.xb[0]*sx, y0:grid.yb[0]*sy,
-      cw:(grid.xb[grid.xb.length-1]-grid.xb[0])*sx/grid.cols,
-      ch:(grid.yb[grid.yb.length-1]-grid.yb[0])*sy/grid.rows,
-      boundariesX:grid.xb.map(v=>v*sx),
-      boundariesY:grid.yb.map(v=>v*sy)
-    };
-  }
-
-  // Safe fallback for the original 4×2 MSTAR screenshot layout.
-  const cols=4, rows=2;
-  const left=w*.195, top=h*.082, right=w*.829, bottom=h*.625;
-  return {cols,rows,x0:left,y0:top,cw:(right-left)/cols,ch:(bottom-top)/rows};
+  return edge/samples + smooth/samples*.025;
 }
 
 function inferCardGrid(img){
-  const g=detectCardBounds(img);
-  // Keep compatibility with the existing crop functions.
-  return g;
+  // MSTAR 卡片本身尺寸固定，只是截圖可能是 1x / 1.25x / 1.5x / 2x 顯示縮放。
+  // 不能只看整張圖比例：4x2 與 2x1 的外框比例幾乎一樣，之前戒指因此被四格併成一格。
+  // 現在同時用「單一卡片實際尺寸、卡片比例、格線」判斷。
+  const W=img.naturalWidth,H=img.naturalHeight;
+  const probe=document.createElement("canvas"); probe.width=W;probe.height=H;
+  const ctx=probe.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0);
+  const baseW=123, baseH=144;
+  const scales=[.75,1,1.25,1.5,1.75,2,2.25,2.5,3];
+  let best=null;
+  for(let cols=1;cols<=4;cols++){
+    for(let rows=1;rows<=10;rows++){
+      const cw=W/cols,ch=H/rows,ratio=cw/ch;
+      if(ratio<.72||ratio>1.02)continue;
+      let sizeErr=Infinity,chosenScale=1;
+      for(const sc of scales){
+        const err=Math.abs(cw-baseW*sc)/(baseW*sc)+Math.abs(ch-baseH*sc)/(baseH*sc);
+        if(err<sizeErr){sizeErr=err;chosenScale=sc}
+      }
+      // 尺寸是主判斷。這可直接分開 984x552 的 4x2 戒指與小張 2x1 截圖。
+      let score=sizeErr*8 + Math.abs(ratio-(baseW/baseH))*2;
+      // 格線必須逐條計分，不能只取「平均」。
+      // 4x2 與 2x1 在 1x/2x 截圖時，單格尺寸會剛好成倍而產生歧義；
+      // 若只看平均分隔線，2x1 反而可能因中央那條線特別明顯而勝出。
+      // 現在改成：每一條可信的完整格線都提供獨立證據，因此 4x2 會有
+      // 3 條直線 + 1 條橫線，不會再被合併成兩個 2x2 大區塊。
+      let sep=0,n=0,boundaryEvidence=0,weakBoundaries=0;
+      const addBoundary=(v)=>{
+        sep+=v;n++;
+        if(v>=15) boundaryEvidence+=Math.min(1,(v-15)/35);
+        else weakBoundaries++;
+      };
+      for(let c=1;c<cols;c++) addBoundary(gridLineScore(ctx,c*cw,true,W,H));
+      for(let r=1;r<rows;r++) addBoundary(gridLineScore(ctx,r*ch,false,W,H));
+      if(n){
+        score-=boundaryEvidence*.34;       // 每條真的格線都加分
+        score+=weakBoundaries*.16;         // 沒有格線卻硬切，直接扣分
+      }
+      // 若兩個方案尺寸近似，讓「有更多真實格線支持」的方案勝出。
+      if(!best||score<best.score)best={cols,rows,cw,ch,score,scale:chosenScale};
+    }
+  }
+  if(best)return best;
+  const sc=W>650?2:1;
+  const cols=Math.max(1,Math.min(4,Math.round(W/(baseW*sc))));
+  const rows=Math.max(1,Math.round(H/(baseH*sc)));
+  return {cols,rows,cw:W/cols,ch:H/rows,score:99,scale:sc};
+}
+function cardLayout(){
+  // Keep the complete visual card artwork. Recognition/memory later ignores UI-heavy edges,
+  // so there is no reason to crop away artwork just to avoid labels.
+  // 小圖要保留「道具圖 + 遊戲內名稱」，但不要吃到最下面的「查看詳情／刪除鍵」。
+  // 戒指/卡牌同樣保留名稱與數量條，方便光看縮圖就知道是什麼。
+  return activeCategory==="戒指"
+    ? {picX:.015,picY:.015,picW:.97,picH:.84,nameY:.705,nameH:.125,restrictY:0,restrictH:0}
+    : {picX:.015,picY:.015,picW:.97,picH:.835,nameY:.665,nameH:.12,restrictY:.515,restrictH:.15};
 }
 
+function cellLooksEmpty(img,col,row,g){
+  // 最後一排可能只有 1~3 個。直接檢查道具展示區的像素變化，避免把右側空白當成「待確認」。
+  const L=cardLayout(), x=col*g.cw+g.cw*L.picX, y=row*g.ch+g.ch*L.picY;
+  const sw=g.cw*L.picW, sh=g.ch*Math.min(L.picH,.62);
+  const c=document.createElement("canvas"); c.width=32;c.height=32;
+  const ctx=c.getContext("2d"); ctx.drawImage(img,x,y,sw,sh,0,0,32,32);
+  const p=ctx.getImageData(0,0,32,32).data;
+  let sum=0,sum2=0,n=0;
+  for(let i=0;i<p.length;i+=16){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];sum+=v;sum2+=v*v;n++}
+  const mean=sum/n, variance=sum2/n-mean*mean;
+  // 空格通常是低亮度、低細節背景；寧可保留可疑格，也不要漏掉真的道具。
+  return mean<55 && variance<520;
+}
 function cropRect(img,sx,sy,sw,sh,quality=.9){
   const c=document.createElement("canvas");
   c.width=Math.max(1,Math.round(sw)); c.height=Math.max(1,Math.round(sh));
   c.getContext("2d").drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
   return c.toDataURL("image/jpeg",quality);
 }
-function cardOrigin(g,col,row){
-  return {x:g.x0+col*g.cw,y:g.y0+row*g.ch};
-}
 function cardCrop(img,col,row,g){
-  const p=cardOrigin(g,col,row);
-  return cropRect(img,p.x,p.y,g.cw,g.ch,.92);
+  // 縮圖保留完整道具展示區與遊戲內名稱，讓庫存小圖本身也看得出道具名稱。
+  // 最下面的「查看詳情」/刪除按鈕仍排除；圖片比對會在 imageSignature() 內只取 artwork 區，不受名稱影響。
+  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  return cropRect(img,x+g.cw*L.picX,y+g.ch*L.picY,g.cw*L.picW,g.ch*L.picH,.98);
 }
 function cardNameCrop(img,col,row,g){
-  // The name line is just above the "查看詳情" button.
-  const p=cardOrigin(g,col,row);
-  return cropRect(img,p.x+g.cw*.02,p.y+g.ch*.68,g.cw*.96,g.ch*.17,1);
+  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  return cropRect(img,x+g.cw*.025,y+g.ch*L.nameY,g.cw*.95,g.ch*L.nameH,1);
 }
 function cardRestrictionCrop(img,col,row,g){
-  const p=cardOrigin(g,col,row);
-  return cropRect(img,p.x+g.cw*.16,p.y+g.ch*.55,g.cw*.68,g.ch*.15,1);
+  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  if(!L.restrictH)return cropRect(img,x,y,1,1,1);
+  return cropRect(img,x+g.cw*.18,y+g.ch*L.restrictY,g.cw*.64,g.ch*L.restrictH,1);
 }
-async function imageToOCRVariants(img,col,row,g){
-  const p=cardOrigin(g,col,row);
-  const sx=p.x+g.cw*.015, sy=p.y+g.ch*.675, sw=g.cw*.97, sh=g.ch*.18;
-  const variants=[];
-  const scale=7;
-  const source=img;
-  const make=(mode)=>{
-    const c=document.createElement("canvas");
-    c.width=Math.max(1,Math.round(sw*scale));
-    c.height=Math.max(1,Math.round(sh*scale));
-    const ctx=c.getContext("2d",{willReadFrequently:true});
-    ctx.imageSmoothingEnabled=true;
-    ctx.imageSmoothingQuality="high";
-    ctx.drawImage(source,sx,sy,sw,sh,0,0,c.width,c.height);
-    const im=ctx.getImageData(0,0,c.width,c.height);
-    const p=im.data;
-    for(let i=0;i<p.length;i+=4){
-      const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
-      let v=lum;
-      if(mode==="contrast") v=Math.max(0,Math.min(255,(lum-105)*1.9+105));
-      if(mode==="binary") v=lum>145?255:0;
-      if(mode==="soft") v=Math.max(0,Math.min(255,(lum-80)*1.45+80));
-      p[i]=p[i+1]=p[i+2]=v;
-      p[i+3]=255;
-    }
-    ctx.putImageData(im,0,0);
-    return c.toDataURL("image/png");
-  };
-  variants.push(make("contrast"));
-  variants.push(make("soft"));
-  variants.push(make("binary"));
-  return variants;
+function preprocessNameForOCR(img,col,row,g){
+  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  const sx=x+g.cw*.015, sy=y+g.ch*(L.nameY-.015), sw=g.cw*.97, sh=g.ch*(L.nameH+.03);
+  const scale=6,c=document.createElement("canvas");
+  c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
+  const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+  const im=ctx.getImageData(0,0,c.width,c.height),p=im.data;
+  for(let i=0;i<p.length;i+=4){const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];const v=lum>145?255:0;p[i]=p[i+1]=p[i+2]=v}
+  ctx.putImageData(im,0,0);return c.toDataURL("image/png");
 }
-
-async function recognizeBestName(worker,img,col,row,g){
-  const variants=await imageToOCRVariants(img,col,row,g);
-  let best={text:"",confidence:0,score:-1};
-  for(const v of variants){
-    let res;
-    try{
-      res=await worker.recognize(v);
-    }catch(_){continue}
-    const text=cleanItemName(res?.data?.text||"");
-    const confidence=Number(res?.data?.confidence||0);
-    const score=cjkCount(text)*22 + confidence - Math.max(0,text.length-28)*2;
-    if(score>best.score) best={text,confidence,score};
-  }
-  return best;
-}
-
 function ocrLooksBroken(text,confidence){
   const t=String(text||"").trim();
   if(!t) return true;
   // MSTAR item names are expected to contain CJK characters. Do not present
   // low-confidence Latin gibberish as an item name.
   const hasCJK=/[\u3400-\u9FFF]/.test(t);
-  return !hasCJK || (Number(confidence||0)<22 && cjkCount(t)<3);
+  return !hasCJK || cjkCount(t)<2 || Number(confidence||0)<42;
 }
 function cjkCount(t){return (String(t||"").match(/[\u3400-\u9FFF]/g)||[]).length}
 async function recognizeBestName(worker,img,col,row,g){
@@ -641,92 +566,55 @@ async function recognizeBestName(worker,img,col,row,g){
   }
   return best;
 }
-async function imageFingerprint(dataUrl){
+async function imageSignature(dataUrl){
   const img=new Image();
   await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  const c=document.createElement("canvas"),w=16,h=16;
-  c.width=w;c.height=h;
-  const ctx=c.getContext("2d");
-  ctx.drawImage(img,0,0,w,h);
-  const p=ctx.getImageData(0,0,w,h).data;
-  let bits="",avg=0,vals=[];
-  for(let i=0;i<p.length;i+=4){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];vals.push(v);avg+=v}
-  avg/=vals.length;
-  vals.forEach(v=>bits+=v>=avg?"1":"0");
-  let hex="";
-  for(let i=0;i<bits.length;i+=4)hex+=parseInt(bits.slice(i,i+4),2).toString(16);
-  return hex;
-}
-function hamming(a,b){
-  if(!a||!b||a.length!==b.length)return 999;
-  let n=0;
-  for(let i=0;i<a.length;i++){
-    let x=parseInt(a[i],16)^parseInt(b[i],16);
-    n+=((x>>0)&1)+((x>>1)&1)+((x>>2)&1)+((x>>3)&1);
+  // Compare mainly the artwork area. The lower name/button area and NEW badge can
+  // change or add noise, so they are intentionally excluded.
+  const size=24,c=document.createElement("canvas");
+  c.width=size;c.height=size;
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  const sw=img.naturalWidth*.82, sh=img.naturalHeight*.62;
+  const sx=img.naturalWidth*.09, sy=img.naturalHeight*.08;
+  ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
+  const p=ctx.getImageData(0,0,size,size).data;
+  const sig=[];
+  for(let i=0;i<p.length;i+=4){
+    // Keep coarse colour as well as brightness; this separates similarly-shaped items.
+    sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
   }
-  return n;
+  return sig;
+}
+function signatureDistance(a,b){
+  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
+  let sum=0;
+  for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d}
+  return Math.sqrt(sum/a.length);
 }
 async function learnedNameFor(image){
-  const fp=await imageFingerprint(image);
+  const sig=await imageSignature(image);
   let best=null;
   for(const m of (d.itemMemory||[])){
-    const dist=hamming(fp,m.fp);
+    if(!Array.isArray(m.sig))continue; // old 16x16 hashes are ignored safely
+    const dist=signatureDistance(sig,m.sig);
     if(!best||dist<best.dist)best={...m,dist};
   }
-  // conservative threshold: prefer no match over a wrong remembered name
-  return best&&best.dist<=18?best:null;
+  // Deliberately strict: a missed match is better than assigning the wrong item name.
+  return best&&best.dist<=2.15?best:null;
 }
-// 商品圖庫去重：同一張商品圖（指紋距離 <= 18）只保留一筆。
-async function galleryMatchFor(image){
-  if(!image) return null;
-  if(!galleryItems.length){
-    try{ await loadGallery(); }catch(_){ return null; }
-  }
-  const fp=await imageFingerprint(image);
-  let best=null;
-  for(const g of galleryItems){
-    if(!g.image) continue;
-    try{
-      const gfp=await imageFingerprint(g.image);
-      const dist=hamming(fp,gfp);
-      if(!best||dist<best.dist) best={...g,dist};
-    }catch(_){ }
-  }
-  return best&&best.dist<=18?best:null;
-}
-
-async function addRecognizedToGallery(x){
-  if(!x || !x.image || !x.name || x.name==='待確認' || x.galleryMatched) return false;
-  // Avoid creating an obvious duplicate if another entry was added during this session.
-  const existing=await galleryMatchFor(x.image);
-  if(existing){
-    // 同一張商品圖只保留圖庫原本那一筆，並沿用原本的正確名稱。
-    if(existing.name) x.name=existing.name;
-    if(existing.variant!==undefined) x.variant=existing.variant||'';
-    x.galleryMatched=true;
-    return false;
-  }
-  await addDoc(collection(db,'productGallery'),{
-    name:x.name.trim(),
-    variant:(x.variant||'').trim(),
-    image:x.image,
-    category:'家具',
-    source:'OCR手動確認',
-    createdAt:serverTimestamp(),
-    updatedAt:serverTimestamp()
-  });
-  x.galleryMatched=true;
-  return true;
-}
-
 async function rememberItemName(image,name,variant=""){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
-  const fp=await imageFingerprint(image);
+  const sig=await imageSignature(image);
   let best=null,idx=-1;
-  d.itemMemory.forEach((m,i)=>{const dist=hamming(fp,m.fp);if(!best||dist<best.dist){best={...m,dist};idx=i}});
-  const rec={fp,name,variant};
-  if(best&&best.dist<=18)d.itemMemory[idx]=rec;else d.itemMemory.push(rec);
+  d.itemMemory.forEach((m,i)=>{
+    if(!Array.isArray(m.sig))return;
+    const dist=signatureDistance(sig,m.sig);
+    if(!best||dist<best.dist){best={...m,dist};idx=i}
+  });
+  const rec={sig,name,variant};
+  // Only overwrite a genuinely near-identical learned image.
+  if(best&&best.dist<=1.35)d.itemMemory[idx]=rec;else d.itemMemory.push(rec);
 }
 function cleanItemName(text){
   let t=String(text||"")
@@ -748,27 +636,12 @@ function looksLikeItem(text){
   const t=cleanItemName(text).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
-async function cardImageHasContent(dataUrl){
-  const img=new Image();
-  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  const c=document.createElement("canvas"); c.width=64;c.height=64;
-  const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,64,64);
-  const p=ctx.getImageData(0,0,64,64).data;
-  let nonBg=0, dark=0;
-  for(let i=0;i<p.length;i+=4){
-    const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
-    if(lum<220)nonBg++;
-    if(lum<150)dark++;
-  }
-  return nonBg>64 && dark>20;
-}
-
 $("#mockRecognize").onclick=async()=>{
-  if(!sourceImages.length)return alert("先放一張或多張截圖");
+  if(!sourceImage)return alert("先放一張截圖");
   const btn=$("#mockRecognize");
-  btn.disabled=true; btn.textContent=sourceImages.length>1?`批量辨識中（0/${sourceImages.length}）…`:"辨識中…";
+  btn.disabled=true; btn.textContent="辨識中…";
   recognizedRows=[];
-  $("#recognized").innerHTML=`<div class="meta">正在依 MSTAR 道具卡片版型辨識 ${sourceImages.length>1?`共 ${sourceImages.length} 張截圖`:"…"}</div>`;
+  $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 實際道具格版型定位辨識…</div>';
   $("#confirmRecognized").style.display="none";
 
   let createWorker,worker=null;
@@ -777,32 +650,21 @@ $("#mockRecognize").onclick=async()=>{
     createWorker=mod.createWorker||mod.default?.createWorker;
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
-    try{
-      await worker.setParameters({
-        tessedit_pageseg_mode:"7",
-        preserve_interword_spaces:"0"
-      });
-    }catch(_){}
 
+    const g=inferCardGrid(sourceImage);
     const found=[];
-    for(let imageIndex=0;imageIndex<sourceImages.length;imageIndex++){
-      const sourceImage=sourceImages[imageIndex].img;
-      const g=inferCardGrid(sourceImage);
-      for(let row=0;row<g.rows;row++){
-        for(let col=0;col<g.cols;col++){
-          const cardImage=cardCrop(sourceImage,col,row,g);
-          const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
-          let name=bestName.text;
-          const confidence=bestName.confidence;
-          if(ocrLooksBroken(name,confidence)) name="待確認";
-          // Do not let completely blank cells become fake products.
-          const cardHasContent=await cardImageHasContent(cardImage);
-          if(!cardHasContent) continue;
-          if(name!=="待確認" && !looksLikeItem(name)) continue;
+    for(let row=0;row<g.rows;row++){
+      for(let col=0;col<g.cols;col++){
+        if(cellLooksEmpty(sourceImage,col,row,g)) continue;
+        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
+        let name=bestName.text;
+        const confidence=bestName.confidence;
+        if(ocrLooksBroken(name,confidence)) name="待確認";
+        if(name!=="待確認" && !looksLikeItem(name)) continue;
 
-          // A valid card must have a plausible item-name line. This prevents
-          // buttons/page text elsewhere on the screenshot from becoming items.
-          const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
+        // A valid card must have a plausible item-name line. This prevents
+        // buttons/page text elsewhere on the screenshot from becoming items.
+        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
         let restriction="";
         try{
           const rr=await worker.recognize(restrictionImg);
@@ -817,30 +679,20 @@ $("#mockRecognize").onclick=async()=>{
         const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
         if(m){itemName=m[1].trim();variant=m[2].trim()}
 
-        const galleryMatch=await galleryMatchFor(cardImage);
-        const learned=galleryMatch ? null : await learnedNameFor(cardImage);
-        if(galleryMatch){
-          itemName=galleryMatch.name;
-          if(galleryMatch.variant)variant=galleryMatch.variant;
-        }else if(learned){
+        const cardImage=cardCrop(sourceImage,col,row,g);
+        const learned=await learnedNameFor(cardImage);
+        if(learned){
           itemName=learned.name;
           if(learned.variant)variant=learned.variant;
         }
-          found.push({
-            name:itemName,
-            variant,
-            restriction,
-            qty:1,
-            image:cardImage,
-            learned:!!learned,
-            galleryMatched:!!galleryMatch,
-            sourceFile:sourceImages[imageIndex].file.name
-          });
-        }
-      }
-      if(sourceImages.length>1){
-        btn.textContent=`批量辨識中（${imageIndex+1}/${sourceImages.length}）…`;
-        $("#recognized").innerHTML=`<div class="meta">已完成第 ${imageIndex+1} / ${sourceImages.length} 張截圖，持續辨識中…</div>`;
+        found.push({
+          name:itemName,
+          variant,
+          restriction,
+          qty:1,
+          image:cardImage,
+          learned:!!learned
+        });
       }
     }
     recognizedRows=found;
@@ -855,64 +707,30 @@ $("#mockRecognize").onclick=async()=>{
     $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
   }finally{
     if(worker){try{await worker.terminate()}catch(_){}}
-    btn.disabled=false; btn.textContent=sourceImages.length>1?`批量辨識 ${sourceImages.length} 張截圖`:"辨識這張截圖";
+    btn.disabled=false; btn.textContent="辨識這張截圖";
   }
 };
 
 $("#confirmRecognized").onclick=async()=>{
-  let a=cur();
-  if(!a)return;
-  const btn=$("#confirmRecognized");
-  btn.disabled=true;
-  btn.textContent="建立圖庫並加入庫存中…";
-  try{
-    for(const x of recognizedRows){
-      if(!x.galleryMatched && x.name && x.name!=="待確認"){
-        await addRecognizedToGallery(x);
-      }
-      await rememberItemName(x.image,x.name,x.variant);
-      let same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&(y.restriction||"")===(x.restriction||""));
-      if(same){
-        same.qty+=(x.qty||1);
-        if(!same.image&&x.image)same.image=x.image;
-      }else{
-        a.items.push({...x,qty:x.qty||1});
-      }
-    }
-    await loadGallery();
-    await save();
-
-    // 不關閉視窗：直接準備下一個帳號。
-    const accounts=d.accounts||[];
-    const currentIndex=accounts.findIndex(a=>a.id===active);
-    const next=accounts[currentIndex+1] || accounts[0];
-
-    if(next){
-      active=next.id;
-      refreshShotAccounts(active);
-      resetShotRecognition();
-      recognizedRows=[];
-      $("#shotAccount").value=active;
-      $("#shotAccount").focus();
-      $("#shotAccount").dispatchEvent(new Event("change"));
-      alert(`✅ ${accounts[currentIndex]?.number||accounts[currentIndex]?.name||"目前帳號"} 已完成。\n\n已切換到下一個帳號：${next.number||next.name||"未命名"}\n可以直接選下一張截圖，不需要重新登入。`);
-    }
-  }catch(err){
-    console.error(err);
-    alert("加入庫存／建立商品圖庫失敗："+(err?.message||err));
-  }finally{
-    btn.disabled=false;
-    btn.textContent="確認加入庫存";
+  const a=cur(); if(!a||!recognizedRows.length)return;
+  const cat=(activeCategory==="糖果"?"家具":activeCategory)||"家具";
+  const gen=(cat==="戒指"||cat==="作物")?(activeGender||recognizedRows[0]?.restriction||"限男"):"";
+  for(const x of recognizedRows){
+    const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
+    await rememberItemName(item.image,item.name,item.variant);
+    const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
+    if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
+    else a.items.push(item);
   }
+  activeCategory=cat; activeGender=gen; activeCandy="";
+  shotDlg.close(); await save();
 };
-
 
 $("#googleLogin").onclick=async()=>{
   const msg=$("#loginMsg"), btn=$("#googleLogin");
   msg.textContent="正在開啟 Google 登入…";
   btn.disabled=true;
   try{
-    await setPersistence(auth,browserLocalPersistence);
     const result=await signInWithPopup(auth,provider);
     if(result.user.uid!==ADMIN_UID){
       await signOut(auth);
@@ -928,7 +746,6 @@ $("#googleLogin").onclick=async()=>{
       msg.textContent="登入視窗被瀏覽器擋住，正在改用頁面登入…";
       try{
         const {signInWithRedirect}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
-        await setPersistence(auth,browserLocalPersistence);
         await signInWithRedirect(auth,provider);
         return;
       }catch(e2){
@@ -957,38 +774,9 @@ onAuthStateChanged(auth,async user=>{
   }
   $("#userLabel").textContent=currentUser.email||"已登入";
   $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
-  try{await loadCloud();await loadGallery()}catch(err){console.error(err);alert("讀取雲端資料失敗，請確認 Firestore 規則。")}
-});
-
-function getSearchInput(){
-  return document.querySelector(
-    'input[id*="search" i], input[name*="search" i], input[placeholder*="搜尋"]'
-  );
-}
-
-function clearSearchInput(){
-  const input=getSearchInput();
-  if(!input) return;
-  input.value="";
-  input.dispatchEvent(new Event("input",{bubbles:true}));
-  input.dispatchEvent(new Event("change",{bubbles:true}));
-  input.focus();
-}
-
-document.getElementById("clearSearch")?.addEventListener("click",clearSearchInput);
-
-document.addEventListener("keydown",e=>{
-  const input=e.target;
-  if(!(input instanceof HTMLInputElement)) return;
-  const isSearch =
-    /search/i.test(input.id||"") ||
-    /search/i.test(input.name||"") ||
-    (input.placeholder||"").includes("搜尋");
-  if(isSearch && e.key==="Escape"){
-    e.preventDefault();
-    clearSearchInput();
-  }
+  try{await loadCloud()}catch(err){console.error(err);alert("讀取雲端庫存失敗，請確認 Firestore 規則。")}
 });
 
 </script></body></html>
+
 
