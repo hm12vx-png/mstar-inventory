@@ -21,6 +21,7 @@
 #authGate .loginCard{width:min(430px,92vw);background:var(--p);border:1px solid var(--line);border-radius:22px;padding:28px;text-align:center;box-shadow:0 18px 55px #6d514322}
 #authGate h2{margin:0 0 8px}#authGate p{color:var(--muted);margin:0 0 18px}.hidden{display:none!important}
 #app{visibility:hidden}
+#galleryList .item{grid-template-columns:74px 1fr auto}.galleryThumb{width:74px;height:74px;border-radius:12px;object-fit:contain;background:#eee;border:1px solid var(--line)}
 .authbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--muted)}
 </style></head><body>
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
@@ -29,7 +30,7 @@
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><button class="btn" id="newA">＋</button></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openGallery">🖼️ 商品圖庫</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
 <button class="btn primary catTab active" data-cat="家具">家具</button>
 <button class="btn catTab" data-cat="玩偶">玩偶</button>
 <button class="btn catTab" data-cat="花盆">花盆</button>
@@ -76,6 +77,13 @@
 <option value="限男">限男</option>
 <option value="限女">限女</option>
 </select></div><div class="field"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
+
+<dialog id="galleryDlg" style="width:min(900px,94vw);max-height:90vh;overflow:auto"><div class="modal">
+<h3>🖼️ M★STAR 商品圖庫</h3>
+<div class="note">先建立「商品圖片＋正確名稱」。這個圖庫與帳號庫存分開，之後 OCR 辨識時可以用圖片比對找到正確名稱。</div>
+<div class="box" style="margin-top:12px;padding:14px"><div class="field"><label>商品圖片</label><input id="galleryFile" type="file" accept="image/*"></div><div id="galleryPreview" style="display:none;margin:8px 0"><img id="galleryImg" style="width:150px;height:150px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#eee"></div><div class="field"><label>商品名稱</label><input id="galleryName" maxlength="80" placeholder="例如：仙女的閃閃馬車"></div><div class="field"><label>款式／顏色（可留白）</label><input id="galleryVariant" maxlength="40" placeholder="例如：粉紅、紅色"></div><div class="actions"><button class="btn" id="galleryCancel">關閉</button><button class="btn primary" id="gallerySave">＋ 建立圖庫商品</button></div></div>
+<div class="head" style="margin-top:16px"><h3 style="margin:0">已建立的商品</h3><span class="meta" id="galleryCount">0 筆</span></div><div id="galleryList" class="items" style="margin-top:10px"></div>
+</div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
 <div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
 <div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
@@ -85,7 +93,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyCPcOUY5K5mc-uil7c4k2abU8uu74uQRyk",
@@ -99,7 +107,8 @@ const firebaseConfig={
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
-const ad=$("#ad"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
+const ad=$("#ad"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg"), galleryDlg=$("#galleryDlg");
+let galleryItems=[];
 let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="", activeGender="";
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const dataRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
@@ -119,6 +128,21 @@ async function save(){
   catch(err){console.error(err);alert("雲端儲存失敗，請稍後再試。")}
   finally{saving=false}
 }
+async function loadGallery(){
+  const snap=await getDocs(collection(db,"productGallery"));
+  galleryItems=snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.updatedAt?.seconds||0)-(a.updatedAt?.seconds||0));
+  renderGallery();
+}
+function renderGallery(){
+  $("#galleryCount").textContent=`${galleryItems.length} 筆`;
+  $("#galleryList").innerHTML=galleryItems.length?galleryItems.map(x=>`<div class="item"><img class="galleryThumb" src="${x.image||''}" alt=""><div><h3>${e(x.name)}</h3><div class="meta">家具圖庫${x.variant?`｜${e(x.variant)}`:""}</div></div><div class="itemActions"><button class="mini del galleryDelete" data-id="${x.id}">刪除</button></div></div>`).join(""):'<div class="empty" style="grid-column:1/-1">還沒有商品圖庫資料。先新增第一個商品。</div>';
+  document.querySelectorAll('.galleryDelete').forEach(btn=>btn.onclick=async()=>{if(!confirm('確定刪除這筆圖庫商品？'))return;await deleteDoc(doc(db,'productGallery',btn.dataset.id));await loadGallery();});
+}
+function compressGalleryImage(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const max=700,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',0.82));};img.onerror=reject;img.src=r.result;};r.onerror=reject;r.readAsDataURL(file);});}
+$("#openGallery").onclick=async()=>{galleryDlg.showModal();try{await loadGallery()}catch(err){console.error(err);alert('讀取商品圖庫失敗：'+(err?.message||err));}};
+$("#galleryCancel").onclick=()=>galleryDlg.close();
+$("#galleryFile").onchange=()=>{const f=$("#galleryFile").files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("#galleryImg").src=r.result;$("#galleryPreview").style.display='block'};r.readAsDataURL(f);};
+$("#gallerySave").onclick=async()=>{const file=$("#galleryFile").files?.[0],name=$("#galleryName").value.trim(),variant=$("#galleryVariant").value.trim();if(!file)return alert('請選擇商品圖片');if(!name)return alert('請輸入商品名稱');const btn=$("#gallerySave");btn.disabled=true;btn.textContent='儲存中…';try{const image=await compressGalleryImage(file);await addDoc(collection(db,'productGallery'),{name,variant,image,category:'家具',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';await loadGallery();alert('商品圖庫建立成功');}catch(err){console.error(err);alert('圖庫儲存失敗：'+(err?.message||err));}finally{btn.disabled=false;btn.textContent='＋ 建立圖庫商品';}};
 function render(){
   let a=cur();
   $("#accounts").innerHTML=d.accounts.length?d.accounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}</span><small>${x.items.reduce((n,i)=>n+i.qty,0)}件</small></div>`).join(""):'<div class="empty">還沒有帳號</div>';
@@ -525,7 +549,6 @@ onAuthStateChanged(auth,async user=>{
   }
   $("#userLabel").textContent=currentUser.email||"已登入";
   $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
-  try{await loadCloud()}catch(err){console.error(err);alert("讀取雲端庫存失敗，請確認 Firestore 規則。")}
+  try{await loadCloud();await loadGallery()}catch(err){console.error(err);alert("讀取雲端資料失敗，請確認 Firestore 規則。")}
 });
 </script></body></html>
-
