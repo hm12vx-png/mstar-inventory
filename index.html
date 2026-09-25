@@ -81,7 +81,7 @@
 <dialog id="galleryDlg" style="width:min(900px,94vw);max-height:90vh;overflow:auto"><div class="modal">
 <h3>🖼️ M★STAR 商品圖庫</h3>
 <div class="note">先建立「商品圖片＋正確名稱」。這個圖庫與帳號庫存分開，之後 OCR 辨識時可以用圖片比對找到正確名稱。</div>
-<div class="box" style="margin-top:12px;padding:14px"><div class="field"><label>商品圖片</label><input id="galleryFile" type="file" accept="image/*"></div><div id="galleryPreview" style="display:none;margin:8px 0"><img id="galleryImg" style="width:150px;height:150px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#eee"></div><div class="field"><label>商品名稱</label><input id="galleryName" maxlength="80" placeholder="例如：仙女的閃閃馬車"></div><div class="field"><label>款式／顏色（可留白）</label><input id="galleryVariant" maxlength="40" placeholder="例如：粉紅、紅色"></div><div class="actions"><button class="btn" id="galleryCancel">關閉</button><button class="btn primary" id="gallerySave">＋ 建立圖庫商品</button></div></div>
+<div class="box" style="margin-top:12px;padding:14px"><div class="field"><label>商品圖片</label><input id="galleryFile" type="file" accept="image/*"></div><div id="galleryPreview" style="display:none;margin:8px 0"><img id="galleryImg" style="width:150px;height:150px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#eee"></div><div class="field"><label>商品名稱</label><input id="galleryName" maxlength="80" placeholder="例如：仙女的閃閃馬車"></div><div class="field"><label>款式／顏色（可留白）</label><input id="galleryVariant" maxlength="40" placeholder="例如：粉紅、紅色"></div><div id="galleryNote" class="note" style="margin-top:8px"></div><div class="actions"><button class="btn" id="galleryCancel">關閉</button><button class="btn primary" id="gallerySave">＋ 建立圖庫商品</button></div></div>
 <div class="head" style="margin-top:16px"><h3 style="margin:0">已建立的商品</h3><span class="meta" id="galleryCount">0 筆</span></div><div id="galleryList" class="items" style="margin-top:10px"></div>
 </div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
@@ -92,7 +92,7 @@
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js", setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
@@ -106,6 +106,9 @@ const firebaseConfig={
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+
+// 固定使用瀏覽器本機登入持續性；不會因新增圖庫商品而要求重新登入。
+try{ await setPersistence(auth,browserLocalPersistence); }catch(err){ console.warn("Auth persistence setup failed:",err); }
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg"), galleryDlg=$("#galleryDlg");
 let galleryItems=[];
@@ -142,7 +145,7 @@ function compressGalleryImage(file){return new Promise((resolve,reject)=>{const 
 $("#openGallery").onclick=async()=>{galleryDlg.showModal();try{await loadGallery()}catch(err){console.error(err);alert('讀取商品圖庫失敗：'+(err?.message||err));}};
 $("#galleryCancel").onclick=()=>galleryDlg.close();
 $("#galleryFile").onchange=()=>{const f=$("#galleryFile").files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("#galleryImg").src=r.result;$("#galleryPreview").style.display='block'};r.readAsDataURL(f);};
-$("#gallerySave").onclick=async()=>{const file=$("#galleryFile").files?.[0],name=$("#galleryName").value.trim(),variant=$("#galleryVariant").value.trim();if(!file)return alert('請選擇商品圖片');if(!name)return alert('請輸入商品名稱');const btn=$("#gallerySave");btn.disabled=true;btn.textContent='儲存中…';try{const image=await compressGalleryImage(file);await addDoc(collection(db,'productGallery'),{name,variant,image,category:'家具',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';await loadGallery();alert('商品圖庫建立成功');}catch(err){console.error(err);alert('圖庫儲存失敗：'+(err?.message||err));}finally{btn.disabled=false;btn.textContent='＋ 建立圖庫商品';}};
+$("#gallerySave").onclick=async()=>{const file=$("#galleryFile").files?.[0],name=$("#galleryName").value.trim(),variant=$("#galleryVariant").value.trim();if(!file)return alert('請選擇商品圖片');if(!name)return alert('請輸入商品名稱');const btn=$("#gallerySave");btn.disabled=true;btn.textContent='儲存中…';try{const image=await compressGalleryImage(file);await addDoc(collection(db,'productGallery'),{name,variant,image,category:'家具',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});$("#galleryFile").value='';$("#galleryName").value='';$("#galleryVariant").value='';$("#galleryPreview").style.display='none';await loadGallery();$("#galleryNote").textContent=`✅ 已建立「${name}」；可以直接繼續新增下一筆，不需要重新登入。`;$("#galleryName").focus();}catch(err){console.error(err);alert('圖庫儲存失敗：'+(err?.message||err));}finally{btn.disabled=false;btn.textContent='＋ 建立圖庫商品';}};
 function render(){
   let a=cur();
   $("#accounts").innerHTML=d.accounts.length?d.accounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}</span><small>${x.items.reduce((n,i)=>n+i.qty,0)}件</small></div>`).join(""):'<div class="empty">還沒有帳號</div>';
@@ -263,7 +266,7 @@ function cropGridImage(img,index,cols=4){
 function drawRecognized(){
  $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
    ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
-   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改；你修正後按確認，網站會把「道具圖片＝你輸入的名稱」記到雲端。下次遇到相同道具會優先使用你修正過的名稱。OCR 信心不足時顯示「待確認」。</div></div>
+   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改。${x.galleryMatched?'🖼️ 已從商品圖庫找到相同商品。':'🆕 圖庫找不到這張圖片；確認後會自動建立到商品圖庫。'}</div></div>
    <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
  </div>`).join("");
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
@@ -395,6 +398,45 @@ async function learnedNameFor(image){
   // conservative threshold: prefer no match over a wrong remembered name
   return best&&best.dist<=18?best:null;
 }
+async function galleryMatchFor(image){
+  if(!image) return null;
+  if(!galleryItems.length){
+    try{ await loadGallery(); }catch(_){ return null; }
+  }
+  const fp=await imageFingerprint(image);
+  let best=null;
+  for(const g of galleryItems){
+    if(!g.image) continue;
+    try{
+      const gfp=await imageFingerprint(g.image);
+      const dist=hamming(fp,gfp);
+      if(!best||dist<best.dist) best={...g,dist};
+    }catch(_){ }
+  }
+  return best&&best.dist<=18?best:null;
+}
+
+async function addRecognizedToGallery(x){
+  if(!x || !x.image || !x.name || x.name==='待確認' || x.galleryMatched) return false;
+  // Avoid creating an obvious duplicate if another entry was added during this session.
+  const existing=await galleryMatchFor(x.image);
+  if(existing){
+    x.galleryMatched=true;
+    return false;
+  }
+  await addDoc(collection(db,'productGallery'),{
+    name:x.name.trim(),
+    variant:(x.variant||'').trim(),
+    image:x.image,
+    category:'家具',
+    source:'OCR手動確認',
+    createdAt:serverTimestamp(),
+    updatedAt:serverTimestamp()
+  });
+  x.galleryMatched=true;
+  return true;
+}
+
 async function rememberItemName(image,name,variant=""){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
@@ -467,8 +509,12 @@ $("#mockRecognize").onclick=async()=>{
         if(m){itemName=m[1].trim();variant=m[2].trim()}
 
         const cardImage=cardCrop(sourceImage,col,row,g);
-        const learned=await learnedNameFor(cardImage);
-        if(learned){
+        const galleryMatch=await galleryMatchFor(cardImage);
+        const learned=galleryMatch ? null : await learnedNameFor(cardImage);
+        if(galleryMatch){
+          itemName=galleryMatch.name;
+          if(galleryMatch.variant)variant=galleryMatch.variant;
+        }else if(learned){
           itemName=learned.name;
           if(learned.variant)variant=learned.variant;
         }
@@ -478,7 +524,8 @@ $("#mockRecognize").onclick=async()=>{
           restriction,
           qty:1,
           image:cardImage,
-          learned:!!learned
+          learned:!!learned,
+          galleryMatched:!!galleryMatch
         });
       }
     }
@@ -498,7 +545,37 @@ $("#mockRecognize").onclick=async()=>{
   }
 };
 
-$("#confirmRecognized").onclick=async()=>{let a=cur();for(const x of recognizedRows){await rememberItemName(x.image,x.name,x.variant);let same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&(y.restriction||"")===(x.restriction||""));if(same){same.qty+=(x.qty||1);if(!same.image&&x.image)same.image=x.image}else a.items.push({...x,qty:x.qty||1})}shotDlg.close();await save()};
+$("#confirmRecognized").onclick=async()=>{
+  let a=cur();
+  if(!a)return;
+  const btn=$("#confirmRecognized");
+  btn.disabled=true;
+  btn.textContent="建立圖庫並加入庫存中…";
+  try{
+    for(const x of recognizedRows){
+      if(!x.galleryMatched && x.name && x.name!=="待確認"){
+        await addRecognizedToGallery(x);
+      }
+      await rememberItemName(x.image,x.name,x.variant);
+      let same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&(y.restriction||"")===(x.restriction||""));
+      if(same){
+        same.qty+=(x.qty||1);
+        if(!same.image&&x.image)same.image=x.image;
+      }else{
+        a.items.push({...x,qty:x.qty||1});
+      }
+    }
+    await loadGallery();
+    shotDlg.close();
+    await save();
+  }catch(err){
+    console.error(err);
+    alert("加入庫存／建立商品圖庫失敗："+(err?.message||err));
+  }finally{
+    btn.disabled=false;
+    btn.textContent="確認加入庫存";
+  }
+};
 
 
 $("#googleLogin").onclick=async()=>{
@@ -506,6 +583,7 @@ $("#googleLogin").onclick=async()=>{
   msg.textContent="正在開啟 Google 登入…";
   btn.disabled=true;
   try{
+    await setPersistence(auth,browserLocalPersistence);
     const result=await signInWithPopup(auth,provider);
     if(result.user.uid!==ADMIN_UID){
       await signOut(auth);
@@ -521,6 +599,7 @@ $("#googleLogin").onclick=async()=>{
       msg.textContent="登入視窗被瀏覽器擋住，正在改用頁面登入…";
       try{
         const {signInWithRedirect}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+        await setPersistence(auth,browserLocalPersistence);
         await signInWithRedirect(auth,provider);
         return;
       }catch(e2){
