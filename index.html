@@ -55,15 +55,15 @@
 </div>
 <div class="items" id="items"></div><div class="note">資料會儲存在你的 Firebase Firestore；只有指定的 Google 帳號可讀寫。</div></main></div></div></div>
 <dialog id="batchAd"><h3>批次新增帳號</h3>
-<div class="field"><label>起始編號</label><input id="ban" inputmode="numeric" placeholder="例如：457"></div>
+<div class="field"><label>起始編號</label><input id="ban" inputmode="text" autocapitalize="characters" placeholder="例如：A1、A2、B1 或 457"></div>
 <div class="field"><label>ID 清單</label><textarea id="baids" rows="10" placeholder="一行一個 ID，例如：&#10;ABC123&#10;ABC456&#10;ABC789" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;resize:vertical;font:inherit;color:var(--text)"></textarea><div class="note" style="margin-top:5px">一行一個 ID，會從起始編號自動依序編號。空白行會自動忽略。</div></div>
 <div class="field"><label>帳號類型</label><select id="baat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
 <div class="field"><label>角色性別</label><select id="baag"><option value="男">男</option><option value="女">女</option></select></div>
 <div id="batchPreview" class="note"></div>
-<div class="actions"><button class="btn" id="batchCancel">取消</button><button class="btn primary" id="batchSave">全部新增</button></div></dialog><dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div>
+<div class="actions"><button class="btn" id="batchCancel">取消</button><button class="btn primary" id="batchSave">全部新增</button></div></dialog><dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：A1、A2、B1 或 457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div>
 <div class="field"><label>帳號類型</label><select id="eat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
 <div class="field"><label>角色性別</label><select id="eag"><option value="男">男</option><option value="女">女</option></select></div>
-<div class="actions"><button class="btn" onclick="editAd.close()">取消</button><button class="btn primary" id="eas">儲存</button></div></div></dialog><dialog id="ad"><h3>新增帳號</h3><div class="field"><label>編號</label><input id="an" placeholder="例如：457"></div><div class="field"><label>ID</label><input id="agid" placeholder="遊戲 ID"></div>
+<div class="actions"><button class="btn" onclick="editAd.close()">取消</button><button class="btn primary" id="eas">儲存</button></div></div></dialog><dialog id="ad"><h3>新增帳號</h3><div class="field"><label>編號</label><input id="an" placeholder="例如：A1、A2、B1 或 457"></div><div class="field"><label>ID</label><input id="agid" placeholder="遊戲 ID"></div>
 <div class="field"><label>帳號類型</label><select id="aat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
 <div class="field"><label>角色性別</label><select id="aag"><option value="男">男</option><option value="女">女</option></select></div>
 <div class="actions"><button class="btn" onclick="ad.close()">取消</button><button class="btn primary" id="as">新增</button></div></dialog>
@@ -117,8 +117,7 @@ const firebaseConfig={
   projectId:"oo-items-web",
   storageBucket:"oo-items-web.firebasestorage.app",
   messagingSenderId:"163929322708",
-  appId:"1:163929322708:web:1013bafd19150e94a97741",
-  measurementId:"G-0DPHJWK51T"
+  appId:"1:163929322708:web:1013bafd19150e94a97741"
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
@@ -129,6 +128,12 @@ let accountTypeFilter="", accountGenderFilter="";
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const dataRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
 function cur(){return d.accounts.find(a=>a.id===active)}
+function naturalAccountCompare(a,b){
+  const av=String(a?.number||a?.name||"").trim();
+  const bv=String(b?.number||b?.name||"").trim();
+  return av.localeCompare(bv,"zh-TW",{numeric:true,sensitivity:"base"});
+}
+function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 async function loadCloud(){
   const snap=await getDoc(dataRef());
   d=snap.exists()?snap.data():{accounts:[]};
@@ -163,26 +168,11 @@ function migrateCategories(){
 }
 function render(){
   migrateCategories();
+  sortAccountsNaturally();
   let a=cur();
   const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||(x.accountType||"主要培養")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
-  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}" draggable="true"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small><span class="dragHandle" title="拖曳排序">☰</span></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
+  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
   document.querySelectorAll(".acc").forEach(x=>x.onclick=()=>{active=x.dataset.id;render()});
-  let draggedId=null;
-  document.querySelectorAll(".acc").forEach(el=>{
-    el.ondragstart=ev=>{draggedId=el.dataset.id;el.classList.add("dragging");ev.dataTransfer.effectAllowed="move"};
-    el.ondragend=()=>{el.classList.remove("dragging");draggedId=null};
-    el.ondragover=ev=>{ev.preventDefault();ev.dataTransfer.dropEffect="move"};
-    el.ondrop=async ev=>{
-      ev.preventDefault();
-      const targetId=el.dataset.id;
-      if(!draggedId||draggedId===targetId)return;
-      const from=d.accounts.findIndex(x=>x.id===draggedId),to=d.accounts.findIndex(x=>x.id===targetId);
-      if(from<0||to<0)return;
-      const [moved]=d.accounts.splice(from,1);
-      d.accounts.splice(to,0,moved);
-      await save();
-    };
-  });
   $("#title").textContent=a?`帳號 ${a.number||a.name||""}${a.gameId?`｜${a.gameId}`:""}｜物品庫`:"請先選擇帳號";
   $("#deleteAccount").style.display=a?"inline-block":"none";$("#editAccount").style.display=a?"inline-block":"none";
   $("#resourceBox").style.display=a?"block":"none";
@@ -260,24 +250,34 @@ function syncAddItemFields(){
 }
 $("#ic").onchange=syncAddItemFields;
 function batchIds(){return $("#baids").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)}
+function parseAccountNumber(value){
+  const raw=String(value||"").trim();
+  const m=raw.match(/^([^0-9]*)([0-9]+)$/);
+  if(!m)return null;
+  return {prefix:m[1],number:Number(m[2]),width:m[2].length};
+}
+function accountNumberAt(startValue,offset=0){
+  const p=parseAccountNumber(startValue); if(!p)return null;
+  const n=p.number+offset;
+  return p.prefix+(p.width>1?String(n).padStart(p.width,"0"):String(n));
+}
 function updateBatchPreview(){
-  const start=parseInt($("#ban").value,10), ids=batchIds();
-  if(!Number.isFinite(start)||!ids.length){$("#batchPreview").textContent="";return}
-  const end=start+ids.length-1;
+  const raw=$("#ban").value.trim(),ids=batchIds(),start=accountNumberAt(raw,0);
+  if(!start||!ids.length){$("#batchPreview").textContent="";return}
+  const end=accountNumberAt(raw,ids.length-1);
   $("#batchPreview").textContent=`將新增 ${ids.length} 個帳號：${start}${ids.length>1?` ～ ${end}`:""}`;
 }
 $("#batchA").onclick=()=>{
-  const nums=(d.accounts||[]).map(a=>parseInt(a.number||a.name,10)).filter(Number.isFinite);
-  $("#ban").value=nums.length?Math.max(...nums)+1:"";
+  $("#ban").value="";
   $("#baids").value="";$("#batchPreview").textContent="";batchAd.showModal();
 };
 $("#ban").oninput=updateBatchPreview;$("#baids").oninput=updateBatchPreview;
 $("#batchCancel").onclick=()=>batchAd.close();
 $("#batchSave").onclick=async()=>{
-  const start=parseInt($("#ban").value,10),ids=batchIds();
-  if(!Number.isFinite(start))return alert("請輸入起始編號");
+  const rawStart=$("#ban").value.trim(),ids=batchIds();
+  if(!parseAccountNumber(rawStart))return alert("請輸入起始編號，例如 A1、B1 或 457");
   if(!ids.length)return alert("請貼上至少一個 ID");
-  const newNumbers=ids.map((_,i)=>String(start+i));
+  const newNumbers=ids.map((_,i)=>accountNumberAt(rawStart,i));
   const existingNumbers=new Set((d.accounts||[]).map(a=>String(a.number||a.name||"")));
   const existingIds=new Set((d.accounts||[]).map(a=>String(a.gameId||"").trim()).filter(Boolean));
   const dupNumber=newNumbers.find(n=>existingNumbers.has(n));
@@ -287,7 +287,7 @@ $("#batchSave").onclick=async()=>{
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
   const type=$("#baat").value,gender=$("#baag").value;
-  ids.forEach((gid,i)=>{const n=String(start+i);d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:0,eventCandy:0,magicCandy:0},items:[]})});
+  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:0,eventCandy:0,magicCandy:0},items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
@@ -404,7 +404,7 @@ function cropGridImage(img,index,cols=4){
 function drawRecognized(){
  $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
    ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
-   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改；左側完整保留 MSTAR 道具圖與遊戲內名稱；直向／橫向、1～4 欄與多排會依卡片格線自動判斷；一般道具與戒指會套用各自版型；戒指支援「1次」黑條與紫色數量條兩種畫面，不把數量條、名稱或「查看詳情」混進圖片記憶。你修正後按確認，網站會把「道具圖片＝你輸入的名稱」記到雲端。下次遇到相同道具會優先使用你修正過的名稱。之後遇到相同道具會優先用圖片辨識，不再依賴 OCR 猜名稱；不確定時顯示「待確認」。</div></div>
+   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div></div>
    <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
  </div>`).join("");
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
@@ -778,5 +778,7 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
 
 
