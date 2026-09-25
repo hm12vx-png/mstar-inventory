@@ -315,13 +315,20 @@ $("#saveResources").onclick=async()=>{
   await save();
 };
 function search(){
-  const raw=$("#q").value.trim();
-  const q=raw.toLowerCase();
-  if(!q){
-    $("#results").style.display="none";
-    $("#grandTotal").style.display="none";
-    return;
-  }
+  // 每次搜尋都重新讀取目前輸入值與最新庫存，不沿用上一次結果。
+  const input=$("#q");
+  const results=$("#results");
+  const grandTotal=$("#grandTotal");
+  const raw=String(input?.value||"").trim();
+  const q=raw.toLocaleLowerCase("zh-TW");
+
+  // 先清掉上一輪搜尋畫面，確保可連續搜尋任意次。
+  results.innerHTML="";
+  results.style.display="none";
+  grandTotal.innerHTML="";
+  grandTotal.style.display="none";
+
+  if(!q)return;
   const r=[];
   d.accounts.forEach(a=>(a.items||[]).forEach(x=>{
     const hay=[x.name,x.variant,x.category,x.gender,x.candyType].filter(Boolean).join(" ").toLowerCase();
@@ -353,7 +360,26 @@ function search(){
   }
   $("#results").style.display="block";
 }
-$("#go").onclick=search;$("#q").onkeydown=x=>x.key==="Enter"&&search();
+// 搜尋事件只綁定一次；每次點擊／Enter 都可重新執行，不會被前一次搜尋卡住。
+const searchButton=$("#go");
+const searchInput=$("#q");
+searchButton.type="button";
+searchButton.addEventListener("click",()=>search());
+searchInput.addEventListener("keydown",ev=>{
+  if(ev.key==="Enter"){
+    ev.preventDefault();
+    search();
+  }
+});
+// 改完關鍵字後可直接再按搜尋；清空時同步收起舊結果。
+searchInput.addEventListener("input",()=>{
+  if(!searchInput.value.trim()){
+    $("#results").innerHTML="";
+    $("#results").style.display="none";
+    $("#grandTotal").innerHTML="";
+    $("#grandTotal").style.display="none";
+  }
+});
 $("#editAccount").onclick=()=>{
   const a=cur();
   if(!a)return;
@@ -778,7 +804,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
-
 
