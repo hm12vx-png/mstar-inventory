@@ -86,7 +86,7 @@
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">開始批量辨識</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
@@ -421,18 +421,28 @@ $("#mockRecognize").onclick=async()=>{if(!shotImages.length)return alert("請先
   let workers=[];try{const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js"),createWorker=mod.createWorker||mod.default?.createWorker;if(typeof createWorker!=="function")throw new Error("OCR 工具載入異常");const workerN=Math.min(2,Math.max(1,shotImages.length));for(let i=0;i<workerN;i++){const w=await createWorker("chi_tra",1);await w.setParameters({tessedit_pageseg_mode:7,preserve_interword_spaces:"0",user_defined_dpi:"300"});workers.push(w)};debugRows=shotImages.map((img,i)=>({fileName:shotFiles[i]?.name||`圖片${i+1}`,w:img.naturalWidth,h:img.naturalHeight,imageData:imageDataForSvg(img),personRect:personNameRect(img),personName:"待確認",cards:[]}));const fastMode=$("#fastOcr")?.checked!==false;let next=0;async function runWorker(w){while(true){const fi=next++;if(fi>=shotImages.length)return;const debug=debugRows[fi];$("#batchProgress").textContent=`第 ${fi+1}/${shotImages.length} 張：${fastMode?"快速 OCR":"完整候選 OCR"}（${workers.length} 引擎）…`;await processOneImage(w,fi,debug,{fullCandidates:!fastMode});renderDebugPreview()}}await Promise.all(workers.map(runWorker));rebuildRecognizedFromDebug();drawRecognized();$("#confirmRecognized").style.display=recognizedRows.length?"inline-block":"none";$("#batchProgress").textContent=`完成：共 ${shotImages.length} 張截圖。${fastMode?"快速模式只在必要時追加 OCR；展開候選結果即可查看實際做過的辨識。":"完整候選模式已保留每次 OCR 結果。"}`;}catch(err){console.error(err);$("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`}finally{for(const w of workers){try{await w.terminate()}catch(_){}}btn.disabled=false;btn.textContent="開始批量辨識"}};
 $("#confirmRecognized").onclick=async()=>{const a=cur();if(!a)return;for(const x of recognizedRows){if(!x.name||x.name==="待確認")continue;await rememberItemName(x.image,x.name,x.variant);const same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&y.category==="家具");if(same){same.qty+=x.qty||1;if(!same.image&&x.image)same.image=x.image}else a.items.push({name:x.name,category:"家具",gender:"",variant:x.variant||"",qty:x.qty||1,image:x.image||""})}shotDlg.close();await save()};
 
+// ===== Firebase 登入：v10 修正版 =====
+// 登入權限仍維持原本的 ADMIN_UID；「共用家具名稱記憶」與登入帳號完全分離。
+// 登入流程不再在 signInWithPopup 成功後立即自行判斷/登出，改由 onAuthStateChanged 統一處理，
+// 避免 Google 登入成功但畫面仍停在登入頁的競態問題。
+async function prepareAuth(){
+  try{
+    await setPersistence(auth,browserLocalPersistence);
+  }catch(err){
+    console.warn("Firebase 登入持久化設定失敗，仍可嘗試登入：",err);
+  }
+}
+
 $("#googleLogin").onclick=async()=>{
   const msg=$("#loginMsg"), btn=$("#googleLogin");
+  if(btn.disabled)return;
   msg.textContent="正在開啟 Google 登入…";
   btn.disabled=true;
   try{
+    await prepareAuth();
     const result=await signInWithPopup(auth,provider);
-    if(result.user.uid!==ADMIN_UID){
-      await signOut(auth);
-      msg.textContent="這個 Google 帳號沒有使用權限。";
-      return;
-    }
-    msg.textContent="登入成功，正在讀取庫存…";
+    console.log("Google sign-in success:",result.user?.uid,result.user?.email);
+    msg.textContent="Google 登入成功，正在確認帳號權限…";
   }catch(err){
     console.error("Google login error:",err);
     const code=err?.code||"unknown";
@@ -440,17 +450,16 @@ $("#googleLogin").onclick=async()=>{
     if(code==="auth/popup-blocked"){
       msg.textContent="登入視窗被瀏覽器擋住，正在改用頁面登入…";
       try{
-        const {signInWithRedirect}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
         await signInWithRedirect(auth,provider);
         return;
       }catch(e2){
-        console.error(e2);
+        console.error("Google redirect fallback error:",e2);
         msg.textContent="登入失敗｜"+(e2?.code||"unknown")+"｜"+(e2?.message||String(e2));
       }
     }else if(code==="auth/popup-closed-by-user"){
-      msg.textContent="登入視窗被關閉。請再按一次。錯誤碼："+code;
+      msg.textContent="登入視窗被關閉。請再按一次。";
     }else if(code==="auth/cancelled-popup-request"){
-      msg.textContent="登入要求被取消，請再按一次。錯誤碼："+code;
+      msg.textContent="登入要求被取消，請再按一次。";
     }else{
       msg.textContent="登入失敗｜"+code+"｜"+detail;
     }
@@ -458,18 +467,48 @@ $("#googleLogin").onclick=async()=>{
     btn.disabled=false;
   }
 };
+
 $("#logout").onclick=()=>signOut(auth);
-getRedirectResult(auth).catch(err=>{
+
+// 若使用 redirect 登入，頁面載入時先取得結果；真正的畫面切換仍交給 onAuthStateChanged。
+getRedirectResult(auth).then(result=>{
+  if(result?.user) console.log("Google redirect sign-in success:",result.user.uid,result.user.email);
+}).catch(err=>{
   if(err) console.error("Google redirect login error:",err);
 });
+
 onAuthStateChanged(auth,async user=>{
-  currentUser=user&&user.uid===ADMIN_UID?user:null;
+  if(user && user.uid!==ADMIN_UID){
+    currentUser=null;
+    $("#authGate").classList.remove("hidden");
+    $("#app").style.visibility="hidden";
+    $("#loginMsg").textContent=`已使用 ${user.email||"此 Google 帳號"} 登入，但目前只有管理員帳號可以進入庫存後台。`;
+    try{await signOut(auth)}catch(err){console.warn("非管理員登出失敗：",err)}
+    return;
+  }
+  currentUser=user||null;
   if(!currentUser){
-    $("#authGate").classList.remove("hidden");$("#app").style.visibility="hidden";d={accounts:[]};active=null;return;
+    $("#authGate").classList.remove("hidden");
+    $("#app").style.visibility="hidden";
+    d={accounts:[]};
+    active=null;
+    return;
   }
   $("#userLabel").textContent=currentUser.email||"已登入";
-  $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
-  try{await loadCloud()}catch(err){console.error(err);alert("讀取雲端庫存失敗，請確認 Firestore 規則。")}
+  $("#authGate").classList.add("hidden");
+  $("#app").style.visibility="visible";
+  $("#loginMsg").textContent="登入成功。";
+  try{
+    await loadCloud();
+  }catch(err){
+    console.error("Cloud inventory load error:",err);
+    $("#loginMsg").textContent="登入成功，但讀取雲端庫存失敗。請確認 Firestore 規則。";
+    alert("讀取雲端庫存失敗，請確認 Firestore 規則。\n\n錯誤："+(err?.message||err));
+  }
 });
+
+// 先設定持久化，再讓 Firebase 自己恢復既有登入狀態。
+prepareAuth().catch(()=>{});
 </script></body></html>
+
 
