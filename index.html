@@ -108,7 +108,7 @@
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
@@ -121,6 +121,8 @@ const firebaseConfig={
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+// 固定使用瀏覽器本機持久登入：切換庫存帳號、重新整理頁面都不需要重新登入 Google。
+try{await setPersistence(auth,browserLocalPersistence)}catch(err){console.error("Auth persistence error:",err)}
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
 let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="家具", activeGender="", activeCandy="";
