@@ -27,7 +27,8 @@
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
 <div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>MSTAR 庫存管理</h1><p>庫存管理</p></header>
-<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
+<section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…">
+<button class="btn" id="clearSearch" type="button" style="white-space:nowrap">✕ 清除搜尋</button><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><button class="btn" id="newA">＋</button></div><div class="accounts" id="accounts"></div></aside>
 <main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openGallery">🖼️ 商品圖庫</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
@@ -696,5 +697,37 @@ onAuthStateChanged(auth,async user=>{
   $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
   try{await loadCloud();await loadGallery()}catch(err){console.error(err);alert("讀取雲端資料失敗，請確認 Firestore 規則。")}
 });
+
+function getSearchInput(){
+  return document.querySelector(
+    'input[id*="search" i], input[name*="search" i], input[placeholder*="搜尋"]'
+  );
+}
+
+function clearSearchInput(){
+  const input=getSearchInput();
+  if(!input) return;
+  input.value="";
+  input.dispatchEvent(new Event("input",{bubbles:true}));
+  input.dispatchEvent(new Event("change",{bubbles:true}));
+  input.focus();
+}
+
+document.getElementById("clearSearch")?.addEventListener("click",clearSearchInput);
+
+document.addEventListener("keydown",e=>{
+  const input=e.target;
+  if(!(input instanceof HTMLInputElement)) return;
+  const isSearch =
+    /search/i.test(input.id||"") ||
+    /search/i.test(input.name||"") ||
+    (input.placeholder||"").includes("搜尋");
+  if(isSearch && e.key==="Escape"){
+    e.preventDefault();
+    clearSearchInput();
+  }
+});
+
 </script></body></html>
+
 
