@@ -78,10 +78,12 @@
 </select></div><div class="field"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
 <div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
-<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
-<div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
-<div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把 MSTAR 截圖拖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
+<div id="batchFiles" class="note" style="margin-top:8px"></div><div id="batchProgress" class="note" style="margin-top:8px"></div>
+<div id="shotPreview" style="display:none;margin-top:12px"><div id="shotThumbs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div><div class="note">新版會先定位右側「小屋／家具」道具區，再逐張 OCR；每張截圖同時讀取左上角人物名稱。不同解析度也會依比例定位，不再把整張畫面誤切成 4×4。</div>
+<div style="margin-top:10px;font-weight:800">批量辨識確認</div><div id="recognized" style="margin-top:8px"></div>
+<div style="margin-top:14px;font-weight:800">🔎 SVG 辨識結果除錯預覽</div><div id="debugPreview" style="margin-top:8px;display:grid;gap:10px"></div></div>
+<div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">開始批量辨識</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
@@ -214,268 +216,48 @@ $("#eas").onclick=async()=>{const a=cur();if(!a)return;const n=$("#ean").value.t
 
 $("#deleteAccount").onclick=async()=>{let a=cur();if(!a)return;if(confirm(`確定刪除帳號「${a.name}」？\n這只會刪除這個帳號與它的庫存，其他帳號不受影響。`)){d.accounts=d.accounts.filter(x=>x.id!==a.id);active=d.accounts[0]?.id||null;await save()}};
 
-let recognizedRows=[];
-$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
-$("#dropShot").onclick=()=>$("#shotFile").click();
-$("#dropShot").ondragover=e=>{e.preventDefault()};
-$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
-$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
-let sourceImage=null;
-function loadShot(f){
-  let u=URL.createObjectURL(f), img=new Image();
-  img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
-  img.src=u;
+let recognizedRows=[];let shotFiles=[];let shotImages=[];let debugRows=[];
+$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");$("#shotAccount").textContent="帳號 "+(cur().name||cur().number||"");$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";$("#batchFiles").textContent="";$("#batchProgress").textContent="";recognizedRows=[];shotFiles=[];shotImages=[];debugRows=[];$("#shotFile").value="";$("#shotThumbs").innerHTML="";$("#recognized").innerHTML="";$("#debugPreview").innerHTML="";shotDlg.showModal()};
+$("#dropShot").onclick=()=>$("#shotFile").click();$("#dropShot").ondragover=e=>e.preventDefault();$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files?.length)loadShots([...e.dataTransfer.files])};$("#shotFile").onchange=e=>{if(e.target.files?.length)loadShots([...e.target.files])};
+async function fileToImage(file){const u=URL.createObjectURL(file),img=new Image();await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=u});return img}
+async function loadShots(files){shotFiles=files.filter(f=>f.type.startsWith("image/"));if(!shotFiles.length)return;shotImages=[];for(const f of shotFiles)shotImages.push(await fileToImage(f));$("#batchFiles").textContent=`已選 ${shotFiles.length} 張圖片：`+shotFiles.map(f=>f.name).join("、");$("#shotPreview").style.display="block";$("#shotThumbs").innerHTML=shotImages.map((img,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:5px;background:#fff"><img src="${img.src}" style="width:100%;height:100px;object-fit:contain;background:#eee;border-radius:7px"><div class="meta" style="margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(shotFiles[i].name)}</div></div>`).join("");$("#recognized").innerHTML="";$("#debugPreview").innerHTML="";$("#confirmRecognized").style.display="none";recognizedRows=[];debugRows=[]}
+function cropRect(img,sx,sy,sw,sh,q=.92){const c=document.createElement("canvas");c.width=Math.max(1,Math.round(sw));c.height=Math.max(1,Math.round(sh));c.getContext("2d").drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);return c.toDataURL("image/jpeg",q)}
+function getMstarLayout(img){const W=img.naturalWidth,H=img.naturalHeight,gridX=W*.575,gridY=H*.205,gridW=W*.415,cols=4,gapX=gridW*.012,cardW=(gridW-gapX*3)/4,cardH=H*.185,gapY=H*.012,maxRows=Math.max(1,Math.min(6,Math.ceil((H-gridY-H*.015)/(cardH+gapY))));return{gridX,gridY,cols,gapX,cardW,cardH,gapY,maxRows}}
+function cardRect(img,col,row,g){return{x:g.gridX+col*(g.cardW+g.gapX),y:g.gridY+row*(g.cardH+g.gapY),w:g.cardW,h:g.cardH}}
+function cardCrop(img,col,row,g){const r=cardRect(img,col,row,g);return cropRect(img,r.x,r.y,r.w,r.h,.9)}
+// MSTAR 家具卡片的名稱位在圖片下方、查看詳情按鈕上方；縮窄裁切區避免把「無限制／1次／查看詳情」一起送進 OCR。
+function nameRect(img,col,row,g){const r=cardRect(img,col,row,g);return{x:r.x+r.w*.04,y:r.y+r.h*.705,w:r.w*.92,h:r.h*.105}}
+function nameCrop(img,col,row,g){const r=nameRect(img,col,row,g);return cropRect(img,r.x,r.y,r.w,r.h,1)}
+function metaCrop(img,col,row,g){const r=cardRect(img,col,row,g);return cropRect(img,r.x,r.y+r.h*.48,r.w,r.h*.20,1)}
+// 只保留左上角「XXX的衣櫥」標題，避免把建立／保存等左側按鈕一起送進 OCR。
+function personNameRect(img){const W=img.naturalWidth,H=img.naturalHeight;return{x:W*.018,y:H*.012,w:W*.285,h:H*.060}}
+function personNameCrop(img){const r=personNameRect(img);return cropRect(img,r.x,r.y,r.w,r.h,1)}
+function cardHasContent(img,col,row,g){const r=cardRect(img,col,row,g),c=document.createElement("canvas");c.width=24;c.height=24;const ctx=c.getContext("2d");ctx.drawImage(img,r.x,r.y,r.w,r.h,0,0,24,24);const p=ctx.getImageData(0,0,24,24).data;let bright=0,n=576;for(let i=0;i<p.length;i+=4){if(p[i]>180||p[i+1]>180||p[i+2]>180)bright++}return bright/n>.18}
+function preprocessOCR(dataUrl){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const c=document.createElement("canvas");c.width=im.width*6;c.height=im.height*6;const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(im,0,0,c.width,c.height);const id=ctx.getImageData(0,0,c.width,c.height),p=id.data;for(let i=0;i<p.length;i+=4){const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2],v=lum>135?255:0;p[i]=p[i+1]=p[i+2]=v}ctx.putImageData(id,0,0);resolve(c.toDataURL("image/png"))};im.onerror=reject;im.src=dataUrl})}
+function cleanOCRText(t){t=String(t||"").replace(/查看詳情|NEW|新品|無限制|限男|限女|我的道具|小屋|家具/gi," ").replace(/[|¦]/g," ").replace(/[—–－]+/g,"-").replace(/\s+/g," ").trim();let p;do{p=t;t=t.replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g,"$1$2")}while(t!==p);return t.trim()}
+function cjkCount(t){return(String(t||"").match(/[\u3400-\u9FFF]/g)||[]).length}
+function plausibleItemName(t){t=cleanOCRText(t).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");return t.length>=2&&cjkCount(t)>=2&&!/^(查看詳情|下一頁|上一頁|全部|家具|玩偶|花盆|戒指|作物|寵物|材料|NEXT|PREV|\d+)$/.test(t)}
+async function recognizeBestBand(worker,raw){const vs=[raw,await preprocessOCR(raw)];let best={text:"",confidence:0,score:-999};for(const v of vs){const r=await worker.recognize(v),t=cleanOCRText(r?.data?.text||""),cf=Number(r?.data?.confidence||0),score=cjkCount(t)*20+cf-Math.max(0,t.length-20)*2;if(score>best.score)best={text:t,confidence:cf,score}}return best}
+function extractPersonName(t){t=cleanOCRText(t).replace(/的衣櫥.*$/," ").replace(/衣櫥.*$/," ").trim().replace(/^[^A-Za-z0-9_\-\u3400-\u9FFF]+|[^A-Za-z0-9_\-\u3400-\u9FFF]+$/g,"");return t||"待確認"}
+function splitNameVariant(t){const m=String(t||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);return m?{name:m[1].trim(),variant:m[2].trim()}:{name:String(t||"").trim(),variant:""}}
+function extractQty(t){const m=cleanOCRText(t).match(/(?:x|×)?\s*(\d{1,5})\s*(?:次|個|件|日|張|顆|枚)?/i);return m?Math.max(1,Number(m[1])):1}
+function svgDataUri(svg){return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)}
+function escSvg(t){return String(t??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function imageDataForSvg(img){const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext("2d").drawImage(img,0,0);return c.toDataURL("image/jpeg",.82)}
+function renderDebugPreview(){
+  const host=$("#debugPreview"); if(!host)return;
+  host.innerHTML=debugRows.map((d,di)=>{
+    const W=d.w,H=d.h,scale=Math.min(1,760/W),sw=Math.round(W*scale),sh=Math.round(H*scale);
+    const sx=x=>Math.round(x*scale), sy=y=>Math.round(y*scale);
+    const cards=d.cards.map(c=>{const r=c.rect,n=c.nameRect;const color=c.ok?"#22c55e":"#ef4444";const label=c.text||"未辨識";return `<g><rect x="${sx(r.x)}" y="${sy(r.y)}" width="${sx(r.w)}" height="${sy(r.h)}" fill="none" stroke="${color}" stroke-width="3"/><rect x="${sx(n.x)}" y="${sy(n.y)}" width="${sx(n.w)}" height="${sy(n.h)}" fill="rgba(255,193,7,.18)" stroke="#f59e0b" stroke-width="3"/><rect x="${sx(n.x)}" y="${Math.max(0,sy(n.y)-18)}" width="${Math.min(sx(n.w),300)}" height="18" fill="${color}" opacity=".9"/><text x="${sx(n.x)+4}" y="${Math.max(13,sy(n.y)-4)}" font-size="12" fill="#fff">${escSvg(`${c.row+1}-${c.col+1} ${label}`)}</text></g>`}).join("");
+    const pr=d.personRect;
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${sw}" height="${sh}" viewBox="0 0 ${W} ${H}"><image href="${d.imageData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/><rect x="${pr.x}" y="${pr.y}" width="${pr.w}" height="${pr.h}" fill="none" stroke="#38bdf8" stroke-width="5"/><rect x="${pr.x}" y="${Math.max(0,pr.y-24)}" width="${Math.min(pr.w,280)}" height="24" fill="#0284c7" opacity=".95"/><text x="${pr.x+6}" y="${Math.max(16,pr.y-6)}" font-size="15" fill="#fff">人物名稱 OCR：${escSvg(d.personName||"待確認")}</text>${cards}</svg>`;
+    return `<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px"><div class="meta" style="margin-bottom:6px">第 ${di+1} 張：${e(d.fileName)}｜綠框＝有辨識結果、紅框＝未辨識、橘框＝家具名稱 OCR 裁切區、藍框＝人物名稱裁切區</div><img src="${svgDataUri(svg)}" style="display:block;width:100%;max-height:520px;object-fit:contain;background:#111;border-radius:8px"></div>`;
+  }).join("");
 }
-function cropGridImage(img,index,cols=4){
-  if(!img)return "";
-  const rows=Math.ceil(16/cols), col=index%cols, row=Math.floor(index/cols);
-  const cw=img.naturalWidth/cols, ch=img.naturalHeight/rows;
-  const canvas=document.createElement("canvas");
-  canvas.width=Math.round(cw); canvas.height=Math.round(ch);
-  const ctx=canvas.getContext("2d");
-  ctx.drawImage(img,col*cw,row*ch,cw,ch,0,0,canvas.width,canvas.height);
-  return canvas.toDataURL("image/jpeg",.88);
-}
-function drawRecognized(){
- $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
-   ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
-   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="cropNote">名稱可直接修改；你修正後按確認，網站會把「道具圖片＝你輸入的名稱」記到雲端。下次遇到相同道具會優先使用你修正過的名稱。OCR 信心不足時顯示「待確認」。</div></div>
-   <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
- </div>`).join("");
- document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
- document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()});
-}
-function inferCardGrid(img){
-  // MSTAR item cards keep a nearly fixed card aspect ratio (~0.84–0.87 W/H).
-  // Infer rows/columns from the screenshot itself, so 2 items and full pages both work.
-  let best=null;
-  for(let cols=1;cols<=6;cols++){
-    for(let rows=1;rows<=8;rows++){
-      const cw=img.naturalWidth/cols, ch=img.naturalHeight/rows;
-      const aspect=cw/ch;
-      const score=Math.abs(aspect-.85) + (cols===1&&img.naturalWidth>250?.25:0);
-      if(!best || score<best.score) best={cols,rows,cw,ch,score};
-    }
-  }
-  return best;
-}
-function cropRect(img,sx,sy,sw,sh,quality=.9){
-  const c=document.createElement("canvas");
-  c.width=Math.max(1,Math.round(sw)); c.height=Math.max(1,Math.round(sh));
-  c.getContext("2d").drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
-  return c.toDataURL("image/jpeg",quality);
-}
-function cardCrop(img,col,row,g){
-  return cropRect(img,col*g.cw,row*g.ch,g.cw,g.ch,.9);
-}
-function cardNameCrop(img,col,row,g){
-  // In the supplied MSTAR screenshots, the item-name line sits directly
-  // above the "查看詳情" button. OCR only this narrow band, not the whole UI.
-  const x=col*g.cw, y=row*g.ch;
-  return cropRect(img,x+g.cw*.02,y+g.ch*.70,g.cw*.96,g.ch*.145,1);
-}
-function cardRestrictionCrop(img,col,row,g){
-  const x=col*g.cw, y=row*g.ch;
-  return cropRect(img,x+g.cw*.18,y+g.ch*.56,g.cw*.64,g.ch*.14,1);
-}
-function preprocessNameForOCR(img,col,row,g){
-  const x=col*g.cw, y=row*g.ch;
-  // Crop only the item-name band and enlarge it substantially for tiny MSTAR text.
-  const sx=x+g.cw*.015, sy=y+g.ch*.685, sw=g.cw*.97, sh=g.ch*.17;
-  const scale=5;
-  const c=document.createElement("canvas");
-  c.width=Math.max(1,Math.round(sw*scale));
-  c.height=Math.max(1,Math.round(sh*scale));
-  const ctx=c.getContext("2d");
-  ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
-  const im=ctx.getImageData(0,0,c.width,c.height);
-  const p=im.data;
-  // Grayscale + contrast/threshold tuned for light MSTAR text on dark card backgrounds.
-  for(let i=0;i<p.length;i+=4){
-    const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
-    const v=lum>145?255:0;
-    p[i]=p[i+1]=p[i+2]=v;
-  }
-  ctx.putImageData(im,0,0);
-  return c.toDataURL("image/png");
-}
-function ocrLooksBroken(text,confidence){
-  const t=String(text||"").trim();
-  if(!t) return true;
-  // MSTAR item names are expected to contain CJK characters. Do not present
-  // low-confidence Latin gibberish as an item name.
-  const hasCJK=/[\u3400-\u9FFF]/.test(t);
-  return !hasCJK || (Number(confidence||0)<22 && cjkCount(t)<3);
-}
-function cjkCount(t){return (String(t||"").match(/[\u3400-\u9FFF]/g)||[]).length}
-async function recognizeBestName(worker,img,col,row,g){
-  const variants=[];
-  const base=preprocessNameForOCR(img,col,row,g);
-  variants.push(base);
-
-  // Second variant: enlarged original color crop. Sometimes antialiasing survives
-  // better than hard thresholding for thin Traditional Chinese strokes.
-  const x=col*g.cw, y=row*g.ch, sw=g.cw*.98, sh=g.ch*.18;
-  const raw=cropRect(img,x+g.cw*.01,y+g.ch*.675,sw,sh,1);
-  const temp=new Image();
-  await new Promise((ok,bad)=>{temp.onload=ok;temp.onerror=bad;temp.src=raw});
-  const c=document.createElement("canvas"),scale=6;
-  c.width=Math.round(temp.width*scale);c.height=Math.round(temp.height*scale);
-  const cx=c.getContext("2d");cx.imageSmoothingEnabled=false;
-  cx.drawImage(temp,0,0,c.width,c.height);
-  variants.push(c.toDataURL("image/png"));
-
-  let best={text:"",confidence:0,score:-1};
-  for(const v of variants){
-    const res=await worker.recognize(v);
-    const text=cleanItemName(res?.data?.text||"");
-    const confidence=Number(res?.data?.confidence||0);
-    const score=cjkCount(text)*18 + confidence - Math.max(0,text.length-24)*2;
-    if(score>best.score) best={text,confidence,score};
-  }
-  return best;
-}
-async function imageFingerprint(dataUrl){
-  const img=new Image();
-  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  const c=document.createElement("canvas"),w=16,h=16;
-  c.width=w;c.height=h;
-  const ctx=c.getContext("2d");
-  ctx.drawImage(img,0,0,w,h);
-  const p=ctx.getImageData(0,0,w,h).data;
-  let bits="",avg=0,vals=[];
-  for(let i=0;i<p.length;i+=4){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];vals.push(v);avg+=v}
-  avg/=vals.length;
-  vals.forEach(v=>bits+=v>=avg?"1":"0");
-  let hex="";
-  for(let i=0;i<bits.length;i+=4)hex+=parseInt(bits.slice(i,i+4),2).toString(16);
-  return hex;
-}
-function hamming(a,b){
-  if(!a||!b||a.length!==b.length)return 999;
-  let n=0;
-  for(let i=0;i<a.length;i++){
-    let x=parseInt(a[i],16)^parseInt(b[i],16);
-    n+=((x>>0)&1)+((x>>1)&1)+((x>>2)&1)+((x>>3)&1);
-  }
-  return n;
-}
-async function learnedNameFor(image){
-  const fp=await imageFingerprint(image);
-  let best=null;
-  for(const m of (d.itemMemory||[])){
-    const dist=hamming(fp,m.fp);
-    if(!best||dist<best.dist)best={...m,dist};
-  }
-  // conservative threshold: prefer no match over a wrong remembered name
-  return best&&best.dist<=18?best:null;
-}
-async function rememberItemName(image,name,variant=""){
-  if(!image||!name||name==="待確認")return;
-  d.itemMemory=d.itemMemory||[];
-  const fp=await imageFingerprint(image);
-  let best=null,idx=-1;
-  d.itemMemory.forEach((m,i)=>{const dist=hamming(fp,m.fp);if(!best||dist<best.dist){best={...m,dist};idx=i}});
-  const rec={fp,name,variant};
-  if(best&&best.dist<=18)d.itemMemory[idx]=rec;else d.itemMemory.push(rec);
-}
-function cleanItemName(text){
-  let t=String(text||"")
-    .replace(/查看詳情|NEW|新品|無限制|限男|限女/gi," ")
-    .replace(/[|¦]/g," ")
-    .replace(/[—–－]+/g,"-")
-    .replace(/\s+/g," ")
-    .trim();
-  // Tesseract often inserts spaces between Chinese glyphs in tiny game text.
-  // Remove only whitespace whose neighbours are both CJK, preserving useful spaces elsewhere.
-  let prev;
-  do{
-    prev=t;
-    t=t.replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g,"$1$2");
-  }while(t!==prev);
-  return t.trim();
-}
-function looksLikeItem(text){
-  const t=cleanItemName(text).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");
-  return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
-}
-$("#mockRecognize").onclick=async()=>{
-  if(!sourceImage)return alert("先放一張截圖");
-  const btn=$("#mockRecognize");
-  btn.disabled=true; btn.textContent="辨識中…";
-  recognizedRows=[];
-  $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 道具卡片版型辨識…</div>';
-  $("#confirmRecognized").style.display="none";
-
-  let createWorker,worker=null;
-  try{
-    const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
-    createWorker=mod.createWorker||mod.default?.createWorker;
-    if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
-    worker=await createWorker("chi_tra+eng",1);
-
-    const g=inferCardGrid(sourceImage);
-    const found=[];
-    for(let row=0;row<g.rows;row++){
-      for(let col=0;col<g.cols;col++){
-        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
-        let name=bestName.text;
-        const confidence=bestName.confidence;
-        if(ocrLooksBroken(name,confidence)) name="待確認";
-        if(name!=="待確認" && !looksLikeItem(name)) continue;
-
-        // A valid card must have a plausible item-name line. This prevents
-        // buttons/page text elsewhere on the screenshot from becoming items.
-        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
-        let restriction="";
-        try{
-          const rr=await worker.recognize(restrictionImg);
-          const rt=String(rr?.data?.text||"");
-          if(/限男/.test(rt)) restriction="限男";
-          else if(/限女/.test(rt)) restriction="限女";
-          else if(/無限制/.test(rt)) restriction="無限制";
-        }catch(_){}
-
-        // Split the common "道具名稱-顏色" format.
-        let itemName=name,variant="";
-        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
-        if(m){itemName=m[1].trim();variant=m[2].trim()}
-
-        const cardImage=cardCrop(sourceImage,col,row,g);
-        const learned=await learnedNameFor(cardImage);
-        if(learned){
-          itemName=learned.name;
-          if(learned.variant)variant=learned.variant;
-        }
-        found.push({
-          name:itemName,
-          variant,
-          restriction,
-          qty:1,
-          image:cardImage,
-          learned:!!learned
-        });
-      }
-    }
-    recognizedRows=found;
-    if(!found.length){
-      $("#recognized").innerHTML='<div class="meta">沒有辨識到道具卡片。請確認截圖包含完整的 MSTAR 道具格。</div>';
-      return;
-    }
-    drawRecognized();
-    $("#confirmRecognized").style.display="inline-block";
-  }catch(err){
-    console.error(err);
-    $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
-  }finally{
-    if(worker){try{await worker.terminate()}catch(_){}}
-    btn.disabled=false; btn.textContent="辨識這張截圖";
-  }
-};
-
-$("#confirmRecognized").onclick=async()=>{let a=cur();for(const x of recognizedRows){await rememberItemName(x.image,x.name,x.variant);let same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&(y.restriction||"")===(x.restriction||""));if(same){same.qty+=(x.qty||1);if(!same.image&&x.image)same.image=x.image}else a.items.push({...x,qty:x.qty||1})}shotDlg.close();await save()};
-
+function drawRecognized(){$("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}<div><div class="meta">圖片：${e(x.fileName||"")}｜人物：${e(x.personName||"待確認")}</div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name||"待確認")}" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant||"")}" placeholder="款式／顏色" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div><div class="meta" style="margin-top:4px">分類：家具｜數量：${x.qty||1}${x.confidence?`｜OCR ${Math.round(x.confidence)}%`:""}</div></div><button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button></div>`).join("");document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()})}
+$("#mockRecognize").onclick=async()=>{if(!shotImages.length)return alert("請先選擇一張或多張 MSTAR 截圖");const btn=$("#mockRecognize");btn.disabled=true;btn.textContent="批量辨識中…";$("#confirmRecognized").style.display="none";recognizedRows=[];debugRows=[];$("#recognized").innerHTML='<div class="meta">正在建立繁中 OCR 引擎…</div>';$("#debugPreview").innerHTML="";let worker=null;try{const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js"),createWorker=mod.createWorker||mod.default?.createWorker;if(typeof createWorker!=="function")throw new Error("OCR 工具載入異常");worker=await createWorker("chi_tra+eng",1);for(let fi=0;fi<shotImages.length;fi++){const img=shotImages[fi],fileName=shotFiles[fi]?.name||`圖片${fi+1}`,g=getMstarLayout(img),pRect=personNameRect(img);$("#batchProgress").textContent=`第 ${fi+1}/${shotImages.length} 張：辨識人物名稱與小屋家具…`;const person=(await recognizeBestBand(worker,personNameCrop(img))).text;const personName=extractPersonName(person);const debug={fileName,w:img.naturalWidth,h:img.naturalHeight,imageData:imageDataForSvg(img),personRect:pRect,personName,cards:[]};let found=[];for(let row=0;row<g.maxRows;row++)for(let col=0;col<g.cols;col++){const r=cardRect(img,col,row,g),nr=nameRect(img,col,row,g);if(!cardHasContent(img,col,row,g)){debug.cards.push({row,col,rect:r,nameRect:nr,ok:false,text:"空白／略過"});continue}let best=await recognizeBestBand(worker,nameCrop(img,col,row,g));if(!plausibleItemName(best.text)){const retry=await recognizeBestBand(worker,cropRect(img,r.x,r.y+r.h*.64,r.w,r.h*.22,1));if(plausibleItemName(retry.text)&&retry.score>best.score)best=retry}const ok=plausibleItemName(best.text);debug.cards.push({row,col,rect:r,nameRect:nr,ok,text:ok?best.text:"未辨識"});if(!ok)continue;const sv=splitNameVariant(best.text),cardImage=cardCrop(img,col,row,g);found.push({fileName,personName,name:sv.name,variant:sv.variant,category:"家具",gender:"",qty:1,image:cardImage,confidence:best.confidence})}debugRows.push(debug);for(const x of found){const key=[x.personName,x.name,x.variant].join("|");const same=recognizedRows.find(y=>[y.personName,y.name,y.variant].join("|")===key);if(same)same.qty+=1;else recognizedRows.push(x)}if(!found.length)recognizedRows.push({fileName,personName,name:"待確認",variant:"",category:"家具",gender:"",qty:1,image:"",confidence:0});renderDebugPreview()}drawRecognized();$("#confirmRecognized").style.display=recognizedRows.length?"inline-block":"none";$("#batchProgress").textContent=`完成：共 ${shotImages.length} 張截圖，辨識 ${recognizedRows.filter(x=>x.name!=="待確認").length} 筆家具資料。除錯預覽已產生。`}catch(err){console.error(err);$("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`}finally{if(worker){try{await worker.terminate()}catch(_){}}btn.disabled=false;btn.textContent="開始批量辨識"}};
+$("#confirmRecognized").onclick=async()=>{const a=cur();if(!a)return;for(const x of recognizedRows){if(!x.name||x.name==="待確認")continue;await rememberItemName(x.image,x.name,x.variant);const same=a.items.find(y=>y.name===x.name&&y.variant===x.variant&&y.category==="家具");if(same){same.qty+=x.qty||1;if(!same.image&&x.image)same.image=x.image}else a.items.push({name:x.name,category:"家具",gender:"",variant:x.variant||"",qty:x.qty||1,image:x.image||""})}shotDlg.close();await save()};
 
 $("#googleLogin").onclick=async()=>{
   const msg=$("#loginMsg"), btn=$("#googleLogin");
