@@ -13,6 +13,13 @@
 }
 #shotDlg #shotImg{max-height:420px!important}
 #shotDlg #recognized{max-height:none}
+#shotBatchPreview{display:none;margin-top:12px}
+#shotBatchPreview .batchGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+#shotBatchPreview .batchThumb{border:1px solid var(--line);border-radius:12px;background:#ddd;padding:6px}
+#shotBatchPreview .batchThumb img{width:100%;height:120px;object-fit:contain;border-radius:8px;background:#eee;display:block}
+#shotBatchPreview .batchName{font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#shotBatchPreview .batchCount{font-weight:800;margin-bottom:8px}
+@media(max-width:700px){#shotBatchPreview .batchGrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){
  #shotDlg{width:96vw;height:94vh;max-height:94vh;padding:14px}
  #shotDlg #shotImg{max-height:300px!important}
@@ -91,8 +98,12 @@
 <select id="shotAccount" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)"></select>
 <div class="note">加入完成後會自動切換到下一個帳號，可以連續處理下一張截圖，不需要重新登入。</div>
 </div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
-<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把一張或多張庫存截圖拖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG（可一次批量辨識）</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
+<div id="shotBatchPreview">
+  <div class="batchCount">已選擇 <span id="shotBatchCount">0</span> 張截圖</div>
+  <div id="shotBatchGrid" class="batchGrid"></div>
+</div>
+<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。現在支援多張截圖一次批量辨識，辨識結果會合併在同一份確認清單。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
@@ -171,8 +182,13 @@ function refreshShotAccounts(preferredId=null){
 }
 
 function resetShotRecognition(){
+  sourceImages.forEach(x=>{try{URL.revokeObjectURL(x.url)}catch(_){}});
+  sourceImages=[];
   $("#shotFile").value="";
   $("#shotPreview").style.display="none";
+  $("#shotBatchPreview").style.display="none";
+  $("#shotBatchCount").textContent="0";
+  $("#shotBatchGrid").innerHTML="";
   $("#shotImg").removeAttribute("src");
   $("#recognized").innerHTML="";
   $("#confirmRecognized").style.display="none";
@@ -292,14 +308,34 @@ $("#importShot").onclick=()=>{
   shotDlg.showModal();
 };
 $("#dropShot").onclick=()=>$("#shotFile").click();
-$("#dropShot").ondragover=e=>{e.preventDefault()};
-$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
-$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
-let sourceImage=null;
-function loadShot(f){
-  let u=URL.createObjectURL(f), img=new Image();
-  img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
-  img.src=u;
+$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy"};
+$("#dropShot").ondrop=e=>{e.preventDefault();loadShotFiles(e.dataTransfer.files)};
+$("#shotFile").onchange=e=>{loadShotFiles(e.target.files)};
+let sourceImages=[];
+function loadImageFromFile(f){
+  return new Promise((resolve,reject)=>{
+    const u=URL.createObjectURL(f), img=new Image();
+    img.onload=()=>resolve({file:f,url:u,img});
+    img.onerror=()=>{URL.revokeObjectURL(u);reject(new Error(`圖片讀取失敗：${f.name}`))};
+    img.src=u;
+  });
+}
+async function loadShotFiles(fileList){
+  const files=Array.from(fileList||[]).filter(f=>f&&f.type&&f.type.startsWith("image/"));
+  if(!files.length)return;
+  recognizedRows=[];
+  $("#recognized").innerHTML="";
+  $("#confirmRecognized").style.display="none";
+  sourceImages.forEach(x=>{try{URL.revokeObjectURL(x.url)}catch(_){}});
+  sourceImages=[];
+  try{
+    sourceImages=await Promise.all(files.map(loadImageFromFile));
+    $("#shotBatchCount").textContent=sourceImages.length;
+    $("#shotBatchGrid").innerHTML=sourceImages.map((x,i)=>`<div class="batchThumb"><img src="${x.url}" alt=""><div class="batchName" title="${e(x.file.name)}">${i+1}. ${e(x.file.name)}</div></div>`).join("");
+    $("#shotBatchPreview").style.display="block";
+    if(sourceImages.length===1){$("#shotImg").src=sourceImages[0].url;$("#shotPreview").style.display="block";}else{$("#shotPreview").style.display="none";}
+    $("#mockRecognize").textContent=sourceImages.length>1?`批量辨識 ${sourceImages.length} 張截圖`:"辨識這張截圖";
+  }catch(err){console.error(err);alert(err?.message||String(err));sourceImages=[];resetShotRecognition();}
 }
 function cropGridImage(img,index,cols=4){
   if(!img)return "";
@@ -519,11 +555,11 @@ function looksLikeItem(text){
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
 $("#mockRecognize").onclick=async()=>{
-  if(!sourceImage)return alert("先放一張截圖");
+  if(!sourceImages.length)return alert("先放一張或多張截圖");
   const btn=$("#mockRecognize");
-  btn.disabled=true; btn.textContent="辨識中…";
+  btn.disabled=true; btn.textContent=sourceImages.length>1?`批量辨識中（0/${sourceImages.length}）…`:"辨識中…";
   recognizedRows=[];
-  $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 道具卡片版型辨識…</div>';
+  $("#recognized").innerHTML=`<div class="meta">正在依 MSTAR 道具卡片版型辨識 ${sourceImages.length>1?`共 ${sourceImages.length} 張截圖`:"…"}</div>`;
   $("#confirmRecognized").style.display="none";
 
   let createWorker,worker=null;
@@ -533,11 +569,13 @@ $("#mockRecognize").onclick=async()=>{
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
 
-    const g=inferCardGrid(sourceImage);
     const found=[];
-    for(let row=0;row<g.rows;row++){
-      for(let col=0;col<g.cols;col++){
-        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
+    for(let imageIndex=0;imageIndex<sourceImages.length;imageIndex++){
+      const sourceImage=sourceImages[imageIndex].img;
+      const g=inferCardGrid(sourceImage);
+      for(let row=0;row<g.rows;row++){
+        for(let col=0;col<g.cols;col++){
+          const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
         let name=bestName.text;
         const confidence=bestName.confidence;
         if(ocrLooksBroken(name,confidence)) name="待確認";
@@ -570,15 +608,21 @@ $("#mockRecognize").onclick=async()=>{
           itemName=learned.name;
           if(learned.variant)variant=learned.variant;
         }
-        found.push({
-          name:itemName,
-          variant,
-          restriction,
-          qty:1,
-          image:cardImage,
-          learned:!!learned,
-          galleryMatched:!!galleryMatch
-        });
+          found.push({
+            name:itemName,
+            variant,
+            restriction,
+            qty:1,
+            image:cardImage,
+            learned:!!learned,
+            galleryMatched:!!galleryMatch,
+            sourceFile:sourceImages[imageIndex].file.name
+          });
+        }
+      }
+      if(sourceImages.length>1){
+        btn.textContent=`批量辨識中（${imageIndex+1}/${sourceImages.length}）…`;
+        $("#recognized").innerHTML=`<div class="meta">已完成第 ${imageIndex+1} / ${sourceImages.length} 張截圖，持續辨識中…</div>`;
       }
     }
     recognizedRows=found;
@@ -593,7 +637,7 @@ $("#mockRecognize").onclick=async()=>{
     $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
   }finally{
     if(worker){try{await worker.terminate()}catch(_){}}
-    btn.disabled=false; btn.textContent="辨識這張截圖";
+    btn.disabled=false; btn.textContent=sourceImages.length>1?`批量辨識 ${sourceImages.length} 張截圖`:"辨識這張截圖";
   }
 };
 
@@ -729,5 +773,3 @@ document.addEventListener("keydown",e=>{
 });
 
 </script></body></html>
-
-
