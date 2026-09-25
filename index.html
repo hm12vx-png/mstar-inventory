@@ -96,9 +96,18 @@
 <div class="field">
 <label>目前要加入哪個帳號</label>
 <select id="shotAccount" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)"></select>
-<div class="note">加入完成後會自動切換到下一個帳號，可以連續處理下一張截圖，不需要重新登入。</div>
+<div class="note">加入完成後會自動切換到下一個帳號。下方可一次選取多張圖片（Windows 可用 Ctrl / Shift 多選），也可重複按「繼續加入圖片」累積後再一次辨識。</div>
 </div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把一張或多張庫存截圖拖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG（可一次批量辨識）</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:20px;text-align:center;background:#fff">
+  <div style="font-weight:800;margin-bottom:7px">📷 一次選擇多張 MSTAR 庫存截圖</div>
+  <div class="toolbar" style="justify-content:center">
+    <button class="btn primary" id="chooseShotFiles" type="button">＋ 選擇多張圖片</button>
+    <button class="btn" id="addMoreShotFiles" type="button">＋ 繼續加入圖片</button>
+    <button class="btn danger" id="clearShotFiles" type="button">清除全部</button>
+  </div>
+  <div class="meta" style="margin-top:8px">也可以直接把多張 JPG / PNG 拖曳到這裡；選完後會全部保留，再一次辨識。</div>
+  <input id="shotFile" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" multiple hidden>
+</div>
 <div id="shotBatchPreview">
   <div class="batchCount">已選擇 <span id="shotBatchCount">0</span> 張截圖</div>
   <div id="shotBatchGrid" class="batchGrid"></div>
@@ -186,6 +195,8 @@ function resetShotRecognition(){
   sourceImages=[];
   $("#shotFile").value="";
   $("#shotPreview").style.display="none";
+  $("#chooseShotFiles").disabled=false;
+  $("#addMoreShotFiles").disabled=false;
   $("#shotBatchPreview").style.display="none";
   $("#shotBatchCount").textContent="0";
   $("#shotBatchGrid").innerHTML="";
@@ -307,10 +318,14 @@ $("#importShot").onclick=()=>{
   recognizedRows=[];
   shotDlg.showModal();
 };
-$("#dropShot").onclick=()=>$("#shotFile").click();
-$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy"};
-$("#dropShot").ondrop=e=>{e.preventDefault();loadShotFiles(e.dataTransfer.files)};
-$("#shotFile").onchange=e=>{loadShotFiles(e.target.files)};
+$("#chooseShotFiles").onclick=()=>$("#shotFile").click();
+$("#addMoreShotFiles").onclick=()=>$("#shotFile").click();
+$("#clearShotFiles").onclick=()=>resetShotRecognition();
+$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy";$("#dropShot").style.background="#fff8f2"};
+$("#dropShot").ondragleave=()=>{$("#dropShot").style.background="#fff"};
+$("#dropShot").ondrop=e=>{e.preventDefault();$("#dropShot").style.background="#fff";appendShotFiles(e.dataTransfer.files)};
+$("#shotFile").onchange=e=>{appendShotFiles(e.target.files);e.target.value=""};
+
 let sourceImages=[];
 function loadImageFromFile(f){
   return new Promise((resolve,reject)=>{
@@ -320,23 +335,40 @@ function loadImageFromFile(f){
     img.src=u;
   });
 }
-async function loadShotFiles(fileList){
+function shotFileKey(f){return `${f.name}|${f.size}|${f.lastModified}|${f.type}`}
+
+async function appendShotFiles(fileList){
   const files=Array.from(fileList||[]).filter(f=>f&&f.type&&f.type.startsWith("image/"));
   if(!files.length)return;
-  recognizedRows=[];
-  $("#recognized").innerHTML="";
-  $("#confirmRecognized").style.display="none";
-  sourceImages.forEach(x=>{try{URL.revokeObjectURL(x.url)}catch(_){}});
-  sourceImages=[];
+  const existing=new Set(sourceImages.map(x=>shotFileKey(x.file)));
+  const fresh=files.filter(f=>!existing.has(shotFileKey(f)));
+  if(!fresh.length)return;
   try{
-    sourceImages=await Promise.all(files.map(loadImageFromFile));
+    const loaded=await Promise.all(fresh.map(loadImageFromFile));
+    sourceImages.push(...loaded);
+    recognizedRows=[];
+    $("#recognized").innerHTML="";
+    $("#confirmRecognized").style.display="none";
     $("#shotBatchCount").textContent=sourceImages.length;
-    $("#shotBatchGrid").innerHTML=sourceImages.map((x,i)=>`<div class="batchThumb"><img src="${x.url}" alt=""><div class="batchName" title="${e(x.file.name)}">${i+1}. ${e(x.file.name)}</div></div>`).join("");
+    $("#shotBatchGrid").innerHTML=sourceImages.map((x,i)=>`
+      <div class="batchThumb">
+        <img src="${x.url}" alt="">
+        <div class="batchName" title="${e(x.file.name)}">${i+1}. ${e(x.file.name)}</div>
+      </div>`).join("");
     $("#shotBatchPreview").style.display="block";
-    if(sourceImages.length===1){$("#shotImg").src=sourceImages[0].url;$("#shotPreview").style.display="block";}else{$("#shotPreview").style.display="none";}
+    if(sourceImages.length===1){
+      $("#shotImg").src=sourceImages[0].url;
+      $("#shotPreview").style.display="block";
+    }else{
+      $("#shotPreview").style.display="none";
+    }
     $("#mockRecognize").textContent=sourceImages.length>1?`批量辨識 ${sourceImages.length} 張截圖`:"辨識這張截圖";
-  }catch(err){console.error(err);alert(err?.message||String(err));sourceImages=[];resetShotRecognition();}
+  }catch(err){
+    console.error(err);
+    alert(err?.message||String(err));
+  }
 }
+
 function cropGridImage(img,index,cols=4){
   if(!img)return "";
   const rows=Math.ceil(16/cols), col=index%cols, row=Math.floor(index/cols);
@@ -356,61 +388,223 @@ function drawRecognized(){
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>recognizedRows[+el.dataset.i][el.dataset.k]=el.value);
  document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()});
 }
-function inferCardGrid(img){
-  // MSTAR item cards keep a nearly fixed card aspect ratio (~0.84–0.87 W/H).
-  // Infer rows/columns from the screenshot itself, so 2 items and full pages both work.
-  let best=null;
-  for(let cols=1;cols<=6;cols++){
-    for(let rows=1;rows<=8;rows++){
-      const cw=img.naturalWidth/cols, ch=img.naturalHeight/rows;
-      const aspect=cw/ch;
-      const score=Math.abs(aspect-.85) + (cols===1&&img.naturalWidth>250?.25:0);
-      if(!best || score<best.score) best={cols,rows,cw,ch,score};
+function axisPeaks(edgeMap, axis, minDistance, prominence){
+  const values=axis==="x" ? edgeMap.mean(0) : edgeMap.mean(1);
+  const arr=Array.from(values);
+  const peaks=[];
+  // Lightweight peak detector so the HTML remains dependency-free.
+  for(let i=1;i<arr.length-1;i++){
+    if(arr[i]<arr[i-1] || arr[i]<arr[i+1] || arr[i]<prominence) continue;
+    let tooClose=-1;
+    for(let p=0;p<peaks.length;p++){
+      if(Math.abs(peaks[p]-i)<minDistance){tooClose=p;break;}
     }
+    if(tooClose>=0){
+      if(arr[i]>arr[peaks[tooClose]]) peaks[tooClose]=i;
+    }else peaks.push(i);
   }
-  return best;
+  return peaks.sort((a,b)=>a-b);
 }
+
+function detectCardBounds(img){
+  const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+  const c=document.createElement("canvas");
+  // Downscale only for edge detection; coordinates are mapped back to source pixels.
+  const scale=Math.min(1,1200/w,800/h);
+  c.width=Math.max(1,Math.round(w*scale));
+  c.height=Math.max(1,Math.round(h*scale));
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(img,0,0,c.width,c.height);
+  const data=ctx.getImageData(0,0,c.width,c.height).data;
+  const g=new Float32Array(c.width*c.height);
+  for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
+    const i=(y*c.width+x)*4;
+    g[y*c.width+x]=.299*data[i]+.587*data[i+1]+.114*data[i+2];
+  }
+  const ex=new Float32Array(c.width*c.height);
+  for(let y=1;y<c.height-1;y++)for(let x=1;x<c.width-1;x++){
+    const i=y*c.width+x;
+    const gx=Math.abs(g[i+1]-g[i-1]);
+    const gy=Math.abs(g[i+c.width]-g[i-c.width]);
+    ex[i]=gx+gy;
+  }
+  const xScore=new Float32Array(c.width), yScore=new Float32Array(c.height);
+  for(let y=1;y<c.height-1;y++)for(let x=1;x<c.width-1;x++){
+    const v=ex[y*c.width+x];
+    xScore[x]+=v; yScore[y]+=v;
+  }
+  // Normalize by axis length and smooth a little.
+  for(let x=0;x<c.width;x++)xScore[x]/=c.height;
+  for(let y=0;y<c.height;y++)yScore[y]/=c.width;
+  function smooth(a,r){
+    const out=new Float32Array(a.length);
+    for(let i=0;i<a.length;i++){
+      let s=0,n=0;
+      for(let k=-r;k<=r;k++){const j=i+k;if(j>=0&&j<a.length){s+=a[j];n++;}}
+      out[i]=s/n;
+    }
+    return out;
+  }
+  const xs=smooth(xScore,2), ys=smooth(yScore,2);
+
+  // Card borders are strong repeated vertical/horizontal lines.
+  function pickBands(a,minGap){
+    const med=[...a].sort((m,n)=>m-n)[Math.floor(a.length/2)]||0;
+    const threshold=Math.max(med*1.65,6);
+    const candidates=[];
+    for(let i=2;i<a.length-2;i++){
+      if(a[i]>=a[i-1]&&a[i]>=a[i+1]&&a[i]>threshold)candidates.push(i);
+    }
+    const chosen=[];
+    for(const p of candidates.sort((u,v)=>a[v]-a[u])){
+      if(chosen.every(q=>Math.abs(q-p)>=minGap))chosen.push(p);
+    }
+    return chosen.sort((u,v)=>u-v);
+  }
+
+  let vx=pickBands(xs,Math.max(12,Math.round(c.width*.07)));
+  let vy=pickBands(ys,Math.max(12,Math.round(c.height*.07)));
+
+  // Prefer boundaries that form a regular card grid.
+  function chooseBounds(peaks,total,maxCells=8){
+    const out=[];
+    for(const p of peaks){
+      if(p>total*.04 && p<total*.96) out.push(p);
+    }
+    // Add outer boundaries using the strongest runs when necessary.
+    return out;
+  }
+  vx=chooseBounds(vx,c.width); vy=chooseBounds(vy,c.height);
+
+  function bestGrid(){
+    let best=null;
+    for(let cols=1;cols<=6;cols++){
+      for(let rows=1;rows<=8;rows++){
+        if(cols*rows>48)continue;
+        // Candidate region: use edge peaks when count matches expected boundaries.
+        if(vx.length>=cols+1 && vy.length>=rows+1){
+          for(let xi=0;xi<=vx.length-(cols+1);xi++){
+            const xb=vx.slice(xi,xi+cols+1);
+            const xw=xb.slice(1).map((v,i)=>v-xb[i]);
+            const xavg=xw.reduce((a,b)=>a+b,0)/xw.length;
+            const xvar=xw.reduce((a,b)=>a+(b-xavg)**2,0)/xw.length;
+            for(let yi=0;yi<=vy.length-(rows+1);yi++){
+              const yb=vy.slice(yi,yi+rows+1);
+              const yw=yb.slice(1).map((v,i)=>v-yb[i]);
+              const yavg=yw.reduce((a,b)=>a+b,0)/yw.length;
+              const yvar=yw.reduce((a,b)=>a+(b-yavg)**2,0)/yw.length;
+              const aspect=xavg/yavg;
+              // MSTAR card width/height is usually around 0.75~0.9.
+              const aspectPenalty=Math.abs(aspect-.84);
+              const regularity=(Math.sqrt(xvar)/Math.max(1,xavg))+(Math.sqrt(yvar)/Math.max(1,yavg));
+              const area=(cols*xavg)*(rows*yavg)/(c.width*c.height);
+              const score=aspectPenalty*2+regularity*.8+Math.max(0,.25-area)*.25;
+              if(!best||score<best.score)best={score,cols,rows,xb,yb};
+            }
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  const grid=bestGrid();
+  if(grid){
+    const sx=1/scale, sy=1/scale;
+    return {
+      cols:grid.cols, rows:grid.rows,
+      x0:grid.xb[0]*sx, y0:grid.yb[0]*sy,
+      cw:(grid.xb[grid.xb.length-1]-grid.xb[0])*sx/grid.cols,
+      ch:(grid.yb[grid.yb.length-1]-grid.yb[0])*sy/grid.rows,
+      boundariesX:grid.xb.map(v=>v*sx),
+      boundariesY:grid.yb.map(v=>v*sy)
+    };
+  }
+
+  // Safe fallback for the original 4×2 MSTAR screenshot layout.
+  const cols=4, rows=2;
+  const left=w*.195, top=h*.082, right=w*.829, bottom=h*.625;
+  return {cols,rows,x0:left,y0:top,cw:(right-left)/cols,ch:(bottom-top)/rows};
+}
+
+function inferCardGrid(img){
+  const g=detectCardBounds(img);
+  // Keep compatibility with the existing crop functions.
+  return g;
+}
+
 function cropRect(img,sx,sy,sw,sh,quality=.9){
   const c=document.createElement("canvas");
   c.width=Math.max(1,Math.round(sw)); c.height=Math.max(1,Math.round(sh));
   c.getContext("2d").drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
   return c.toDataURL("image/jpeg",quality);
 }
+function cardOrigin(g,col,row){
+  return {x:g.x0+col*g.cw,y:g.y0+row*g.ch};
+}
 function cardCrop(img,col,row,g){
-  return cropRect(img,col*g.cw,row*g.ch,g.cw,g.ch,.9);
+  const p=cardOrigin(g,col,row);
+  return cropRect(img,p.x,p.y,g.cw,g.ch,.92);
 }
 function cardNameCrop(img,col,row,g){
-  // In the supplied MSTAR screenshots, the item-name line sits directly
-  // above the "查看詳情" button. OCR only this narrow band, not the whole UI.
-  const x=col*g.cw, y=row*g.ch;
-  return cropRect(img,x+g.cw*.02,y+g.ch*.70,g.cw*.96,g.ch*.145,1);
+  // The name line is just above the "查看詳情" button.
+  const p=cardOrigin(g,col,row);
+  return cropRect(img,p.x+g.cw*.02,p.y+g.ch*.68,g.cw*.96,g.ch*.17,1);
 }
 function cardRestrictionCrop(img,col,row,g){
-  const x=col*g.cw, y=row*g.ch;
-  return cropRect(img,x+g.cw*.18,y+g.ch*.56,g.cw*.64,g.ch*.14,1);
+  const p=cardOrigin(g,col,row);
+  return cropRect(img,p.x+g.cw*.16,p.y+g.ch*.55,g.cw*.68,g.ch*.15,1);
 }
-function preprocessNameForOCR(img,col,row,g){
-  const x=col*g.cw, y=row*g.ch;
-  // Crop only the item-name band and enlarge it substantially for tiny MSTAR text.
-  const sx=x+g.cw*.015, sy=y+g.ch*.685, sw=g.cw*.97, sh=g.ch*.17;
-  const scale=5;
-  const c=document.createElement("canvas");
-  c.width=Math.max(1,Math.round(sw*scale));
-  c.height=Math.max(1,Math.round(sh*scale));
-  const ctx=c.getContext("2d");
-  ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
-  const im=ctx.getImageData(0,0,c.width,c.height);
-  const p=im.data;
-  // Grayscale + contrast/threshold tuned for light MSTAR text on dark card backgrounds.
-  for(let i=0;i<p.length;i+=4){
-    const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
-    const v=lum>145?255:0;
-    p[i]=p[i+1]=p[i+2]=v;
+async function imageToOCRVariants(img,col,row,g){
+  const p=cardOrigin(g,col,row);
+  const sx=p.x+g.cw*.015, sy=p.y+g.ch*.675, sw=g.cw*.97, sh=g.ch*.18;
+  const variants=[];
+  const scale=7;
+  const source=img;
+  const make=(mode)=>{
+    const c=document.createElement("canvas");
+    c.width=Math.max(1,Math.round(sw*scale));
+    c.height=Math.max(1,Math.round(sh*scale));
+    const ctx=c.getContext("2d",{willReadFrequently:true});
+    ctx.imageSmoothingEnabled=true;
+    ctx.imageSmoothingQuality="high";
+    ctx.drawImage(source,sx,sy,sw,sh,0,0,c.width,c.height);
+    const im=ctx.getImageData(0,0,c.width,c.height);
+    const p=im.data;
+    for(let i=0;i<p.length;i+=4){
+      const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+      let v=lum;
+      if(mode==="contrast") v=Math.max(0,Math.min(255,(lum-105)*1.9+105));
+      if(mode==="binary") v=lum>145?255:0;
+      if(mode==="soft") v=Math.max(0,Math.min(255,(lum-80)*1.45+80));
+      p[i]=p[i+1]=p[i+2]=v;
+      p[i+3]=255;
+    }
+    ctx.putImageData(im,0,0);
+    return c.toDataURL("image/png");
+  };
+  variants.push(make("contrast"));
+  variants.push(make("soft"));
+  variants.push(make("binary"));
+  return variants;
+}
+
+async function recognizeBestName(worker,img,col,row,g){
+  const variants=await imageToOCRVariants(img,col,row,g);
+  let best={text:"",confidence:0,score:-1};
+  for(const v of variants){
+    let res;
+    try{
+      res=await worker.recognize(v);
+    }catch(_){continue}
+    const text=cleanItemName(res?.data?.text||"");
+    const confidence=Number(res?.data?.confidence||0);
+    const score=cjkCount(text)*22 + confidence - Math.max(0,text.length-28)*2;
+    if(score>best.score) best={text,confidence,score};
   }
-  ctx.putImageData(im,0,0);
-  return c.toDataURL("image/png");
+  return best;
 }
+
 function ocrLooksBroken(text,confidence){
   const t=String(text||"").trim();
   if(!t) return true;
@@ -554,6 +748,21 @@ function looksLikeItem(text){
   const t=cleanItemName(text).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
+async function cardImageHasContent(dataUrl){
+  const img=new Image();
+  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
+  const c=document.createElement("canvas"); c.width=64;c.height=64;
+  const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,64,64);
+  const p=ctx.getImageData(0,0,64,64).data;
+  let nonBg=0, dark=0;
+  for(let i=0;i<p.length;i+=4){
+    const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+    if(lum<220)nonBg++;
+    if(lum<150)dark++;
+  }
+  return nonBg>64 && dark>20;
+}
+
 $("#mockRecognize").onclick=async()=>{
   if(!sourceImages.length)return alert("先放一張或多張截圖");
   const btn=$("#mockRecognize");
@@ -568,6 +777,12 @@ $("#mockRecognize").onclick=async()=>{
     createWorker=mod.createWorker||mod.default?.createWorker;
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
+    try{
+      await worker.setParameters({
+        tessedit_pageseg_mode:"7",
+        preserve_interword_spaces:"0"
+      });
+    }catch(_){}
 
     const found=[];
     for(let imageIndex=0;imageIndex<sourceImages.length;imageIndex++){
@@ -575,15 +790,19 @@ $("#mockRecognize").onclick=async()=>{
       const g=inferCardGrid(sourceImage);
       for(let row=0;row<g.rows;row++){
         for(let col=0;col<g.cols;col++){
+          const cardImage=cardCrop(sourceImage,col,row,g);
           const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
-        let name=bestName.text;
-        const confidence=bestName.confidence;
-        if(ocrLooksBroken(name,confidence)) name="待確認";
-        if(name!=="待確認" && !looksLikeItem(name)) continue;
+          let name=bestName.text;
+          const confidence=bestName.confidence;
+          if(ocrLooksBroken(name,confidence)) name="待確認";
+          // Do not let completely blank cells become fake products.
+          const cardHasContent=await cardImageHasContent(cardImage);
+          if(!cardHasContent) continue;
+          if(name!=="待確認" && !looksLikeItem(name)) continue;
 
-        // A valid card must have a plausible item-name line. This prevents
-        // buttons/page text elsewhere on the screenshot from becoming items.
-        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
+          // A valid card must have a plausible item-name line. This prevents
+          // buttons/page text elsewhere on the screenshot from becoming items.
+          const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
         let restriction="";
         try{
           const rr=await worker.recognize(restrictionImg);
@@ -598,7 +817,6 @@ $("#mockRecognize").onclick=async()=>{
         const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
         if(m){itemName=m[1].trim();variant=m[2].trim()}
 
-        const cardImage=cardCrop(sourceImage,col,row,g);
         const galleryMatch=await galleryMatchFor(cardImage);
         const learned=galleryMatch ? null : await learnedNameFor(cardImage);
         if(galleryMatch){
@@ -773,3 +991,4 @@ document.addEventListener("keydown",e=>{
 });
 
 </script></body></html>
+
