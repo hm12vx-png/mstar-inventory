@@ -1299,26 +1299,30 @@ function inferCardGrid(img){
   ctx.drawImage(img,0,0,c.width,c.height);
   const sx=c.width/W,sy=c.height/H;
 
+  // 速度版：整張縮圖只讀一次像素。舊版在每個候選分隔線上反覆 getImageData，
+  // 精準裁切雖然正確，但會造成數千次 Canvas/GPU 同步讀取而明顯變慢。
+  const pixels=ctx.getImageData(0,0,c.width,c.height).data;
+  const pixelDiff=(x1,y1,x2,y2)=>{
+    const i1=(y1*c.width+x1)*4,i2=(y2*c.width+x2)*4;
+    return (Math.abs(pixels[i1]-pixels[i2])+Math.abs(pixels[i1+1]-pixels[i2+1])+Math.abs(pixels[i1+2]-pixels[i2+2]))/3;
+  };
+  const xEdgeCache=new Map(),yEdgeCache=new Map();
   function edgeX(x){
     const xx=Math.max(2,Math.min(c.width-3,Math.round(x*sx)));
+    if(xEdgeCache.has(xx))return xEdgeCache.get(xx);
     let sum=0,n=0;
     const step=Math.max(1,Math.round(c.height/220));
-    for(let y=2;y<c.height-2;y+=step){
-      const a=ctx.getImageData(xx-2,y,1,1).data,b=ctx.getImageData(xx+2,y,1,1).data;
-      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;n++;
-    }
-    return n?sum/n:0;
+    for(let y=2;y<c.height-2;y+=step){sum+=pixelDiff(xx-2,y,xx+2,y);n++}
+    const v=n?sum/n:0;xEdgeCache.set(xx,v);return v;
   }
   function edgeY(y,x0=0,x1=W){
     const yy=Math.max(2,Math.min(c.height-3,Math.round(y*sy)));
     const ax=Math.max(0,Math.round(x0*sx)),bx=Math.min(c.width-1,Math.round(x1*sx));
+    const key=yy+":"+ax+":"+bx;if(yEdgeCache.has(key))return yEdgeCache.get(key);
     let sum=0,n=0;
     const step=Math.max(1,Math.round(Math.max(1,bx-ax)/260));
-    for(let x=ax;x<=bx;x+=step){
-      const a=ctx.getImageData(x,yy-2,1,1).data,b=ctx.getImageData(x,yy+2,1,1).data;
-      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;n++;
-    }
-    return n?sum/n:0;
+    for(let x=ax;x<=bx;x+=step){sum+=pixelDiff(x,yy-2,x,yy+2);n++}
+    const v=n?sum/n:0;yEdgeCache.set(key,v);return v;
   }
 
   // 4 欄截圖的單格寬約為整張圖的 1/4；搜尋 ±8%，並找出能讓 5 條欄界線同時最強的相位。
@@ -1700,6 +1704,18 @@ async function recognizeImageCards(worker,img){
 }
 
 
+let recognitionWorkerPromise=null;
+async function getRecognitionWorker(){
+  if(recognitionWorkerPromise)return recognitionWorkerPromise;
+  recognitionWorkerPromise=(async()=>{
+    const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
+    const createWorker=mod.createWorker||mod.default?.createWorker;
+    if(typeof createWorker!=="function")throw new Error("OCR 工具載入異常");
+    return await createWorker("chi_tra+eng",1);
+  })().catch(err=>{recognitionWorkerPromise=null;throw err});
+  return recognitionWorkerPromise;
+}
+
 $("#mockRecognize").onclick=async()=>{
   if(!shotQueue.length){
     if(sourceImage)shotQueue=[{url:$("#shotImg").src}];
@@ -1713,10 +1729,8 @@ $("#mockRecognize").onclick=async()=>{
   $("#confirmRecognized").style.display="none";
   let worker=null;
   try{
-    const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
-    const createWorker=mod.createWorker||mod.default?.createWorker;
-    if(typeof createWorker!=="function")throw new Error("OCR 工具載入異常");
-    worker=await createWorker("chi_tra+eng",1);
+    // OCR worker 重用：第一次載入後，後續截圖不再重載語言模型。
+    worker=await getRecognitionWorker();
     const all=[];
     for(let i=0;i<shotQueue.length;i++){
       shotQueueIndex=i+1;
@@ -1749,8 +1763,7 @@ $("#mockRecognize").onclick=async()=>{
     console.error(err);
     $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
   }finally{
-    if(worker){try{await worker.terminate()}catch(_){}
-    }
+    // 不 terminate：保留 OCR worker 給下一張，省掉每次重新下載/初始化 chi_tra+eng 的等待。
     btn.disabled=false;btn.textContent=shotQueue.length>1?"重新辨識全部":"辨識這張截圖";
   }
 };
@@ -1794,11 +1807,11 @@ $("#confirmRecognized").onclick=async()=>{
       x.variant=String(x.variant||"").trim();
       const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
 
-      // 已經由記憶命中的商品不需要再次建立記憶；只有新 OCR 結果或使用者修改過名稱／款式才學習。
-      const changed=x.name!==String(x.originalName||"").trim() || x.variant!==String(x.originalVariant||"").trim();
-      const needRemember=!x.learned || changed;
+      // 每次「確認加入」都視為人工確認過的正確答案：一定建立／補強記憶。
+      // 即使這次原本是記憶命中，也保留這張新截圖作為同一道具的新樣本，
+      // 讓不同縮放、亮度與輕微裁切下都能再次辨識。
       const rememberKey=item.image+"|"+item.name+"|"+item.variant;
-      if(needRemember && item.image && !seenRemember.has(rememberKey)){
+      if(item.image && !seenRemember.has(rememberKey)){
         seenRemember.add(rememberKey);
         rememberJobs.push(rememberItemName(item.image,item.name,item.variant));
       }
@@ -1814,7 +1827,9 @@ $("#confirmRecognized").onclick=async()=>{
 
     activeCategory=cat; activeGender=gen; activeCandy="";
     const tempSource=recognizingTempShot;
-    const saved=await save();
+    // 截圖確認只儲存目前帳號與本次新增的記憶，避免全庫存重掃；
+    // 這同時確保剛建立的辨識記憶真的寫進 Firestore。
+    const saved=await saveRecognitionFast(a);
     if(!saved)throw new Error("雲端儲存沒有完成，請稍後再試。");
 
     shotDlg.close();
@@ -2016,6 +2031,8 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
 
 
 
