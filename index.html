@@ -1543,5 +1543,292 @@ $("#mockRecognize").onclick=async()=>{
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
 
-    const g=inferCardGrid
+    const g=inferCardGrid(sourceImage);
+    const found=[];
+    for(let row=0;row<g.rows;row++){
+      for(let col=0;col<g.cols;col++){
+        if(cellLooksEmpty(sourceImage,col,row,g)) continue;
+        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
+        let name=bestName.text;
+        const confidence=bestName.confidence;
+        if(ocrLooksBroken(name,confidence)) name="";
+        if(name && !looksLikeItem(name)) name="";
+
+        // A valid card must have a plausible item-name line. This prevents
+        // buttons/page text elsewhere on the screenshot from becoming items.
+        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
+        let restriction="";
+        try{
+          const rr=await worker.recognize(restrictionImg);
+          const rt=String(rr?.data?.text||"");
+          if(/限男/.test(rt)) restriction="限男";
+          else if(/限女/.test(rt)) restriction="限女";
+          else if(/無限制/.test(rt)) restriction="無限制";
+        }catch(_){}
+
+        // Split the common "道具名稱-顏色" format.
+        let itemName=name,variant="";
+        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+        if(m){itemName=m[1].trim();variant=m[2].trim()}
+
+        const cardImage=cardCrop(sourceImage,col,row,g);
+        const learned=await learnedNameFor(cardImage);
+        if(learned){
+          itemName=learned.name;
+          if(learned.matchLevel!=="shape"&&learned.variant)variant=learned.variant;
+          if(learned.matchLevel==="shape")variant="";
+        }
+
+        // 名稱可用記憶，但數量一定以「這一次截圖」重新辨識。
+        const detectedQty=await recognizeQuantity(worker,sourceImage,col,row,g);
+        found.push({
+          name:itemName,
+          variant,
+          restriction,
+          qty:detectedQty,
+          image:cardImage,
+          learned:!!learned
+        });
+      }
+    }
+    recognizedRows=found;
+    if(!found.length){
+      $("#recognized").innerHTML='<div class="meta">沒有辨識到道具卡片。請確認截圖包含完整的 MSTAR 道具格。</div>';
+      return;
+    }
+    drawRecognized();
+    $("#confirmRecognized").style.display="inline-block";
+  }catch(err){
+    console.error(err);
+    $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
+  }finally{
+    if(worker){try{await worker.terminate()}catch(_){}}
+    btn.disabled=false; btn.textContent="辨識這張截圖";
+  }
+};
+
+$("#confirmRecognized").onclick=async()=>{
+  const a=cur(); if(!a||!recognizedRows.length)return;
+  const btn=$("#confirmRecognized");
+  if(btn.disabled)return;
+  const oldText=btn.textContent;
+  btn.disabled=true; btn.textContent="加入中…";
+  try{
+    const cat=$("#shotCategory").value||"家具";
+    const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
+    for(const x of recognizedRows){
+      const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
+      await rememberItemName(item.image,item.name,item.variant);
+      const same=a.items.find(y=>y.name===item.name&&(y.variant||"")===item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
+      if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
+      else a.items.push(item);
+    }
+    activeCategory=cat; activeGender=gen; activeCandy="";
+    const tempSource=recognizingTempShot;
+
+    // 這裡只寫目前帳號，不再因為一張截圖重寫全部 600 個帳號。
+    d.updated=new Date().toLocaleString("zh-TW");
+    await setDoc(accountRef(String(a.id)),a);
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+
+    // 只補上雲端缺少的辨識記憶，不刪掉整包重建。
+    const remoteMemSnap=await getDocs(memoryCol());
+    const remoteKeys=new Set(remoteMemSnap.docs.map(ds=>{
+      const m=ds.data()||{};
+      return JSON.stringify([m.sig||[],m.shapeSig||[],m.colorSig||[],m.robustSig||[],m.name||"",m.variant||""]);
+    }));
+    const missing=(d.itemMemory||[]).filter(m=>!remoteKeys.has(JSON.stringify([m.sig||[],m.shapeSig||[],m.colorSig||[],m.robustSig||[],m.name||"",m.variant||""])));
+    for(let i=0;i<missing.length;i+=350){
+      const batch=writeBatch(db);
+      missing.slice(i,i+350).forEach((m,j)=>{
+        const idx=(d.itemMemory||[]).indexOf(m);
+        batch.set(memoryRef(stableMemoryId(m,idx<0?i+j:idx)),m);
+      });
+      await batch.commit();
+    }
+
+    render();
+    shotDlg.close();
+
+    if(tempSource){
+      recognizingTempShot=null;
+      askDeleteTempShot(tempSource);
+    }
+  }catch(err){
+    console.error(err);
+    alert("加入庫存失敗｜"+(err?.code||"unknown")+"\\n"+(err?.message||String(err)));
+  }finally{
+    btn.disabled=false; btn.textContent=oldText;
+  }
+};
+
+$("#googleLogin").onclick=async()=>{
+  const msg=$("#loginMsg"), btn=$("#googleLogin");
+  msg.textContent="正在開啟 Google 登入…";
+  btn.disabled=true;
+  try{
+    const result=await signInWithPopup(auth,provider);
+    if(result.user.uid!==ADMIN_UID){
+      await signOut(auth);
+      msg.textContent="這個 Google 帳號沒有使用權限。";
+      return;
+    }
+    msg.textContent="登入成功，正在讀取庫存…";
+  }catch(err){
+    console.error("Google login error:",err);
+    const code=err?.code||"unknown";
+    const detail=err?.message||String(err);
+    if(code==="auth/popup-blocked"){
+      msg.textContent="登入視窗被瀏覽器擋住，正在改用頁面登入…";
+      try{
+        const {signInWithRedirect}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+        await signInWithRedirect(auth,provider);
+        return;
+      }catch(e2){
+        console.error(e2);
+        msg.textContent="登入失敗｜"+(e2?.code||"unknown")+"｜"+(e2?.message||String(e2));
+      }
+    }else if(code==="auth/popup-closed-by-user"){
+      msg.textContent="登入視窗被關閉。請再按一次。錯誤碼："+code;
+    }else if(code==="auth/cancelled-popup-request"){
+      msg.textContent="登入要求被取消，請再按一次。錯誤碼："+code;
+    }else{
+      msg.textContent="登入失敗｜"+code+"｜"+detail;
+    }
+  }finally{
+    btn.disabled=false;
+  }
+};
+$("#logout").onclick=()=>signOut(auth);
+getRedirectResult(auth).catch(err=>{
+  if(err) console.error("Google redirect login error:",err);
+});
+
+const overviewDlg=$("#overviewDlg");
+function buildAllOverview(){
+  const merged=new Map();
+  for(const a of (d.accounts||[])){
+    for(const item of (a.items||[])){
+      const name=String(item.name||"").trim();
+      if(!name)continue;
+      const category=String(item.category||"未分類");
+      const variant=String(item.variant||"").trim();
+      const gender=String(item.gender||item.restriction||"").trim();
+      const candyType=String(item.candyType||"").trim();
+      const key=[category,name,variant,gender,candyType].join("||");
+      const qty=Math.max(0,Number(item.qty)||0);
+      if(!merged.has(key))merged.set(key,{category,name,variant,gender,candyType,qty:0,image:item.image||""});
+      const rec=merged.get(key);
+      rec.qty+=qty;
+      if(!rec.image&&item.image)rec.image=item.image;
+    }
+  }
+  const order=["家具","玩偶","花盆","戒指","作物","材料","寵物","釣魚","糖果"];
+  const rows=[...merged.values()].sort((a,b)=>{
+    const ai=order.indexOf(a.category),bi=order.indexOf(b.category);
+    if(ai!==bi)return (ai<0?999:ai)-(bi<0?999:bi);
+    return a.name.localeCompare(b.name,"zh-TW",{numeric:true});
+  });
+  return {rows,order};
+}
+function renderAllOverview(){
+  const built=buildAllOverview(),order=built.order;
+  const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
+  const rows=!q?built.rows:built.rows.filter(x=>
+    [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
+  );
+  const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
+  $("#overviewCapture").innerHTML=`<div class="overviewTitle">🤎 內內的小倉倉｜全帳號總覽 🤎</div>
+    <div class="overviewSub">${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}</div>`+
+    (cats.length?cats.map(cat=>{
+      const list=rows.filter(x=>x.category===cat);
+      return `<section class="overviewSection"><h4>${e(cat)}｜${list.length} 種</h4><div class="overviewGrid">${
+        list.map(x=>`<div class="overviewItem">${x.image?`<img src="${x.image}">`:""}<div class="overviewItemText"><div class="overviewItemName">${e(x.name)}</div><div class="overviewItemMeta">${[x.variant,x.gender,x.candyType].filter(Boolean).map(e).join("｜")}</div></div><div class="overviewQty">×${x.qty}</div></div>`).join("")
+      }</div></section>`;
+    }).join(""):'<div class="empty">目前沒有庫存資料</div>');
+}
+$("#allOverview").onclick=()=>{$("#overviewSearch").value="";renderAllOverview();overviewDlg.showModal();setTimeout(()=>$("#overviewSearch").focus(),50)};
+$("#overviewSearch").oninput=()=>renderAllOverview();
+$("#clearOverviewSearch").onclick=()=>{$("#overviewSearch").value="";renderAllOverview();$("#overviewSearch").focus()};
+$("#closeOverview").onclick=()=>overviewDlg.close();
+
+async function overviewImageMap(rows){
+  const map=new Map();
+  await Promise.all(rows.filter(x=>x.image).map(x=>new Promise(resolve=>{
+    const im=new Image();
+    im.onload=()=>{map.set(x.image,im);resolve()};
+    im.onerror=resolve;
+    im.src=x.image;
+  })));
+  return map;
+}
+function wrapCanvasText(ctx,text,maxWidth){
+  const chars=[...String(text||"")],lines=[];let line="";
+  for(const ch of chars){
+    const test=line+ch;
+    if(line&&ctx.measureText(test).width>maxWidth){lines.push(line);line=ch}else line=test;
+  }
+  if(line)lines.push(line);
+  return lines.length?lines:[""];
+}
+$("#saveOverviewJpg").onclick=async()=>{
+  const btn=$("#saveOverviewJpg");btn.disabled=true;btn.textContent="製作中…";
+  try{
+    const built=buildAllOverview(),order=built.order;
+    const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
+    const rows=!q?built.rows:built.rows.filter(x=>
+      [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
+    );
+    if(!rows.length)return alert(q?"目前搜尋不到符合的庫存":"目前沒有庫存資料");
+    const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
+    const W=1400,pad=50,cols=5,gap=12,cardW=(W-pad*2-gap*(cols-1))/cols,cardH=92;
+    let H=125;
+    for(const cat of cats){const n=rows.filter(x=>x.category===cat).length;H+=54+Math.ceil(n/cols)*(cardH+gap)+18}
+    H+=35;
+    const c=document.createElement("canvas");c.width=W;c.height=H;
+    const ctx=c.getContext("2d");
+    ctx.fillStyle="#f5e9df";ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="#4d3c33";ctx.textAlign="center";ctx.font="900 30px sans-serif";
+    ctx.fillText("內內的小倉倉｜全帳號總覽",W/2,48);
+    ctx.font="16px sans-serif";ctx.globalAlpha=.72;
+    ctx.fillText(`${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}`,W/2,78);ctx.globalAlpha=1;
+    ctx.textAlign="left";
+    const images=await overviewImageMap(rows);
+    let y=112;
+    for(const cat of cats){
+      const list=rows.filter(x=>x.category===cat);
+      ctx.fillStyle="#4d3c33";ctx.font="800 21px sans-serif";ctx.fillText(`${cat}｜${list.length} 種`,pad,y+25);
+      ctx.strokeStyle="#cdb6a6";ctx.beginPath();ctx.moveTo(pad,y+37);ctx.lineTo(W-pad,y+37);ctx.stroke();y+=54;
+      for(let i=0;i<list.length;i++){
+        const x0=pad+(i%cols)*(cardW+gap),y0=y+Math.floor(i/cols)*(cardH+gap),it=list[i];
+        ctx.fillStyle="#fffaf6";ctx.strokeStyle="#d9c4b5";
+        ctx.beginPath();ctx.roundRect(x0,y0,cardW,cardH,12);ctx.fill();ctx.stroke();
+        let tx=x0+12;
+        const im=images.get(it.image);
+        if(im){ctx.drawImage(im,x0+9,y0+9,74,74);tx=x0+94}
+        ctx.fillStyle="#4d3c33";ctx.font="800 15px sans-serif";
+        const nameLines=wrapCanvasText(ctx,it.name,cardW-(tx-x0)-55).slice(0,2);
+        nameLines.forEach((line,j)=>ctx.fillText(line,tx,y0+27+j*19));
+        const meta=[it.variant,it.gender,it.candyType].filter(Boolean).join("｜");
+        if(meta){ctx.font="12px sans-serif";ctx.globalAlpha=.7;ctx.fillText(meta,tx,y0+72);ctx.globalAlpha=1}
+        ctx.textAlign="right";ctx.font="900 18px sans-serif";ctx.fillText(`×${it.qty}`,x0+cardW-10,y0+27);ctx.textAlign="left";
+      }
+      y+=Math.ceil(list.length/cols)*(cardH+gap)+18;
+    }
+    const a=document.createElement("a");a.download=`全帳號庫存總覽_${new Date().toISOString().slice(0,10)}.jpg`;a.href=c.toDataURL("image/jpeg",.92);a.click();
+  }catch(err){console.error(err);alert("總覽 JPG 製作失敗："+(err?.message||err))}
+  finally{btn.disabled=false;btn.textContent="儲存 JPG"}
+};
+onAuthStateChanged(auth,async user=>{
+  currentUser=user&&user.uid===ADMIN_UID?user:null;
+  if(!currentUser){
+    $("#authGate").classList.remove("hidden");$("#app").style.visibility="hidden";d={accounts:[]};active=null;tempShotsCache.clear();return;
+  }
+  $("#userLabel").textContent=currentUser.email||"已登入";
+  $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
+  try{await loadCloud()}catch(err){console.error(err);alert("讀取／搬移雲端庫存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err))+"\n\n舊 main 資料沒有刪除。")}
+});
+
+</script></body></html>
+
 
