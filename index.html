@@ -595,6 +595,19 @@ async function loadCloud(){
   }
   if(!Array.isArray(d.accounts))d.accounts=[];
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
+  // 舊版若曾在儲存失敗時遺失 itemMemory，直接用庫存內仍保留的「圖片＋正確名稱」重建記憶。
+  // 只補缺少的樣本，不會刪除或覆蓋既有記憶。
+  try{
+    let rebuilt=0;
+    for(const a of d.accounts){
+      for(const x of (a.items||[])){
+        if(!x?.image||!String(x?.name||"").trim()||x.name==="待確認")continue;
+        const exists=d.itemMemory.some(m=>String(m?.name||"")===String(x.name)&&String(m?.variant||"")===String(x.variant||""));
+        if(!exists){await rememberItemName(x.image,x.name,x.variant||"");rebuilt++;}
+      }
+    }
+    if(rebuilt) await save();
+  }catch(err){console.warn("辨識記憶自動重建略過",err)}
   active=d.accounts[0]?.id||null;
   render();
 }
@@ -1398,8 +1411,9 @@ function matchFeature(f,m){
 }
 function acceptableMemoryMatch(best){
   if(!best)return false;
-  if(best.colorDist!==null&&best.colorDist>.28)return false;
-  return best.score<=2.65 || best.robustDist<=30;
+  if(best.colorDist!==null&&best.colorDist>.38)return false;
+  // MSTAR 卡片縮圖在不同瀏覽器/截圖縮放下會有明顯像素差；dHash 對同一圖仍很穩定。
+  return best.score<=3.20 || best.robustDist<=48;
 }
 async function learnedNameFor(image){
   const f=await cachedFeatures(image);
@@ -1431,7 +1445,7 @@ async function learnedNameFor(image){
       }catch(_){}
     }
   }
-  if(invBest && invBest.robustDist<=38 && (invBest.colorDist===null||invBest.colorDist<=.30) && invBest.score<=2.95)return invBest;
+  if(invBest && invBest.robustDist<=52 && (invBest.colorDist===null||invBest.colorDist<=.40) && invBest.score<=3.45)return invBest;
   return null;
 }
 async function rememberItemName(image,name,variant=""){
