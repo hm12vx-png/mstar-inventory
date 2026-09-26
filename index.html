@@ -474,7 +474,7 @@
 <option value="家具">家具</option><option value="玩偶">玩偶</option><option value="花盆">花盆</option><option value="戒指">戒指</option><option value="作物">作物</option><option value="材料">材料</option><option value="寵物">寵物</option><option value="釣魚">釣魚</option>
 </select></div>
 <div class="field" id="shotGenderWrap" style="display:none"><label>限制</label><select id="shotGender"><option value="限男">限男</option><option value="限女">限女</option></select></div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把一張或多張庫存截圖拖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div class="meta">名稱、款式與數量都可在加入前手動修正。</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
@@ -1056,23 +1056,45 @@ function syncShotCategory(){
 $("#shotCategory").onchange=()=>{
   $("#shotGenderWrap").style.display=(["戒指","作物"].includes($("#shotCategory").value))?"block":"none";
 };
-$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");recognizingTempShot=null;syncShotCategory();$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
+let shotQueue=[];
+$("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");recognizingTempShot=null;shotQueue=[];sourceImage=null;syncShotCategory();$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];$("#recognized").innerHTML="";$("#mockRecognize").textContent="辨識這張截圖";shotDlg.showModal()};
 $("#dropShot").onclick=()=>$("#shotFile").click();
 $("#dropShot").ondragover=e=>{e.preventDefault()};
-$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
-$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
+$("#dropShot").ondrop=e=>{e.preventDefault();loadShots([...(e.dataTransfer.files||[])])};
+$("#shotFile").onchange=e=>{const files=[...(e.target.files||[])];e.target.value="";loadShots(files)};
 let sourceImage=null;
 let recognizingTempShot=null;
-function setShotSource(u){
-  const img=new Image();
-  img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
-  img.onerror=()=>alert("截圖讀取失敗");
-  img.src=u;
+function imageFromUrl(u){
+  return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=u});
 }
-function loadShot(f){
+async function showShotAt(index){
+  if(!shotQueue.length)return;
+  const q=shotQueue[index];
+  try{
+    const img=await imageFromUrl(q.url);
+    sourceImage=img;
+    $("#shotImg").src=q.url;
+    $("#shotPreview").style.display="block";
+    $("#confirmRecognized").style.display="none";
+    const n=shotQueue.length;
+    $("#mockRecognize").textContent=n>1?`辨識全部 ${n} 張`:"辨識這張截圖";
+  }catch(_){alert("截圖讀取失敗")}
+}
+async function loadShots(files){
   recognizingTempShot=null;
-  setShotSource(URL.createObjectURL(f));
+  const imgs=files.filter(f=>String(f.type||"").startsWith("image/"));
+  if(!imgs.length)return;
+  shotQueue.forEach(x=>{if(x.objectUrl)try{URL.revokeObjectURL(x.url)}catch(_){}});
+  shotQueue=imgs.map(file=>({file,url:URL.createObjectURL(file),objectUrl:true}));
+  recognizedRows=[];
+  $("#recognized").innerHTML="";
+  await showShotAt(0);
 }
+function setShotSource(u){
+  shotQueue=[{url:u,objectUrl:false}];
+  showShotAt(0);
+}
+function loadShot(f){loadShots([f])}
 function openTempShotForRecognition(accountId,shot){
   if(!shot?.image)return;
   if(active!==accountId){
@@ -1080,6 +1102,7 @@ function openTempShotForRecognition(accountId,shot){
     render();
   }
   recognizingTempShot={accountId,shotId:shot.id};
+  shotQueue=[{url:shot.image,objectUrl:false}];
   syncShotCategory();
   $("#shotAccount").textContent="帳號 "+(cur()?.name||"");
   sourceImage=null;
@@ -1505,9 +1528,13 @@ function looksLikeItem(text){
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
 $("#mockRecognize").onclick=async()=>{
-  if(!sourceImage)return alert("先放一張截圖");
+  if(!shotQueue.length){
+    if(sourceImage)shotQueue=[{url:$("#shotImg").src,objectUrl:false}];
+    else return alert("先放入一張或多張截圖");
+  }
   const btn=$("#mockRecognize");
-  btn.disabled=true; btn.textContent="辨識中…";
+  if(btn.disabled)return;
+  btn.disabled=true; btn.textContent=shotQueue.length>1?"連續辨識中…":"辨識中…";
   recognizedRows=[];
   $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 實際道具格版型定位辨識…</div>';
   $("#confirmRecognized").style.display="none";
@@ -1519,56 +1546,62 @@ $("#mockRecognize").onclick=async()=>{
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
 
-    const g=inferCardGrid(sourceImage);
-    const found=[];
-    for(let row=0;row<g.rows;row++){
-      for(let col=0;col<g.cols;col++){
-        if(cellLooksEmpty(sourceImage,col,row,g)) continue;
-        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
-        let name=bestName.text;
-        const confidence=bestName.confidence;
-        if(ocrLooksBroken(name,confidence)) name="";
-        if(name && !looksLikeItem(name)) name="";
+    const allFound=[];
+    for(let shotIndex=0;shotIndex<shotQueue.length;shotIndex++){
+      const q=shotQueue[shotIndex];
+      const img=await imageFromUrl(q.url);
+      sourceImage=img;
+      $("#shotImg").src=q.url;
+      $("#shotPreview").style.display="block";
+      $("#recognized").innerHTML=`<div class="meta">正在辨識第 ${shotIndex+1} / ${shotQueue.length} 張…</div>`;
 
-        // A valid card must have a plausible item-name line. This prevents
-        // buttons/page text elsewhere on the screenshot from becoming items.
-        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
-        let restriction="";
-        try{
-          const rr=await worker.recognize(restrictionImg);
-          const rt=String(rr?.data?.text||"");
-          if(/限男/.test(rt)) restriction="限男";
-          else if(/限女/.test(rt)) restriction="限女";
-          else if(/無限制/.test(rt)) restriction="無限制";
-        }catch(_){}
+      const g=inferCardGrid(img);
+      for(let row=0;row<g.rows;row++){
+        for(let col=0;col<g.cols;col++){
+          if(cellLooksEmpty(img,col,row,g)) continue;
+          const bestName=await recognizeBestName(worker,img,col,row,g);
+          let name=bestName.text;
+          const confidence=bestName.confidence;
+          if(ocrLooksBroken(name,confidence)) name="";
+          if(name && !looksLikeItem(name)) name="";
 
-        // Split the common "道具名稱-顏色" format.
-        let itemName=name,variant="";
-        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
-        if(m){itemName=m[1].trim();variant=m[2].trim()}
+          const restrictionImg=cardRestrictionCrop(img,col,row,g);
+          let restriction="";
+          try{
+            const rr=await worker.recognize(restrictionImg);
+            const rt=String(rr?.data?.text||"");
+            if(/限男/.test(rt)) restriction="限男";
+            else if(/限女/.test(rt)) restriction="限女";
+            else if(/無限制/.test(rt)) restriction="無限制";
+          }catch(_){}
 
-        const cardImage=cardCrop(sourceImage,col,row,g);
-        const learned=await learnedNameFor(cardImage);
-        if(learned){
-          itemName=learned.name;
-          if(learned.matchLevel!=="shape"&&learned.variant)variant=learned.variant;
-          if(learned.matchLevel==="shape")variant="";
+          let itemName=name,variant="";
+          const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+          if(m){itemName=m[1].trim();variant=m[2].trim()}
+
+          const cardImage=cardCrop(img,col,row,g);
+          const learned=await learnedNameFor(cardImage);
+          if(learned){
+            itemName=learned.name;
+            if(learned.matchLevel!=="shape"&&learned.variant)variant=learned.variant;
+            if(learned.matchLevel==="shape")variant="";
+          }
+
+          const detectedQty=await recognizeQuantity(worker,img,col,row,g);
+          allFound.push({
+            name:itemName,
+            variant,
+            restriction,
+            qty:detectedQty,
+            image:cardImage,
+            learned:!!learned
+          });
         }
-
-        // 名稱可用記憶，但數量一定以「這一次截圖」重新辨識。
-        const detectedQty=await recognizeQuantity(worker,sourceImage,col,row,g);
-        found.push({
-          name:itemName,
-          variant,
-          restriction,
-          qty:detectedQty,
-          image:cardImage,
-          learned:!!learned
-        });
       }
     }
-    recognizedRows=found;
-    if(!found.length){
+
+    recognizedRows=allFound;
+    if(!allFound.length){
       $("#recognized").innerHTML='<div class="meta">沒有辨識到道具卡片。請確認截圖包含完整的 MSTAR 道具格。</div>';
       return;
     }
@@ -1579,7 +1612,8 @@ $("#mockRecognize").onclick=async()=>{
     $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
   }finally{
     if(worker){try{await worker.terminate()}catch(_){}}
-    btn.disabled=false; btn.textContent="辨識這張截圖";
+    btn.disabled=false;
+    btn.textContent=shotQueue.length>1?`重新辨識全部 ${shotQueue.length} 張`:"辨識這張截圖";
   }
 };
 
@@ -1806,5 +1840,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
