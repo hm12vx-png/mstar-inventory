@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MSTAR 庫存管理</title>
 <style>
 :root{--bg:#ded0c5;--p:#f1e6dd;--line:#bda493;--text:#3f3029;--muted:#725f55;--a:#9f725c}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(#e4d7cd,#d5c3b6);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{width:100%;max-width:none;margin:0;padding:clamp(10px,1.5vw,20px)}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#d5c0b1;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accountTypeTabs{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 7px;overflow:visible;padding-bottom:0}.accountTypeTab{flex:0 0 auto;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#dfcec1;color:#59463c;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap}.accountTypeTab.active{background:#ad8068;color:#fff8f3;border-color:#946650;box-shadow:none;font-weight:900}.accountSearch{display:flex;gap:6px;margin:7px 0 10px}.accountSearch input{min-width:0;flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.accountSearch .btn{padding:9px 10px}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#ddcbbf;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:#aa7c65;color:#fff9f5;box-shadow:inset 0 0 0 1px #8f624d}.acc.active small{color:#f2e3da}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain;background:#e8ddd5}.recFields{display:grid;grid-template-columns:minmax(0,1fr) 90px 64px;gap:6px}.recFields input[type="number"]{text-align:center}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#e4d7cd,#d5c3b6);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{width:100%;max-width:none;margin:0;padding:clamp(10px,1.5vw,20px)}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#d5c0b1;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accountTypeTabs{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 7px;overflow:visible;padding-bottom:0}.accountTypeTab{flex:0 0 auto;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#dfcec1;color:#59463c;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap}.accountTypeTab.active{background:#ad8068;color:#fff8f3;border-color:#946650;box-shadow:none;font-weight:900}.accountSearch{display:flex;gap:6px;margin:7px 0 10px}.accountSearch input{min-width:0;flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.accountSearch .btn{padding:9px 10px}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#ddcbbf;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:#aa7c65;color:#fff9f5;box-shadow:inset 0 0 0 1px #8f624d}.acc.active small{color:#f2e3da}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}.galleryCard{border:1px solid #e1ccbd;border-radius:13px;background:#fff;padding:8px;overflow:hidden}.galleryCard img{width:100%;height:130px;object-fit:contain;border-radius:9px;background:#eee4dc;display:block}.galleryName{font-weight:800;font-size:13px;margin-top:7px;word-break:break-word}.galleryMeta{font-size:11px;color:var(--muted);margin-top:3px}.galleryEmpty{padding:35px;text-align:center;color:var(--muted)}#galleryDlg{width:min(980px,94vw);max-width:94vw;max-height:90vh;padding:0}.galleryBox{padding:16px}.galleryTop{display:flex;justify-content:space-between;align-items:center;gap:10px}.gallerySearch{display:flex;gap:7px;margin-top:10px}.gallerySearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain;background:#e8ddd5}.recFields{display:grid;grid-template-columns:minmax(0,1fr) 90px 64px;gap:6px}.recFields input[type="number"]{text-align:center}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
 @media(max-width:900px){
  .wrap{width:100%;max-width:none;padding:14px}
  .main{grid-template-columns:minmax(220px,30vw) minmax(0,1fr);gap:10px}
@@ -362,7 +362,7 @@
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="newA">＋</button></div></div><div class="accountTypeTabs"><button class="accountTypeTab active" data-account-type="一次性">一次號</button><button class="accountTypeTab" data-account-type="永久">永久號</button><button class="accountTypeTab" data-account-type="主要培養">培養號</button></div><div class="accountSearch"><input id="accountSearch" placeholder="搜尋帳號，如 A1"><button class="btn" id="accountSearchBtn" type="button">搜尋</button></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="openGallery">🖼️ 圖庫 <span id="galleryCount" style="font-size:11px"></span></button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
 <button class="btn catTab active" data-cat="家具">家具</button>
 <button class="btn catTab" data-cat="玩偶">玩偶</button>
 <button class="btn catTab" data-cat="花盆">花盆</button>
@@ -389,6 +389,7 @@
 </div>
 <div class="items" id="items"></div><div class="note">資料會儲存在你的 Firebase Firestore；只有指定的 Google 帳號可讀寫。</div></main></div></div></div>
 
+<dialog id="galleryDlg"><div class="galleryBox"><div class="galleryTop"><div><b>🖼️ 商品圖庫</b><div class="meta">辨識新圖片會自動加入；再次辨識相同商品會直接套用記憶。</div></div><button class="btn" id="closeGallery" type="button">關閉</button></div><div class="gallerySearch"><input id="gallerySearch" type="search" placeholder="搜尋商品名稱／款式…"><button class="btn" id="clearGallerySearch" type="button">清除</button></div><div id="galleryGrid" class="galleryGrid"></div></div></dialog>
 <dialog id="overviewDlg">
   <div class="overviewBox">
     <div class="overviewTop">
@@ -479,7 +480,8 @@ const firebaseConfig={
   projectId:"oo-items-web",
   storageBucket:"oo-items-web.firebasestorage.app",
   messagingSenderId:"163929322708",
-  appId:"1:163929322708:web:39602fb7a9354bd29e8dbc"
+  appId:"1:163929322708:web:1013bafd19150e94a97741",
+  measurementId:"G-0DPHJWK51T"
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
@@ -669,6 +671,7 @@ function render(){
   $("#sk").textContent=new Set(inventoryTotals.map(x=>x.name+"|"+x.variant)).size;
   $("#sq").textContent=inventoryTotals.reduce((n,x)=>n+(Number(x.qty)||0),0);
   $("#su").textContent=d.updated||"尚未";
+  const gc=$("#galleryCount"); if(gc)gc.textContent=`(${(d.itemMemory||[]).filter(m=>m?.image).length})`;
 }
 $("#editItemCat").onchange=()=>{const c=$("#editItemCat").value;$("#editItemGenderField").style.display=(c==="戒指"||c==="作物")?"block":"none"};
 $("#editItemCancel").onclick=()=>editItemDlg.close();
@@ -1240,7 +1243,8 @@ async function recognizeBestName(worker,img,col,row,g){
 async function imageSignature(dataUrl){
   const img=new Image();
   await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  // Keep the existing 24x24 RGB signature so all previously learned memories remain usable.
+  // Compare mainly the artwork area. The lower name/button area and NEW badge can
+  // change or add noise, so they are intentionally excluded.
   const size=24,c=document.createElement("canvas");
   c.width=size;c.height=size;
   const ctx=c.getContext("2d",{willReadFrequently:true});
@@ -1249,115 +1253,58 @@ async function imageSignature(dataUrl){
   ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
   const p=ctx.getImageData(0,0,size,size).data;
   const sig=[];
-  for(let i=0;i<p.length;i+=4) sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
-  return sig;
-}
-async function itemColorFeature(dataUrl){
-  const img=new Image();
-  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  const c=document.createElement("canvas"); c.width=18;c.height=18;
-  const ctx=c.getContext("2d",{willReadFrequently:true});
-  ctx.drawImage(img,img.naturalWidth*.13,img.naturalHeight*.10,img.naturalWidth*.74,img.naturalHeight*.50,0,0,18,18);
-  const p=ctx.getImageData(0,0,18,18).data,bins=new Array(12).fill(0); let n=0;
   for(let i=0;i<p.length;i+=4){
-    const r=p[i],g=p[i+1],b=p[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
-    if(mx<28||mx-mn<12||mx>247)continue; // ignore very dark/grey/UI background pixels
-    let h=0; const dlt=mx-mn;
-    if(mx===r)h=((g-b)/dlt)%6; else if(mx===g)h=(b-r)/dlt+2; else h=(r-g)/dlt+4;
-    h=(h*60+360)%360; bins[Math.floor(h/30)%12]++; n++;
+    // Keep coarse colour as well as brightness; this separates similarly-shaped items.
+    sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
   }
-  return bins.map(v=>n?v/n:0);
+  return sig;
 }
 function signatureDistance(a,b){
   if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
-  let sum=0; for(let i=0;i<a.length;i++){const z=a[i]-b[i];sum+=z*z}
+  let sum=0;
+  for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d}
   return Math.sqrt(sum/a.length);
 }
-function colorDistance(a,b){
-  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return null;
-  let sum=0; for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);
-  return sum/2;
-}
-const featureCache=new Map();
-async function cachedFeatures(image){
-  if(!image)return null;
-  if(featureCache.has(image))return featureCache.get(image);
-  const promise=Promise.all([imageSignature(image),itemColorFeature(image)]).then(([sig,color])=>({sig,color}));
-  featureCache.set(image,promise);
-  try{return await promise}catch(err){featureCache.delete(image);throw err}
-}
-function matchFeature(sig,color,m){
-  if(!Array.isArray(m?.sig))return null;
-  const shape=signatureDistance(sig,m.sig), cd=colorDistance(color,m.color);
-  const score=shape+(cd===null?0:cd*4.2);
-  return {...m,shape,colorDist:cd,score};
-}
-function acceptableMemoryMatch(best){
-  if(!best)return false;
-  // New colour-aware samples are strict about colour, while legacy samples remain usable.
-  if(best.colorDist!==null&&best.colorDist>.23)return false;
-  return best.score<=2.30;
-}
 async function learnedNameFor(image){
-  const {sig,color}=await cachedFeatures(image);
+  const sig=await imageSignature(image);
   let best=null;
   for(const m of (d.itemMemory||[])){
-    const hit=matchFeature(sig,color,m); if(!hit)continue;
-    if(!best||hit.score<best.score)best=hit;
+    if(!Array.isArray(m.sig))continue; // old 16x16 hashes are ignored safely
+    const dist=signatureDistance(sig,m.sig);
+    if(!best||dist<best.dist)best={...m,dist};
   }
-  if(acceptableMemoryMatch(best))return best;
-
-  // Fallback: every manually confirmed inventory card is also a learning sample.
-  // This recovers items that were saved before itemMemory was split/migrated, so oo
-  // does not need to teach all old items again. Multiple saved screenshots naturally
-  // become multiple samples for the same item.
-  let invBest=null;
-  const seen=new Set();
-  for(const a of (d.accounts||[])){
-    for(const x of (a.items||[])){
-      if(!x?.image||!x?.name||x.name==="待確認")continue;
-      const key=x.image+"|"+x.name+"|"+(x.variant||"");
-      if(seen.has(key))continue; seen.add(key);
-      try{
-        const f=await cachedFeatures(x.image);
-        const hit=matchFeature(sig,color,{sig:f.sig,color:f.color,name:x.name,variant:x.variant||"",fromInventory:true});
-        if(hit&&(!invBest||hit.score<invBest.score))invBest=hit;
-      }catch(_){}
-    }
-  }
-  // Inventory fallback is slightly more tolerant of screenshot scale/crop differences,
-  // but still rejects a clearly different colour.
-  if(invBest && (invBest.colorDist===null||invBest.colorDist<=.25) && invBest.score<=2.55)return invBest;
-  return null;
+  // Deliberately strict: a missed match is better than assigning the wrong item name.
+  return best&&best.dist<=2.15?best:null;
 }
 async function rememberItemName(image,name,variant=""){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
-  const {sig,color}=await cachedFeatures(image);
-  let nearestSame=null;
-  for(let i=0;i<d.itemMemory.length;i++){
-    const m=d.itemMemory[i];
-    if(String(m?.name||"")!==String(name)||String(m?.variant||"")!==String(variant||""))continue;
-    const hit=matchFeature(sig,color,m); if(!hit)continue;
-    if(!nearestSame||hit.score<nearestSame.score)nearestSame={...hit,index:i};
-  }
-  // Keep several samples for the same item instead of replacing the old one.
-  // Only an almost identical duplicate is refreshed in place.
-  const rec={sig,color,name,variant};
-  if(nearestSame && nearestSame.colorDist!==null && nearestSame.colorDist<=.035 && nearestSame.shape<=.55){
-    d.itemMemory[nearestSame.index]=rec;
-    return;
-  }
-  d.itemMemory.push(rec);
-
-  // Prevent unlimited growth while retaining diverse samples. Keep up to 8 per exact label.
-  const same=[];
-  d.itemMemory.forEach((m,i)=>{if(String(m?.name||"")===String(name)&&String(m?.variant||"")===String(variant||""))same.push(i)});
-  if(same.length>8){
-    const remove=new Set(same.slice(0,same.length-8));
-    d.itemMemory=d.itemMemory.filter((_,i)=>!remove.has(i));
+  const sig=await imageSignature(image);
+  let best=null,idx=-1;
+  d.itemMemory.forEach((m,i)=>{
+    if(!Array.isArray(m.sig))return;
+    const dist=signatureDistance(sig,m.sig);
+    if(!best||dist<best.dist){best={...m,dist};idx=i}
+  });
+  const rec={sig,name,variant,image};
+  // 相同圖片只保留一筆；新圖片才建立新的圖庫記錄。
+  if(best&&best.dist<=1.35){
+    d.itemMemory[idx]={...d.itemMemory[idx],...rec};
+  }else{
+    d.itemMemory.push(rec);
   }
 }
+function renderGallery(){
+  const q=String($("#gallerySearch")?.value||"").trim().toLowerCase();
+  const rows=(d.itemMemory||[]).filter(m=>m?.image&&(!q||[m.name,m.variant].filter(Boolean).join(" ").toLowerCase().includes(q)));
+  $("#galleryCount").textContent=`(${(d.itemMemory||[]).filter(m=>m?.image).length})`;
+  $("#galleryGrid").innerHTML=rows.length?rows.map(m=>`<div class="galleryCard"><img src="${m.image}" alt=""><div class="galleryName">${e(m.name||"未命名")}</div><div class="galleryMeta">${m.variant?`款式：${e(m.variant)}`:""}</div></div>`).join(""): '<div class="galleryEmpty">目前圖庫還沒有商品圖片。完成一次截圖辨識並確認加入庫存後，圖片會自動記住。</div>';
+}
+$("#openGallery").onclick=()=>{renderGallery();$("#galleryDlg").showModal()};
+$("#closeGallery").onclick=()=>$("#galleryDlg").close();
+$("#gallerySearch").oninput=renderGallery;
+$("#clearGallerySearch").onclick=()=>{$("#gallerySearch").value="";renderGallery()};
+
 function cleanItemName(text){
   let t=String(text||"")
     .replace(/查看詳情|NEW|新品|無限制|限男|限女/gi," ")
@@ -1432,7 +1379,7 @@ $("#mockRecognize").onclick=async()=>{
           variant,
           restriction,
           qty:1,
-          image:cardImage,
+          image:learned?.image||cardImage,
           learned:!!learned
         });
       }
