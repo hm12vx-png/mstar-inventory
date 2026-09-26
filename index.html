@@ -510,7 +510,7 @@ function naturalAccountCompare(a,b){
 function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 
 function stableMemoryId(m,index=0){
-  const raw=JSON.stringify([m?.sig||[],m?.name||"",m?.variant||"",index]);
+  const raw=JSON.stringify([m?.sig||[],m?.color||[],m?.robust||[],m?.name||"",m?.variant||"",index]);
   let h=2166136261;
   for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)}
   return "m"+(h>>>0).toString(36)+"_"+index;
@@ -1237,10 +1237,14 @@ async function recognizeBestName(worker,img,col,row,g){
   }
   return best;
 }
-async function imageSignature(dataUrl){
+async function loadDataImage(dataUrl){
   const img=new Image();
   await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  // Keep the existing 24x24 RGB signature so all previously learned memories remain usable.
+  return img;
+}
+async function imageSignature(dataUrl){
+  const img=await loadDataImage(dataUrl);
+  // 保留原本 24x24 RGB 簽章，讓目前已建立的新式記憶仍可直接使用。
   const size=24,c=document.createElement("canvas");
   c.width=size;c.height=size;
   const ctx=c.getContext("2d",{willReadFrequently:true});
@@ -1253,25 +1257,55 @@ async function imageSignature(dataUrl){
   return sig;
 }
 async function itemColorFeature(dataUrl){
-  const img=new Image();
-  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
+  const img=await loadDataImage(dataUrl);
   const c=document.createElement("canvas"); c.width=18;c.height=18;
   const ctx=c.getContext("2d",{willReadFrequently:true});
   ctx.drawImage(img,img.naturalWidth*.13,img.naturalHeight*.10,img.naturalWidth*.74,img.naturalHeight*.50,0,0,18,18);
   const p=ctx.getImageData(0,0,18,18).data,bins=new Array(12).fill(0); let n=0;
   for(let i=0;i<p.length;i+=4){
     const r=p[i],g=p[i+1],b=p[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
-    if(mx<28||mx-mn<12||mx>247)continue; // ignore very dark/grey/UI background pixels
+    if(mx<28||mx-mn<12||mx>247)continue;
     let h=0; const dlt=mx-mn;
     if(mx===r)h=((g-b)/dlt)%6; else if(mx===g)h=(b-r)/dlt+2; else h=(r-g)/dlt+4;
     h=(h*60+360)%360; bins[Math.floor(h/30)%12]++; n++;
   }
   return bins.map(v=>n?v/n:0);
 }
+async function robustArtSignatures(dataUrl){
+  const img=await loadDataImage(dataUrl);
+  // 舊版與新版曾改過卡片裁切比例。一次算三種常見藝術區域，避免「有記憶但裁切稍變就認不到」。
+  const crops=[
+    [.07,.05,.86,.58],
+    [.11,.08,.78,.52],
+    [.03,.03,.94,.66]
+  ];
+  const out=[];
+  for(const [rx,ry,rw,rh] of crops){
+    const c=document.createElement("canvas"); c.width=17;c.height=16;
+    const ctx=c.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(img,img.naturalWidth*rx,img.naturalHeight*ry,img.naturalWidth*rw,img.naturalHeight*rh,0,0,17,16);
+    const p=ctx.getImageData(0,0,17,16).data,gray=[];
+    for(let i=0;i<p.length;i+=4)gray.push(.299*p[i]+.587*p[i+1]+.114*p[i+2]);
+    const bits=[];
+    for(let y=0;y<16;y++)for(let x=0;x<16;x++)bits.push(gray[y*17+x]>gray[y*17+x+1]?1:0);
+    out.push(bits);
+  }
+  return out;
+}
 function signatureDistance(a,b){
   if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
   let sum=0; for(let i=0;i<a.length;i++){const z=a[i]-b[i];sum+=z*z}
   return Math.sqrt(sum/a.length);
+}
+function hammingDistance(a,b){
+  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
+  let n=0;for(let i=0;i<a.length;i++)if(Number(a[i])!==Number(b[i]))n++;return n;
+}
+function robustDistance(a,b){
+  if(!Array.isArray(a)||!Array.isArray(b))return 999;
+  let best=999;
+  for(const x of a)for(const y of b)best=Math.min(best,hammingDistance(x,y));
+  return best;
 }
 function colorDistance(a,b){
   if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return null;
@@ -1282,79 +1316,80 @@ const featureCache=new Map();
 async function cachedFeatures(image){
   if(!image)return null;
   if(featureCache.has(image))return featureCache.get(image);
-  const promise=Promise.all([imageSignature(image),itemColorFeature(image)]).then(([sig,color])=>({sig,color}));
+  const promise=Promise.all([imageSignature(image),itemColorFeature(image),robustArtSignatures(image)]).then(([sig,color,robust])=>({sig,color,robust}));
   featureCache.set(image,promise);
   try{return await promise}catch(err){featureCache.delete(image);throw err}
 }
-function matchFeature(sig,color,m){
-  if(!Array.isArray(m?.sig))return null;
-  const shape=signatureDistance(sig,m.sig), cd=colorDistance(color,m.color);
-  const score=shape+(cd===null?0:cd*4.2);
-  return {...m,shape,colorDist:cd,score};
+function matchFeature(f,m){
+  if(!m)return null;
+  const shape=Array.isArray(m.sig)?signatureDistance(f.sig,m.sig):999;
+  const robust=Array.isArray(m.robust)?robustDistance(f.robust,m.robust):999;
+  const cd=colorDistance(f.color,m.color);
+  // 新式記憶可走 RGB；新版之後另存 robust，可容忍縮放/裁切差異。
+  const visual=Math.min(shape,robust<999?robust/18:999);
+  const score=visual+(cd===null?0:cd*3.2);
+  return {...m,shape,robustDist:robust,colorDist:cd,score};
 }
 function acceptableMemoryMatch(best){
   if(!best)return false;
-  // New colour-aware samples are strict about colour, while legacy samples remain usable.
-  if(best.colorDist!==null&&best.colorDist>.23)return false;
-  return best.score<=2.30;
+  if(best.colorDist!==null&&best.colorDist>.28)return false;
+  return best.score<=2.65 || best.robustDist<=30;
 }
 async function learnedNameFor(image){
-  const {sig,color}=await cachedFeatures(image);
+  const f=await cachedFeatures(image);
   let best=null;
   for(const m of (d.itemMemory||[])){
-    const hit=matchFeature(sig,color,m); if(!hit)continue;
+    const hit=matchFeature(f,m); if(!hit)continue;
     if(!best||hit.score<best.score)best=hit;
   }
   if(acceptableMemoryMatch(best))return best;
 
-  // Fallback: every manually confirmed inventory card is also a learning sample.
-  // This recovers items that were saved before itemMemory was split/migrated, so oo
-  // does not need to teach all old items again. Multiple saved screenshots naturally
-  // become multiple samples for the same item.
+  // 最重要的救援層：庫存裡已經人工確認過「圖片＋名稱」的項目，本身就是可信樣本。
+  // 即使早期 itemMemory 的簽章格式已經不同，也能直接由保存的圖片重新計算新版特徵。
   let invBest=null;
   const seen=new Set();
   for(const a of (d.accounts||[])){
     for(const x of (a.items||[])){
-      if(!x?.image||!x?.name||x.name==="待確認")continue;
+      if(!x?.image||!String(x?.name||"").trim()||x.name==="待確認")continue;
       const key=x.image+"|"+x.name+"|"+(x.variant||"");
       if(seen.has(key))continue; seen.add(key);
       try{
-        const f=await cachedFeatures(x.image);
-        const hit=matchFeature(sig,color,{sig:f.sig,color:f.color,name:x.name,variant:x.variant||"",fromInventory:true});
-        if(hit&&(!invBest||hit.score<invBest.score))invBest=hit;
+        const old=await cachedFeatures(x.image);
+        const robust=robustDistance(f.robust,old.robust);
+        const cd=colorDistance(f.color,old.color);
+        const rgb=signatureDistance(f.sig,old.sig);
+        // 形狀為主、顏色做第二關。這比只放寬 RGB 門檻安全，較不會把不同色熊認成同一隻。
+        const score=Math.min(rgb,robust/18)+(cd===null?0:cd*3.0);
+        const hit={name:x.name,variant:x.variant||"",fromInventory:true,robustDist:robust,colorDist:cd,score};
+        if(!invBest||hit.score<invBest.score)invBest=hit;
       }catch(_){}
     }
   }
-  // Inventory fallback is slightly more tolerant of screenshot scale/crop differences,
-  // but still rejects a clearly different colour.
-  if(invBest && (invBest.colorDist===null||invBest.colorDist<=.25) && invBest.score<=2.55)return invBest;
+  if(invBest && invBest.robustDist<=38 && (invBest.colorDist===null||invBest.colorDist<=.30) && invBest.score<=2.95)return invBest;
   return null;
 }
 async function rememberItemName(image,name,variant=""){
-  if(!image||!name||name==="待確認")return;
+  if(!image||!String(name||"").trim()||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
-  const {sig,color}=await cachedFeatures(image);
+  const f=await cachedFeatures(image);
   let nearestSame=null;
   for(let i=0;i<d.itemMemory.length;i++){
     const m=d.itemMemory[i];
     if(String(m?.name||"")!==String(name)||String(m?.variant||"")!==String(variant||""))continue;
-    const hit=matchFeature(sig,color,m); if(!hit)continue;
+    const hit=matchFeature(f,m); if(!hit)continue;
     if(!nearestSame||hit.score<nearestSame.score)nearestSame={...hit,index:i};
   }
-  // Keep several samples for the same item instead of replacing the old one.
-  // Only an almost identical duplicate is refreshed in place.
-  const rec={sig,color,name,variant};
-  if(nearestSame && nearestSame.colorDist!==null && nearestSame.colorDist<=.035 && nearestSame.shape<=.55){
+  const rec={sig:f.sig,color:f.color,robust:f.robust,name,variant};
+  if(nearestSame && nearestSame.colorDist!==null && nearestSame.colorDist<=.03 && (nearestSame.shape<=.45||nearestSame.robustDist<=12)){
     d.itemMemory[nearestSame.index]=rec;
     return;
   }
   d.itemMemory.push(rec);
-
-  // Prevent unlimited growth while retaining diverse samples. Keep up to 8 per exact label.
+  // 同一名稱/款式保留多個不同截圖樣本，避免只記住某一次縮放或亮度。
   const same=[];
   d.itemMemory.forEach((m,i)=>{if(String(m?.name||"")===String(name)&&String(m?.variant||"")===String(variant||""))same.push(i)});
-  if(same.length>8){
-    const remove=new Set(same.slice(0,same.length-8));
+  if(same.length>10){
+    const remove=new Set(same.slice(0,same.length-10));
     d.itemMemory=d.itemMemory.filter((_,i)=>!remove.has(i));
   }
 }
