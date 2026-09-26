@@ -1287,83 +1287,94 @@ function gridLineScore(ctx,pos,vertical,W,H){
 }
 
 function inferCardGrid(img){
-  // FINAL GRID ENGINE v7
-  // 不再用固定卡片寬高比例限制候選格數。MSTAR 不同截圖尺寸/縮放比例會改變，
-  // 真正可靠的是「重複出現的垂直/水平分隔線」。
+  // MSTAR 道具截圖固定以 4 欄卡片為主要版型。
+  // 舊版會讓「商品本身的邊緣」被誤判成格線，導致 4 欄被切成 8 欄，
+  // 最後辨識縮圖只剩半個商品。這裡改成「先固定 4 欄，再只判斷列數」。
+  // 任何情況都不再自動把一張完整卡片切成更多欄。
   const W=img.naturalWidth,H=img.naturalHeight;
+  const cols=4;
   const c=document.createElement("canvas");
   const scale=Math.min(1,1000/W,1000/H);
-  c.width=Math.max(1,Math.round(W*scale)); c.height=Math.max(1,Math.round(H*scale));
-  const ctx=c.getContext("2d",{willReadFrequently:true}); ctx.drawImage(img,0,0,c.width,c.height);
+  c.width=Math.max(1,Math.round(W*scale));
+  c.height=Math.max(1,Math.round(H*scale));
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(img,0,0,c.width,c.height);
   const w=c.width,h=c.height;
 
   function edgeAt(x,y,vertical){
     const band=2;
-    const a=ctx.getImageData(Math.max(0,Math.min(w-1,x+(vertical?-band:0))),Math.max(0,Math.min(h-1,y+(vertical?0:-band))),1,1).data;
-    const b=ctx.getImageData(Math.max(0,Math.min(w-1,x+(vertical?band:0))),Math.max(0,Math.min(h-1,y+(vertical?0:band))),1,1).data;
+    const x1=Math.max(0,Math.min(w-1,x+(vertical?-band:0)));
+    const y1=Math.max(0,Math.min(h-1,y+(vertical?0:-band)));
+    const x2=Math.max(0,Math.min(w-1,x+(vertical?band:0)));
+    const y2=Math.max(0,Math.min(h-1,y+(vertical?0:band)));
+    const a=ctx.getImageData(x1,y1,1,1).data;
+    const b=ctx.getImageData(x2,y2,1,1).data;
     return (Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
   }
-  function boundaryScore(pos,vertical){
-    const n=80; let total=0, strong=0;
-    for(let i=2;i<n-2;i++){
-      const t=i/(n-1);
-      const x=vertical?Math.round(pos):Math.round(t*w);
-      const y=vertical?Math.round(t*h):Math.round(pos);
-      const v=edgeAt(x,y,vertical);
-      total+=v; if(v>24)strong++;
+
+  function horizontalBoundaryScore(pos){
+    let total=0,strong=0,n=0;
+    // 分隔線應該橫跨大部分欄位；商品圖內的水平邊緣只會出現在局部。
+    for(let col=0;col<cols;col++){
+      const x0=Math.round((col+.12)*w/cols);
+      const x1=Math.round((col+.88)*w/cols);
+      for(let x=x0;x<=x1;x+=Math.max(3,Math.round(w/180))){
+        const v=edgeAt(x,Math.round(pos),false);
+        total+=v;n++;if(v>28)strong++;
+      }
     }
-    return total/(n-4) + strong/(n-4)*12;
+    return n?total/n + strong/n*10:0;
   }
-  function occupancy(cols,rows){
-    let valid=0, nonEmpty=0;
+
+  function rowOccupancy(rows){
+    let nonEmpty=0,total=0;
     const cw=w/cols,ch=h/rows;
-    const c2=document.createElement("canvas");c2.width=24;c2.height=24;
-    const q=c2.getContext("2d",{willReadFrequently:true});
+    const q=document.createElement("canvas");q.width=24;q.height=24;
+    const qx=q.getContext("2d",{willReadFrequently:true});
     for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){
-      const sx=col*cw+cw*.08,sy=r*ch+ch*.08,sw=cw*.84,sh=ch*.70;
-      q.clearRect(0,0,24,24);q.drawImage(c,sx,sy,sw,sh,0,0,24,24);
-      const p=q.getImageData(0,0,24,24).data;let sum=0,sum2=0,edge=0,n=0;
-      for(let i=0;i<p.length;i+=16){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];sum+=v;sum2+=v*v;n++}
+      const sx=col*cw+cw*.08,sy=r*ch+ch*.08,sw=cw*.84,sh=ch*.78;
+      qx.clearRect(0,0,24,24);qx.drawImage(c,sx,sy,sw,sh,0,0,24,24);
+      const p=qx.getImageData(0,0,24,24).data;
+      let sum=0,sum2=0,n=0;
+      for(let i=0;i<p.length;i+=16){
+        const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+        sum+=v;sum2+=v*v;n++;
+      }
       const mean=sum/n,variance=Math.max(0,sum2/n-mean*mean);
-      // 商品可能很暗，所以亮度不是必要條件；只要有色彩/紋理變化即可視為有內容。
-      if(mean>22 || variance>65)nonEmpty++;
-      valid++;
+      if(mean>22||variance>65)nonEmpty++;
+      total++;
     }
-    return valid?nonEmpty/valid:0;
+    return total?nonEmpty/total:0;
   }
 
   const candidates=[];
-  for(let cols=1;cols<=8;cols++){
-    for(let rows=1;rows<=12;rows++){
-      const cw=w/cols,ch=h/rows;
-      if(cw<65||ch<65)continue;
-      let vb=0,hb=0;
-      for(let x=1;x<cols;x++) vb+=boundaryScore(x*w/cols,true);
-      for(let y=1;y<rows;y++) hb+=boundaryScore(y*h/rows,false);
-      const vAvg=cols>1?vb/(cols-1):0;
-      const hAvg=rows>1?hb/(rows-1):0;
-      const occ=occupancy(cols,rows);
-      const boundaries=(cols-1)+(rows-1);
-      // 真正的格線通常同時具備：多條一致的分隔線 + 多數格子有內容。
-      // 不讓「1x1 整張圖」因為沒有分隔線而取得優勢。
-      const lineStrength=(vAvg+hAvg)/2;
-      const evidence=(vAvg*(cols-1)+hAvg*(rows-1));
-      const complexityPenalty=Math.max(0,boundaries-1)*1.2;
-      const score=evidence*1.25 + occ*18 + boundaries*3 - complexityPenalty - Math.abs(occ-.85)*4;
-      candidates.push({cols,rows,cw:W/cols,ch:H/rows,score,evidence,occ,vAvg,hAvg});
-    }
+  for(let rows=1;rows<=10;rows++){
+    const cw=w/cols,ch=h/rows;
+    if(cw<90||ch<70)continue;
+    let separators=0;
+    for(let r=1;r<rows;r++)separators+=horizontalBoundaryScore(r*h/rows);
+    const sepAvg=rows>1?separators/(rows-1):0;
+    const occ=rowOccupancy(rows);
+    // MSTAR 卡片通常接近寬:高 = 1.2~1.5；加入輕微偏好，避免切成過多矮列。
+    const ratio=cw/ch;
+    const ratioPenalty=Math.min(24,Math.abs(ratio-1.35)*18);
+    const score=sepAvg*(rows-1)*1.8 + occ*20 - ratioPenalty - Math.max(0,rows-2)*1.5;
+    candidates.push({cols,rows,cw:W/cols,ch:H/rows,score,occ,sepAvg});
   }
+
   candidates.sort((a,b)=>b.score-a.score);
-  const best=candidates[0]||{cols:1,rows:1,cw:W,ch:H,score:0,evidence:0,occ:1};
-  // 若候選過度切割，選擇下一個具有明顯格線證據的方案。
-  const acceptable=candidates.filter(x=>x.occ>=.35 && x.evidence>Math.max(8,best.evidence*.42));
-  if(acceptable.length){
-    acceptable.sort((a,b)=>b.score-a.score);
-    const top=acceptable[0];
-    if(top.cols*top.rows>best.cols*best.rows && top.evidence>best.evidence*1.12)return top;
+  const best=candidates[0]||{cols:4,rows:Math.max(1,Math.round(H/(W/4/1.35))),cw:W/4,ch:H/Math.max(1,Math.round(H/(W/4/1.35)))};
+
+  // 若最佳列數沒有明顯分隔線證據，優先使用卡片合理比例，
+  // 仍然維持 4 欄，絕不把原本一張卡再切成 2 張以上。
+  if(best.rows>1 && best.sepAvg<10){
+    const expected=Math.max(1,Math.round(H/(W/4/1.35)));
+    const safe=candidates.find(x=>x.rows===expected);
+    if(safe)return safe;
   }
   return best;
 }
+
 function cardLayout(){
   const recognitionCategory=$("#shotCategory")?.value||activeCategory;
   // Keep the complete visual card artwork. Recognition/memory later ignores UI-heavy edges,
@@ -1393,10 +1404,9 @@ function cropRect(img,sx,sy,sw,sh,quality=.9){
   return c.toDataURL("image/jpeg",quality);
 }
 function cardCrop(img,col,row,g){
-  // 最終版：不再用 picH=.835 之類的比例硬裁商品圖。
-  // 每個辨識到的商品保留該格完整內容，只去掉極薄的邊界，避免「亂切」。
-  const padX=g.cw*.015,padY=g.ch*.015;
-  return cropRect(img,col*g.cw+padX,row*g.ch+padY,g.cw-2*padX,g.ch-2*padY,.90);
+  // 辨識縮圖直接使用「完整卡片格」，不再做任何比例裁切或縮小範圍。
+  // 這樣即使商品圖位置、大小、NEW 標籤或名稱區略有變，也不會只留下商品的一角。
+  return cropRect(img,col*g.cw,row*g.ch,g.cw,g.ch,.92);
 }
 function cardNameCrop(img,col,row,g){
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
