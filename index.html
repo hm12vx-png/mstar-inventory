@@ -349,6 +349,15 @@
 /* 帳號欄：分類與搜尋留在上方，只有帳號清單自己捲動 */
 .main>aside.panel{align-self:start;position:sticky;top:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;overflow:hidden}
 .main>aside.panel>.head,.main>aside.panel>.accountTypeTabs,.main>aside.panel>.accountSearch{flex:0 0 auto}
+.accountActions{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px}
+.accountActions .btn{padding:8px 11px}
+.batchDeleteBar{display:none;gap:6px;align-items:center;margin:0 0 8px;padding:7px 9px;border:1px dashed var(--line);border-radius:10px;background:#eee0d5;font-size:12px}
+.batchDeleteBar.show{display:flex}
+.batchDeleteCount{font-weight:800;margin-right:auto}
+.acc.batchMode{cursor:pointer;align-items:center;gap:8px}
+.acc.batchMode input[type="checkbox"]{width:18px;height:18px;flex:none;accent-color:var(--a)}
+.acc.batchSelected{box-shadow:inset 0 0 0 2px var(--a);background:#c7a894}
+
 #accounts{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;scroll-behavior:smooth}
 @media(max-width:760px){.main>aside.panel{position:static;max-height:none}#accounts{max-height:42vh;overflow-y:auto}}
 
@@ -361,8 +370,8 @@
 <div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>MSTAR 庫存管理</h1><p>庫存管理</p></header>
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
-<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="newA">＋</button></div></div><div class="accountTypeTabs"><button class="accountTypeTab active" data-account-type="一次性">一次號</button><button class="accountTypeTab" data-account-type="永久">永久號</button><button class="accountTypeTab" data-account-type="主要培養">培養號</button></div><div class="accountSearch"><input id="accountSearch" placeholder="搜尋帳號，如 A1"><button class="btn" id="accountSearchBtn" type="button">搜尋</button></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除此帳號</button></div><div class="categoryTabs">
+<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="batchDeleteA">批次刪除</button><button class="btn" id="newA">＋</button></div></div><div class="accountActions"><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除帳號</button></div><div class="batchDeleteBar" id="batchDeleteBar"><span class="batchDeleteCount" id="batchDeleteCount">已選 0 個</span><button class="btn danger" id="batchDeleteConfirm" type="button">確認刪除</button></div><div class="accountTypeTabs"><button class="accountTypeTab active" data-account-type="一次性">一次號</button><button class="accountTypeTab" data-account-type="永久">永久號</button><button class="accountTypeTab" data-account-type="主要培養">培養號</button></div><div class="accountSearch"><input id="accountSearch" placeholder="搜尋帳號，如 A1"><button class="btn" id="accountSearchBtn" type="button">搜尋</button></div><div class="accounts" id="accounts"></div></aside>
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3></div><div class="categoryTabs">
 <button class="btn catTab active" data-cat="家具">家具</button>
 <button class="btn catTab" data-cat="玩偶">玩偶</button>
 <button class="btn catTab" data-cat="花盆">花盆</button>
@@ -497,6 +506,8 @@ const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
 let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="家具", activeGender="", activeCandy="";
 let accountTypeFilter="", accountGenderFilter="";
+let batchDeleteMode=false;
+let batchDeleteSelected=new Set();
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const legacyRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
 const metaRef=()=>doc(db,"users",ADMIN_UID,"inventory","meta");
@@ -659,8 +670,24 @@ function render(){
   let a=cur();
   const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||(x.accountType||"主要培養")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
   document.querySelectorAll(".accountTypeTab").forEach(b=>b.classList.toggle("active",(b.dataset.accountType||"")===accountTypeFilter));
-  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active":""}" data-id="${x.id}"><span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).filter(i=>!noQuantityCategories.has(i.category)).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
-  document.querySelectorAll(".acc").forEach(x=>x.onclick=()=>{active=x.dataset.id;render()});
+  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active ":""}${batchDeleteMode?"batchMode ":""}${batchDeleteSelected.has(x.id)?"batchSelected":""}" data-id="${x.id}">${batchDeleteMode?`<input type="checkbox" class="batchAccountCheck" data-id="${x.id}" ${batchDeleteSelected.has(x.id)?"checked":""} aria-label="選取帳號">`:""}<span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).filter(i=>!noQuantityCategories.has(i.category)).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
+  document.querySelectorAll(".batchAccountCheck").forEach(cb=>cb.onclick=ev=>{
+    ev.stopPropagation();
+    const id=cb.dataset.id;
+    if(cb.checked)batchDeleteSelected.add(id);else batchDeleteSelected.delete(id);
+    updateBatchDeleteBar();
+  });
+  document.querySelectorAll(".acc").forEach(x=>x.onclick=ev=>{
+    if(batchDeleteMode){
+      if(ev.target.closest("input"))return;
+      const id=x.dataset.id;
+      if(batchDeleteSelected.has(id))batchDeleteSelected.delete(id);else batchDeleteSelected.add(id);
+      render();
+      return;
+    }
+    active=x.dataset.id;render();
+  });
+  updateBatchDeleteBar();
   $("#title").textContent=a?`帳號 ${a.number||a.name||""}${a.gameId?`｜${a.gameId}`:""}｜物品庫`:"請先選擇帳號";
   $("#deleteAccount").style.display=a?"inline-block":"none";$("#editAccount").style.display=a?"inline-block":"none";
   $("#resourceBox").style.display=a?"block":"none";
@@ -773,6 +800,52 @@ function syncAddItemFields(){
   $("#genderField").style.display=(c==="作物"||c==="戒指")?"block":"none";
 }
 $("#ic").onchange=syncAddItemFields;
+
+function updateBatchDeleteBar(){
+  const bar=$("#batchDeleteBar"), count=$("#batchDeleteCount"), confirmBtn=$("#batchDeleteConfirm"), toggle=$("#batchDeleteA");
+  if(!bar||!count||!confirmBtn||!toggle)return;
+  if(!batchDeleteMode){
+    bar.classList.remove("show");
+    count.textContent="已選 0 個";
+    toggle.textContent="批次刪除";
+    return;
+  }
+  bar.classList.add("show");
+  count.textContent=`已選 ${batchDeleteSelected.size} 個`;
+  confirmBtn.disabled=batchDeleteSelected.size===0;
+  toggle.textContent="取消刪除";
+}
+$("#batchDeleteA").onclick=()=>{
+  batchDeleteMode=!batchDeleteMode;
+  batchDeleteSelected.clear();
+  render();
+};
+$("#batchDeleteConfirm").onclick=async()=>{
+  if(!batchDeleteSelected.size)return;
+  const ids=[...batchDeleteSelected];
+  const targets=d.accounts.filter(a=>ids.includes(a.id));
+  if(!targets.length)return;
+  const names=targets.map(a=>String(a.number||a.name||"未命名")).join("、");
+  if(!confirm(`確定批次刪除 ${targets.length} 個帳號？\n\n${names}\n\n每個帳號的庫存與臨時截圖也會一起刪除。`))return;
+  const btn=$("#batchDeleteConfirm");
+  btn.disabled=true; btn.textContent="刪除中…";
+  try{
+    for(const a of targets) await deleteTempShotsForAccount(a.id);
+    const deletedIds=new Set(ids);
+    d.accounts=d.accounts.filter(a=>!deletedIds.has(a.id));
+    if(deletedIds.has(active))active=d.accounts[0]?.id||null;
+    batchDeleteSelected.clear();
+    batchDeleteMode=false;
+    await save();
+  }catch(err){
+    console.error(err);
+    alert("批次刪除失敗｜"+(err?.code||"unknown")+"\\n"+(err?.message||String(err)));
+  }finally{
+    btn.disabled=false; btn.textContent="確認刪除";
+    render();
+  }
+};
+
 function batchIds(){return $("#baids").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)}
 function parseAccountNumber(value){
   const raw=String(value||"").trim();
@@ -1840,4 +1913,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
 
