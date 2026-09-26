@@ -1041,6 +1041,9 @@ function setShotSource(u){
 }
 function loadShot(f){
   recognizingTempShot=null;
+  // 清空 input，讓同一張圖片也可以再次選取，不需要重新整理頁面。
+  const input=$("#shotFile");
+  if(input) input.value="";
   setShotSource(URL.createObjectURL(f));
 }
 function openTempShotForRecognition(accountId,shot){
@@ -1243,19 +1246,21 @@ async function recognizeBestName(worker,img,col,row,g){
 async function imageSignature(dataUrl){
   const img=new Image();
   await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  // Compare mainly the artwork area. The lower name/button area and NEW badge can
-  // change or add noise, so they are intentionally excluded.
-  const size=24,c=document.createElement("canvas");
+  // 使用「區塊平均色」而不是逐像素比對。這樣截圖縮放、JPEG 壓縮、卡片位置
+  // 小幅偏移時，同一商品仍能保持很接近；不同顏色款式仍會有明顯差異。
+  const size=12,c=document.createElement("canvas");
   c.width=size;c.height=size;
   const ctx=c.getContext("2d",{willReadFrequently:true});
-  const sw=img.naturalWidth*.82, sh=img.naturalHeight*.62;
-  const sx=img.naturalWidth*.09, sy=img.naturalHeight*.08;
+  const sw=img.naturalWidth*.80, sh=img.naturalHeight*.62;
+  const sx=img.naturalWidth*.10, sy=img.naturalHeight*.08;
   ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
   const p=ctx.getImageData(0,0,size,size).data;
   const sig=[];
-  for(let i=0;i<p.length;i+=4){
-    // Keep coarse colour as well as brightness; this separates similarly-shaped items.
-    sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
+  for(let by=0;by<size;by++){
+    for(let bx=0;bx<size;bx++){
+      const i=(by*size+bx)*4;
+      sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
+    }
   }
   return sig;
 }
@@ -1269,26 +1274,37 @@ async function learnedNameFor(image){
   const sig=await imageSignature(image);
   let best=null;
   for(const m of (d.itemMemory||[])){
-    if(!Array.isArray(m.sig))continue; // old 16x16 hashes are ignored safely
-    const dist=signatureDistance(sig,m.sig);
-    if(!best||dist<best.dist)best={...m,dist};
+    let ms=m?.sig;
+    // 舊圖庫記錄可能是舊版簽章；有原圖就即時重算新版簽章。
+    if((!Array.isArray(ms)||ms.length!==432)&&m?.image){
+      try{ms=await imageSignature(m.image)}catch(_){ms=null}
+    }
+    if(!Array.isArray(ms)||ms.length!==432)continue;
+    const dist=signatureDistance(sig,ms);
+    if(!best||dist<best.dist)best={...m,dist,sig:ms};
   }
-  // Deliberately strict: a missed match is better than assigning the wrong item name.
-  return best&&best.dist<=2.15?best:null;
+  // 新版區塊簽章對位置/縮放更穩定；先用嚴格門檻，避免把相似商品誤認成同一件。
+  if(best&&best.dist<=2.35)return best;
+  return null;
 }
 async function rememberItemName(image,name,variant=""){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
   const sig=await imageSignature(image);
   let best=null,idx=-1;
-  d.itemMemory.forEach((m,i)=>{
-    if(!Array.isArray(m.sig))return;
-    const dist=signatureDistance(sig,m.sig);
+  for(let i=0;i<d.itemMemory.length;i++){
+    const m=d.itemMemory[i];
+    let ms=m?.sig;
+    if((!Array.isArray(ms)||ms.length!==432)&&m?.image){
+      try{ms=await imageSignature(m.image)}catch(_){ms=null}
+    }
+    if(!Array.isArray(ms)||ms.length!==432)continue;
+    const dist=signatureDistance(sig,ms);
     if(!best||dist<best.dist){best={...m,dist};idx=i}
-  });
+  }
   const rec={sig,name,variant,image};
-  // 相同圖片只保留一筆；新圖片才建立新的圖庫記錄。
-  if(best&&best.dist<=1.35){
+  // 同一圖片/同一商品只保留一筆；新版區塊簽章允許小幅截圖偏移。
+  if(best&&best.dist<=2.35){
     d.itemMemory[idx]={...d.itemMemory[idx],...rec};
   }else{
     d.itemMemory.push(rec);
@@ -1413,8 +1429,9 @@ $("#confirmRecognized").onclick=async()=>{
   }
   activeCategory=cat; activeGender=gen; activeCandy="";
   const tempSource=recognizingTempShot;
-  shotDlg.close(); await save();
+  await save();
   if(tempSource){
+    shotDlg.close();
     recognizingTempShot=null;
     if(confirm("已加入庫存。\n\n要把這張臨時截圖刪掉嗎？")){
       try{
@@ -1427,6 +1444,16 @@ $("#confirmRecognized").onclick=async()=>{
         alert("庫存已加入，但臨時截圖刪除失敗。");
       }
     }
+  }else{
+    // 一般匯入截圖：保留視窗，清空目前結果，直接準備下一張。
+    // 搭配 loadShot() 清空 file input 後，可連續選取多張圖片，不必重新整理。
+    recognizingTempShot=null;
+    sourceImage=null;
+    recognizedRows=[];
+    $("#shotPreview").style.display="none";
+    $("#confirmRecognized").style.display="none";
+    $("#recognized").innerHTML='<div class="meta">已加入庫存。可以直接選擇下一張截圖繼續辨識。</div>';
+    $("#shotFile").value="";
   }
 };
 
@@ -1598,3 +1625,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
