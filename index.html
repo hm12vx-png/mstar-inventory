@@ -60,6 +60,14 @@
 #resourceBox .field input{padding:7px 8px;height:34px}
 #resourceBox .actions{margin-top:6px!important}
 #resourceBox .actions .btn{padding:7px 11px;font-size:12px}
+.lastLoginWrap{display:flex;align-items:center;gap:6px;margin-left:auto}
+.lastLoginWrap input{width:150px;max-width:22vw;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
+.lastLoginWrap small{color:var(--muted);font-size:12px;white-space:nowrap}
+@media(max-width:620px){
+  .lastLoginWrap{width:100%;margin-left:0;margin-top:6px}
+  .lastLoginWrap input{max-width:none;flex:1;width:auto}
+  .head{flex-wrap:wrap}
+}
 
 .tempShotBox{margin:0;padding:14px;min-width:min(720px,82vw)} #tempShotDlg{max-width:92vw}
 .tempShotHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -371,7 +379,7 @@
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
 <div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="batchDeleteA">批次刪除</button><button class="btn" id="newA">＋</button></div></div><div class="accountActions"><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除帳號</button></div><div class="batchDeleteBar" id="batchDeleteBar"><span class="batchDeleteCount" id="batchDeleteCount">已選 0 個</span><button class="btn danger" id="batchDeleteConfirm" type="button">確認刪除</button></div><div class="accountTypeTabs"><button class="accountTypeTab active" data-account-type="一次性">一次號</button><button class="accountTypeTab" data-account-type="永久">永久號</button><button class="accountTypeTab" data-account-type="主要培養">培養號</button></div><div class="accountSearch"><input id="accountSearch" placeholder="搜尋帳號，如 A1"><button class="btn" id="accountSearchBtn" type="button">搜尋</button></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3></div><div class="categoryTabs">
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3><div class="lastLoginWrap" id="lastLoginWrap" style="display:none"><input id="lastLoginDate" type="text" placeholder="請輸入日期／文字"><small>最後登入日</small></div></div><div class="categoryTabs">
 <button class="btn catTab active" data-cat="家具">家具</button>
 <button class="btn catTab" data-cat="玩偶">玩偶</button>
 <button class="btn catTab" data-cat="花盆">花盆</button>
@@ -384,25 +392,25 @@
 <div id="resourceBox" class="box" style="display:none;margin-top:12px;padding:14px">
   <div style="font-weight:800;margin-bottom:10px">🍬 資源紀錄</div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
-    <div class="field" style="margin:0"><label>糖果</label><input id="resCandy" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>活動糖果</label><input id="resEventCandy" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>施法糖果</label><input id="resMagicCandy" type="number" min="0" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>糖果</label><input id="resCandy" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>活動糖果</label><input id="resEventCandy" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>施法糖果</label><input id="resMagicCandy" type="text" inputmode="text"></div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>誕生</label><input id="resBirth" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>碎片</label><input id="resFragment1" type="number" min="0" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>誕生</label><input id="resBirth" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>其餘碎片</label><input id="resFragment1" type="text" inputmode="text"></div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>碎片 2</label><input id="resFragment2" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>碎片 3</label><input id="resFragment3" type="number" min="0" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment2" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>10月碎片</label><input id="resFragment3" type="text" inputmode="text"></div>
     <div></div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>戒指 1</label><input id="resRing1" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>戒指 2</label><input id="resRing2" type="number" min="0" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>戒指 3</label><input id="resRing3" type="number" min="0" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>戒指 1</label><input id="resRing1" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>戒指 2</label><input id="resRing2" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>戒指 3</label><input id="resRing3" type="text" inputmode="text"></div>
   </div>
   <div class="actions" style="margin-top:8px"><button class="btn primary" id="saveResources">儲存資源</button></div>
 </div>
@@ -705,6 +713,8 @@ function render(){
   });
   updateBatchDeleteBar();
   $("#title").textContent=a?`帳號 ${a.number||a.name||""}${a.gameId?`｜${a.gameId}`:""}｜物品庫`:"請先選擇帳號";
+  $("#lastLoginWrap").style.display=a?"flex":"none";
+  $("#lastLoginDate").value=a?String(a.lastLoginDate??""):"";
   $("#deleteAccount").style.display=a?"inline-block":"none";$("#editAccount").style.display=a?"inline-block":"none";
   $("#resourceBox").style.display=a?"block":"none";
   $("#openTempShots").style.display=a?"inline-block":"none";
@@ -713,18 +723,18 @@ function render(){
     if(!tempShotsCache.has(a.id) && tempShotsLoadingFor!==a.id) loadTempShots(a.id);
 
     a.resources=a.resources||{candy:0,eventCandy:0,magicCandy:0};
-    $("#resCandy").value=Number(a.resources.candy)||0;
-    $("#resEventCandy").value=Number(a.resources.eventCandy)||0;
-    $("#resMagicCandy").value=Number(a.resources.magicCandy)||0;
-    $("#resBirth").value=Number(a.resources.birth)||0;
-    $("#resCard").value=Number(a.resources.card)||0;
-    $("#resLuckyStone").value=Number(a.resources.luckyStone)||0;
-    $("#resFragment1").value=Number(a.resources.fragment1)||0;
-    $("#resFragment2").value=Number(a.resources.fragment2)||0;
-    $("#resFragment3").value=Number(a.resources.fragment3)||0;
-    $("#resRing1").value=Number(a.resources.ring1)||0;
-    $("#resRing2").value=Number(a.resources.ring2)||0;
-    $("#resRing3").value=Number(a.resources.ring3)||0;
+    $("#resCandy").value=String(a.resources.candy??"");
+    $("#resEventCandy").value=String(a.resources.eventCandy??"");
+    $("#resMagicCandy").value=String(a.resources.magicCandy??"");
+    $("#resBirth").value=String(a.resources.birth??"");
+    $("#resCard").value=String(a.resources.card??"");
+    $("#resLuckyStone").value=String(a.resources.luckyStone??"");
+    $("#resFragment1").value=String(a.resources.fragment1??"");
+    $("#resFragment2").value=String(a.resources.fragment2??"");
+    $("#resFragment3").value=String(a.resources.fragment3??"");
+    $("#resRing1").value=String(a.resources.ring1??"");
+    $("#resRing2").value=String(a.resources.ring2??"");
+    $("#resRing3").value=String(a.resources.ring3??"");
   }
   const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>
     (!activeCategory || x.category===activeCategory) &&
@@ -909,12 +919,12 @@ $("#batchSave").onclick=async()=>{
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
   const type=$("#baat").value,gender=$("#baag").value;
-  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:0,eventCandy:0,magicCandy:0},items:[]})});
+  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:"",eventCandy:"",magicCandy:"",birth:"",card:"",luckyStone:"",fragment1:"",fragment2:"",fragment3:"",ring1:"",ring2:"",ring3:""},lastLoginDate:"",items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
 $("#newA").onclick=()=>ad.showModal();
-$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:0,eventCandy:0,magicCandy:0},items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
+$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:"",eventCandy:"",magicCandy:"",birth:"",card:"",luckyStone:"",fragment1:"",fragment2:"",fragment3:"",ring1:"",ring2:"",ring3:""},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
 $("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");syncAddItemFields();idg.showModal()};
 $("#is").onclick=async()=>{
   let a=cur(),cat=$("#ic").value||"家具",candyType="";
@@ -927,24 +937,67 @@ $("#is").onclick=async()=>{
   else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
   $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
 };
+function readResourceFields(){
+  return {
+    candy:String($("#resCandy").value??""),
+    eventCandy:String($("#resEventCandy").value??""),
+    magicCandy:String($("#resMagicCandy").value??""),
+    birth:String($("#resBirth").value??""),
+    card:String($("#resCard").value??""),
+    luckyStone:String($("#resLuckyStone").value??""),
+    fragment1:String($("#resFragment1").value??""),
+    fragment2:String($("#resFragment2").value??""),
+    fragment3:String($("#resFragment3").value??""),
+    ring1:String($("#resRing1").value??""),
+    ring2:String($("#resRing2").value??""),
+    ring3:String($("#resRing3").value??"")
+  };
+}
+async function saveAccountFields(accountId){
+  if(!currentUser||!migrationReady||!accountId)return;
+  const a=d.accounts.find(x=>x.id===accountId);
+  if(!a)return;
+  d.updated=new Date().toLocaleString("zh-TW");
+  try{
+    await setDoc(accountRef(String(accountId)),a);
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+    $("#su").textContent=d.updated;
+  }catch(err){
+    console.error(err);
+    alert("自動儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
+  }
+}
+let resourceAutoSaveTimer=null,lastLoginAutoSaveTimer=null;
+function applyResourceFields(accountId){
+  const a=d.accounts.find(x=>x.id===accountId);
+  if(!a)return;
+  a.resources={...(a.resources||{}),...readResourceFields()};
+}
+function scheduleResourceAutoSave(){
+  const accountId=active;
+  if(!accountId)return;
+  applyResourceFields(accountId);
+  clearTimeout(resourceAutoSaveTimer);
+  resourceAutoSaveTimer=setTimeout(()=>saveAccountFields(accountId),700);
+}
 $("#saveResources").onclick=async()=>{
   const a=cur(); if(!a)return;
-  a.resources={
-    candy:Math.max(0,Math.floor(Number($("#resCandy").value)||0)),
-    eventCandy:Math.max(0,Math.floor(Number($("#resEventCandy").value)||0)),
-    magicCandy:Math.max(0,Math.floor(Number($("#resMagicCandy").value)||0)),
-    birth:Math.max(0,Math.floor(Number($("#resBirth").value)||0)),
-    card:Math.max(0,Math.floor(Number($("#resCard").value)||0)),
-    luckyStone:Math.max(0,Math.floor(Number($("#resLuckyStone").value)||0)),
-    fragment1:Math.max(0,Math.floor(Number($("#resFragment1").value)||0)),
-    fragment2:Math.max(0,Math.floor(Number($("#resFragment2").value)||0)),
-    fragment3:Math.max(0,Math.floor(Number($("#resFragment3").value)||0)),
-    ring1:Math.max(0,Math.floor(Number($("#resRing1").value)||0)),
-    ring2:Math.max(0,Math.floor(Number($("#resRing2").value)||0)),
-    ring3:Math.max(0,Math.floor(Number($("#resRing3").value)||0))
-  };
-  await save();
+  applyResourceFields(a.id);
+  clearTimeout(resourceAutoSaveTimer);
+  await saveAccountFields(a.id);
 };
+document.querySelectorAll("#resourceBox input").forEach(input=>{
+  input.addEventListener("input",scheduleResourceAutoSave);
+});
+$("#lastLoginDate").addEventListener("input",()=>{
+  const accountId=active;
+  if(!accountId)return;
+  const a=d.accounts.find(x=>x.id===accountId);
+  if(!a)return;
+  a.lastLoginDate=$("#lastLoginDate").value;
+  clearTimeout(lastLoginAutoSaveTimer);
+  lastLoginAutoSaveTimer=setTimeout(()=>saveAccountFields(accountId),700);
+});
 function search(){
   // 每次搜尋都重新讀取目前輸入值與最新庫存，不沿用上一次結果。
   const input=$("#q");
