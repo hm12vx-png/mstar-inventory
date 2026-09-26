@@ -489,8 +489,10 @@ const firebaseConfig={
   projectId:"oo-items-web",
   storageBucket:"oo-items-web.firebasestorage.app",
   messagingSenderId:"163929322708",
-  appId:"1:163929322708:web:1013bafd19150e94a97741"
+  appId:"1:163929322708:web:1013bafd19150e94a97741",
+  measurementId:"G-0DPHJWK51T"
 };
+
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
@@ -541,7 +543,7 @@ function naturalAccountCompare(a,b){
 function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 
 function stableMemoryId(m,index=0){
-  const raw=JSON.stringify([m?.sig||[],m?.name||"",m?.variant||"",index]);
+  const raw=JSON.stringify([m?.sig||[],m?.phash||[],m?.name||"",m?.variant||"",index]);
   let h=2166136261;
   for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)}
   return "m"+(h>>>0).toString(36)+"_"+index;
@@ -1318,21 +1320,33 @@ async function recognizeBestName(worker,img,col,row,g){
 async function imageSignature(dataUrl){
   const img=new Image();
   await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  // Compare mainly the artwork area. The lower name/button area and NEW badge can
-  // change or add noise, so they are intentionally excluded.
-  const size=24,c=document.createElement("canvas");
-  c.width=size;c.height=size;
+  const size=24,c=document.createElement("canvas"); c.width=size;c.height=size;
   const ctx=c.getContext("2d",{willReadFrequently:true});
-  const sw=img.naturalWidth*.82, sh=img.naturalHeight*.62;
-  const sx=img.naturalWidth*.09, sy=img.naturalHeight*.08;
+  const sw=img.naturalWidth*.82,sh=img.naturalHeight*.62,sx=img.naturalWidth*.09,sy=img.naturalHeight*.08;
   ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
-  const p=ctx.getImageData(0,0,size,size).data;
-  const sig=[];
-  for(let i=0;i<p.length;i+=4){
-    // Keep coarse colour as well as brightness; this separates similarly-shaped items.
-    sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
-  }
+  const p=ctx.getImageData(0,0,size,size).data,sig=[];
+  for(let i=0;i<p.length;i+=4)sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
   return sig;
+}
+async function perceptualSignature(dataUrl){
+  const img=new Image();
+  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
+  const size=16,c=document.createElement("canvas"); c.width=size;c.height=size;
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  // 更往內取道具本體，降低截圖格線、NEW、名稱列與按鈕造成的差異。
+  const sx=img.naturalWidth*.14,sy=img.naturalHeight*.10,sw=img.naturalWidth*.72,sh=img.naturalHeight*.52;
+  ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
+  const p=ctx.getImageData(0,0,size,size).data,raw=[];
+  for(let i=0;i<p.length;i+=4)raw.push(.299*p[i]+.587*p[i+1]+.114*p[i+2]);
+  const mean=raw.reduce((a,b)=>a+b,0)/raw.length;
+  const variance=raw.reduce((a,b)=>a+(b-mean)*(b-mean),0)/raw.length;
+  const sd=Math.sqrt(variance)||1;
+  return raw.map(v=>Math.max(-3,Math.min(3,(v-mean)/sd)));
+}
+function perceptualDistance(a,b){
+  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
+  let sum=0; for(let i=0;i<a.length;i++)sum+=Math.abs((Number(a[i])||0)-(Number(b[i])||0));
+  return sum/a.length;
 }
 function signatureColorProfile(sig){
   if(!Array.isArray(sig)||sig.length<3)return null;
@@ -1341,87 +1355,84 @@ function signatureColorProfile(sig){
     const r=Number(sig[i])||0,g=Number(sig[i+1])||0,b=Number(sig[i+2])||0;
     const mx=Math.max(r,g,b),mn=Math.min(r,g,b),chroma=mx-mn;
     if(chroma<1.5||mx<2)continue;
-    const weight=chroma;
-    rs+=r*weight;gs+=g*weight;bs+=b*weight;w+=weight;
+    rs+=r*chroma;gs+=g*chroma;bs+=b*chroma;w+=chroma;
   }
   return w?[rs/w,gs/w,bs/w]:null;
 }
 function signatureDistance(a,b){
   if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
-  let sum=0;
-  for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d}
-  const pixel=Math.sqrt(sum/a.length);
-  const ca=signatureColorProfile(a),cb=signatureColorProfile(b);
-  let colour=0;
-  if(ca&&cb) colour=Math.sqrt(((ca[0]-cb[0])**2+(ca[1]-cb[1])**2+(ca[2]-cb[2])**2)/3);
-  return pixel+colour*.95;
+  let sum=0;for(let i=0;i<a.length;i++){const d=(Number(a[i])||0)-(Number(b[i])||0);sum+=d*d}
+  const pixel=Math.sqrt(sum/a.length),ca=signatureColorProfile(a),cb=signatureColorProfile(b);
+  let colour=0;if(ca&&cb)colour=Math.sqrt(((ca[0]-cb[0])**2+(ca[1]-cb[1])**2+(ca[2]-cb[2])**2)/3);
+  return pixel+colour*.65;
 }
+async function featuresFor(image){return {sig:await imageSignature(image),phash:await perceptualSignature(image)}}
 async function learnedNameFor(image){
-  const sig=await imageSignature(image);
-  let best=null;
-  for(const m of (d.itemMemory||[])){
-    if(!Array.isArray(m.sig))continue; // old 16x16 hashes are ignored safely
-    const dist=signatureDistance(sig,m.sig);
-    if(!best||dist<best.dist)best={...m,dist};
+  const f=await featuresFor(image); let best=null;
+  const consider=(m,source)=>{
+    let score=999,kind="";
+    if(Array.isArray(m.phash)&&m.phash.length===f.phash.length){score=perceptualDistance(f.phash,m.phash);kind="p"}
+    if(Array.isArray(m.sig)&&m.sig.length===f.sig.length){
+      const d=signatureDistance(f.sig,m.sig);
+      // 舊記憶沒有 phash 時仍可直接使用；新記憶取兩種比對中較可靠者。
+      if(!Array.isArray(m.phash)||d/3.2<score){score=d/3.2;kind="r"}
+    }
+    if(!best||score<best.score)best={...m,score,kind,source};
+  };
+  for(const m of (d.itemMemory||[]))consider(m,"memory");
+  // Firebase 記憶若曾遺失，現有庫存圖片仍可當備援字典，不必全部重教。
+  for(const a of (d.accounts||[]))for(const it of (a.items||[])){
+    if(!it?.image||!String(it?.name||"").trim()||it.name==="待確認")continue;
+    if(!it._recognitionFeatures){try{it._recognitionFeatures=await featuresFor(it.image)}catch(_){continue}}
+    consider({sig:it._recognitionFeatures.sig,phash:it._recognitionFeatures.phash,name:it.name,variant:it.variant||""},"inventory");
   }
-  // Deliberately strict: a missed match is better than assigning the wrong item name.
-  return best&&best.dist<=1.95?best:null;
+  // perceptual <= .43 可容忍同一道具在不同截圖中有少量位移/縮放；RGB 舊記憶仍保守。
+  if(!best)return null;
+  if(best.kind==="p"&&best.score<=.43)return best;
+  if(best.kind==="r"&&best.score<=.68)return best;
+  return null;
 }
 async function rememberItemName(image,name,variant=""){
-  if(!image||!name||name==="待確認")return;
+  if(!image||!String(name||"").trim()||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
-  const sig=await imageSignature(image);
-  let best=null,idx=-1;
+  const f=await featuresFor(image);let nearest=null,idx=-1;
   d.itemMemory.forEach((m,i)=>{
-    if(!Array.isArray(m.sig))return;
-    const dist=signatureDistance(sig,m.sig);
-    if(!best||dist<best.dist){best={...m,dist};idx=i}
+    let score=999;
+    if(Array.isArray(m.phash)&&m.phash.length===f.phash.length)score=perceptualDistance(f.phash,m.phash);
+    else if(Array.isArray(m.sig)&&m.sig.length===f.sig.length)score=signatureDistance(f.sig,m.sig)/3.2;
+    if(!nearest||score<nearest.score){nearest={...m,score};idx=i}
   });
-  const rec={sig,name,variant};
-  // Only overwrite a genuinely near-identical learned image.
-  if(best&&best.dist<=1.05)d.itemMemory[idx]=rec;else d.itemMemory.push(rec);
+  const rec={sig:f.sig,phash:f.phash,name:String(name).trim(),variant:String(variant||"").trim()};
+  // 只有「同名同款 + 幾乎同圖」才更新；不同顏色/名稱絕不互相覆蓋。
+  if(nearest&&nearest.score<=.16&&nearest.name===rec.name&&String(nearest.variant||"")===rec.variant)d.itemMemory[idx]=rec;
+  else d.itemMemory.push(rec);
 }
-const INVENTORY_MEMORY_BACKFILL_VERSION=1;
+const INVENTORY_MEMORY_BACKFILL_VERSION=2;
 let inventoryMemoryBackfillRunning=false;
 async function backfillInventoryMemory(){
   if(inventoryMemoryBackfillRunning||!currentUser||!migrationReady)return;
   inventoryMemoryBackfillRunning=true;
   try{
-    const metaSnap=await getDoc(metaRef()), meta=metaSnap.exists()?metaSnap.data():{};
+    const metaSnap=await getDoc(metaRef()),meta=metaSnap.exists()?metaSnap.data():{};
     if(Number(meta.inventoryMemoryBackfillVersion||0)>=INVENTORY_MEMORY_BACKFILL_VERSION)return;
-    const candidates=[];
+    let added=0;
     for(const a of (d.accounts||[]))for(const item of (a.items||[])){
-      if(item?.image&&String(item?.name||"").trim()&&item.name!=="待確認")
-        candidates.push({image:item.image,name:String(item.name).trim(),variant:String(item.variant||"").trim()});
+      if(!item?.image||!String(item?.name||"").trim()||item.name==="待確認")continue;
+      const before=d.itemMemory.length;
+      try{await rememberItemName(item.image,item.name,item.variant||"")}catch(_){continue}
+      if(d.itemMemory.length>before)added++;
+      if(added%20===0)await new Promise(r=>setTimeout(r,0));
     }
-    const newMem=[];
-    for(let i=0;i<candidates.length;i++){
-      const x=candidates[i]; let sig;
-      try{sig=await imageSignature(x.image)}catch(_){continue}
-      let best=999;
-      for(const m of [...(d.itemMemory||[]),...newMem]){
-        if(!Array.isArray(m.sig)||m.sig.length!==sig.length)continue;
-        best=Math.min(best,signatureDistance(sig,m.sig));
-        if(best<=1.05)break;
-      }
-      if(best>1.05)newMem.push({sig,name:x.name,variant:x.variant});
-      if(i%20===19)await new Promise(r=>setTimeout(r,0));
-    }
-    if(newMem.length){
-      const base=(d.itemMemory||[]).length;
-      for(let i=0;i<newMem.length;i+=350){
+    if(added){
+      // 只新增/覆寫目前記憶，不先刪遠端，避免儲存途中造成記憶消失。
+      for(let i=0;i<d.itemMemory.length;i+=350){
         const batch=writeBatch(db);
-        newMem.slice(i,i+350).forEach((m,j)=>batch.set(memoryRef(stableMemoryId(m,base+i+j)),m));
+        d.itemMemory.slice(i,i+350).forEach((m,j)=>batch.set(memoryRef(stableMemoryId(m,i+j)),m));
         await batch.commit();
       }
-      d.itemMemory.push(...newMem);
     }
-    await setDoc(metaRef(),{
-      inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,
-      inventoryMemoryBackfilledAt:new Date().toISOString()
-    },{merge:true});
-  }catch(err){console.error("舊庫存辨識記憶補建失敗",err)}
-  finally{inventoryMemoryBackfillRunning=false}
+    await setDoc(metaRef(),{inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,inventoryMemoryBackfilledAt:new Date().toISOString()},{merge:true});
+  }catch(err){console.error("舊庫存辨識記憶補建失敗",err)}finally{inventoryMemoryBackfillRunning=false}
 }
 function cleanItemName(text){
   let t=String(text||"")
@@ -1652,7 +1663,7 @@ function renderAllOverview(){
     [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
   );
   const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
-  $("#overviewCapture").innerHTML=`<div class="overviewTitle">🤎 內內的小倉倉｜全帳號總覽 🤎</div>
+  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號總覽</div>
     <div class="overviewSub">${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}</div>`+
     (cats.length?cats.map(cat=>{
       const list=rows.filter(x=>x.category===cat);
@@ -1703,7 +1714,7 @@ $("#saveOverviewJpg").onclick=async()=>{
     const ctx=c.getContext("2d");
     ctx.fillStyle="#f5e9df";ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#4d3c33";ctx.textAlign="center";ctx.font="900 30px sans-serif";
-    ctx.fillText("內內的小倉倉｜全帳號總覽",W/2,48);
+    ctx.fillText("MSTAR 庫存管理｜全帳號總覽",W/2,48);
     ctx.font="16px sans-serif";ctx.globalAlpha=.72;
     ctx.fillText(`${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}`,W/2,78);ctx.globalAlpha=1;
     ctx.textAlign="left";
@@ -1744,4 +1755,3 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
