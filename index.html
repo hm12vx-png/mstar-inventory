@@ -509,6 +509,19 @@ function naturalAccountCompare(a,b){
 }
 function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 
+function normalizeMemoryRecord(m){
+  if(!m||typeof m!=="object")return m;
+  const out={...m};
+  // Firestore 不允許 array 裡再放 array。雲端改存成 map，讀回來再還原成程式原本使用的二維陣列。
+  if(out.robust && !Array.isArray(out.robust) && Array.isArray(out.robust.samples)) out.robust=out.robust.samples;
+  return out;
+}
+function memoryForFirestore(m){
+  const out={...m};
+  if(Array.isArray(out.robust) && out.robust.some(Array.isArray)) out.robust={samples:out.robust};
+  return out;
+}
+
 function stableMemoryId(m,index=0){
   // ID 不再綁陣列位置，避免每次新增/刪除樣本後整批記憶換 ID。
   // 同一張圖、同一名稱與款式會穩定落在同一筆 Firestore 文件。
@@ -524,7 +537,7 @@ async function readSplitCloud(){
   const meta=metaSnap.exists()?metaSnap.data():{};
   return {
     accounts:accountSnap.docs.map(x=>x.data()),
-    itemMemory:memorySnap.docs.map(x=>x.data()),
+    itemMemory:memorySnap.docs.map(x=>normalizeMemoryRecord(x.data())),
     updated:meta.updated||""
   };
 }
@@ -538,7 +551,7 @@ async function migrateLegacyCloud(legacy){
     a.id=id;
     writes.push({ref:accountRef(id),data:a});
   });
-  memories.forEach((m,i)=>writes.push({ref:memoryRef(stableMemoryId(m,i)),data:m}));
+  memories.forEach((m,i)=>writes.push({ref:memoryRef(stableMemoryId(m,i)),data:memoryForFirestore(normalizeMemoryRecord(m))}));
   writes.push({ref:metaRef(),data:{
     schemaVersion:MIGRATION_VERSION,
     migratedFromLegacy:true,
@@ -624,7 +637,7 @@ async function save(){
     // 第一階段只做新增/更新，任何一步失敗都不先刪舊資料，避免「儲存失敗順便把記憶刪掉」。
     const upserts=[];
     (d.accounts||[]).forEach(a=>upserts.push({ref:accountRef(String(a.id)),data:a}));
-    desiredMem.forEach((m,id)=>upserts.push({ref:memoryRef(id),data:m}));
+    desiredMem.forEach((m,id)=>upserts.push({ref:memoryRef(id),data:memoryForFirestore(m)}));
     upserts.push({ref:metaRef(),data:{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated}});
     for(let i=0;i<upserts.length;i+=350){
       const batch=writeBatch(db);
@@ -1743,6 +1756,3 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
-
