@@ -464,8 +464,8 @@
 <option value="家具">家具</option><option value="玩偶">玩偶</option><option value="花盆">花盆</option><option value="戒指">戒指</option><option value="作物">作物</option><option value="材料">材料</option><option value="寵物">寵物</option><option value="釣魚">釣魚</option>
 </select></div>
 <div class="field" id="shotGenderWrap" style="display:none"><label>限制</label><select id="shotGender"><option value="限男">限男</option><option value="限女">限女</option></select></div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
-<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">可一次拖曳多張庫存截圖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
+<div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div id="shotQueueInfo" class="note" style="display:none;font-weight:800"></div><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
@@ -486,6 +486,10 @@ const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app)
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
 let d={accounts:[]}, active=null, currentUser=null, saving=false, savePromise=null, activeCategory="家具", activeGender="", activeCandy="";
+// 辨識流程只同步「目前帳號 + 本次新/修改的記憶」，避免每次確認都重讀/重寫整個雲端資料庫。
+const dirtyMemoryUpserts=new Map();
+const dirtyMemoryDeletes=new Set();
+let inventoryFeatureIndexPromise=null;
 let accountTypeFilter="", accountGenderFilter="";
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const legacyRef=()=>doc(db,"users",ADMIN_UID,"inventory","main");
@@ -595,6 +599,8 @@ async function loadCloud(){
   }
   if(!Array.isArray(d.accounts))d.accounts=[];
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
+  dirtyMemoryUpserts.clear();
+  dirtyMemoryDeletes.clear();
   active=d.accounts[0]?.id||null;
   render();
 }
@@ -624,6 +630,42 @@ async function keepAccountDocSafe(a){
   if(bytes>900000){
     throw new Error(`帳號 ${a.number||a.name||""} 的資料仍過大（${Math.round(bytes/1024)} KB）。請先刪除不需要的舊圖片後再儲存。`);
   }
+}
+async function saveRecognitionFast(account){
+  if(!currentUser||!migrationReady||!account)return false;
+  if(savePromise)return savePromise;
+  savePromise=(async()=>{
+    saving=true;
+    try{
+      // 只處理目前帳號，不再掃描全部帳號與全部記憶文件。
+      await keepAccountDocSafe(account);
+      const ops=[{ref:accountRef(String(account.id)),data:account}];
+      dirtyMemoryUpserts.forEach((m,id)=>ops.push({ref:memoryRef(id),data:memoryForFirestore(m)}));
+      ops.push({ref:metaRef(),data:{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:new Date().toLocaleString("zh-TW")}});
+      for(let i=0;i<ops.length;i+=350){
+        const batch=writeBatch(db);
+        ops.slice(i,i+350).forEach(op=>batch.set(op.ref,op.data));
+        await batch.commit();
+      }
+      if(dirtyMemoryDeletes.size){
+        const ids=[...dirtyMemoryDeletes];
+        for(let i=0;i<ids.length;i+=350){
+          const batch=writeBatch(db);
+          ids.slice(i,i+350).forEach(id=>batch.delete(memoryRef(id)));
+          await batch.commit();
+        }
+      }
+      render();
+      dirtyMemoryUpserts.clear();
+      dirtyMemoryDeletes.clear();
+      return true;
+    }catch(err){
+      console.error(err);
+      alert("快速儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
+      return false;
+    }finally{saving=false}
+  })().finally(()=>{savePromise=null});
+  return savePromise;
 }
 async function save(){
   if(!currentUser||!migrationReady)return false;
@@ -870,7 +912,7 @@ $("#is").onclick=async()=>{
     else if(same) same.qty+=q;
     else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
     $("#in").value="";$("#iv").value="";$("#iq").value=1;
-    const saved=await save();
+    const saved=await saveRecognitionFast(a);
     if(!saved)throw new Error("雲端儲存沒有完成，請稍後再試。");
     idg.close();
   }catch(err){
@@ -1110,21 +1152,57 @@ $("#shotCategory").onchange=()=>{
 };
 $("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");recognizingTempShot=null;syncShotCategory();$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
 $("#dropShot").onclick=()=>$("#shotFile").click();
-$("#dropShot").ondragover=e=>{e.preventDefault()};
-$("#dropShot").ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadShot(e.dataTransfer.files[0])};
-$("#shotFile").onchange=e=>{if(e.target.files[0])loadShot(e.target.files[0])};
+$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy";$("#dropShot").style.background="#f6eee8"};
+$("#dropShot").ondragleave=()=>{$("#dropShot").style.background="#fff"};
+$("#dropShot").ondrop=e=>{e.preventDefault();$("#dropShot").style.background="#fff";loadShotFiles(Array.from(e.dataTransfer.files||[]).filter(f=>/^image\\//i.test(f.type)))};
+$("#shotFile").onchange=e=>{loadShotFiles(Array.from(e.target.files||[]));e.target.value=""};
 let sourceImage=null;
 let recognizingTempShot=null;
+let shotQueue=[];
+let shotObjectUrls=[];
+let shotQueueIndex=0;
+function clearShotObjectUrls(){
+  shotObjectUrls.forEach(u=>{try{URL.revokeObjectURL(u)}catch(_){}});
+  shotObjectUrls=[];
+}
+function imageFromUrl(u){
+  const img=new Image();
+  return new Promise((ok,bad)=>{img.onload=()=>ok(img);img.onerror=()=>bad(new Error("圖片讀取失敗"));img.src=u});
+}
+function updateShotQueueInfo(){
+  const n=shotQueue.length;
+  if(n>1){
+    $("#shotQueueInfo").style.display="block";
+    $("#shotQueueInfo").textContent=`已選 ${n} 張圖片${shotQueueIndex?`｜目前第 ${Math.min(shotQueueIndex,n)} 張`:""}`;
+  }else{
+    $("#shotQueueInfo").style.display="none";
+  }
+}
+function loadShotFiles(files){
+  const list=Array.from(files||[]).filter(f=>f && /^image\\//i.test(f.type));
+  if(!list.length)return;
+  clearShotObjectUrls();
+  shotQueue=list.map(f=>{
+    const url=URL.createObjectURL(f);shotObjectUrls.push(url);
+    return {file:f,url};
+  });
+  shotQueueIndex=0;
+  recognizingTempShot=null;
+  recognizedRows=[];
+  $("#recognized").innerHTML="";
+  $("#confirmRecognized").style.display="none";
+  $("#shotPreview").style.display="block";
+  $("#shotImg").src=shotQueue[0].url;
+  updateShotQueueInfo();
+}
 function setShotSource(u){
   const img=new Image();
   img.onload=()=>{sourceImage=img;$("#shotImg").src=u;$("#shotPreview").style.display="block";recognizedRows=[];$("#recognized").innerHTML="";$("#confirmRecognized").style.display="none"};
   img.onerror=()=>alert("截圖讀取失敗");
   img.src=u;
 }
-function loadShot(f){
-  recognizingTempShot=null;
-  setShotSource(URL.createObjectURL(f));
-}
+function loadShot(f){loadShotFiles(f?[f]:[])}
+
 function openTempShotForRecognition(accountId,shot){
   if(!shot?.image)return;
   if(active!==accountId){
@@ -1135,6 +1213,9 @@ function openTempShotForRecognition(accountId,shot){
   syncShotCategory();
   $("#shotAccount").textContent="帳號 "+(cur()?.name||"");
   sourceImage=null;
+  clearShotObjectUrls();
+  shotQueue=[];
+  shotQueueIndex=0;
   recognizedRows=[];
   $("#recognized").innerHTML="";
   $("#confirmRecognized").style.display="none";
@@ -1312,12 +1393,14 @@ async function recognizeBestName(worker,img,col,row,g){
   variants.push(c.toDataURL("image/png"));
 
   let best={text:"",confidence:0,score:-1};
-  for(const v of variants){
-    const res=await worker.recognize(v);
+  for(let i=0;i<variants.length;i++){
+    const res=await worker.recognize(variants[i]);
     const text=cleanItemName(res?.data?.text||"");
     const confidence=Number(res?.data?.confidence||0);
     const score=cjkCount(text)*18 + confidence - Math.max(0,text.length-24)*2;
     if(score>best.score) best={text,confidence,score};
+    // 第一種已經可靠就直接停止，不再浪費第二次 OCR。
+    if(i===0 && text && cjkCount(text)>=2 && confidence>=58 && looksLikeItem(text))break;
   }
   return best;
 }
@@ -1426,11 +1509,14 @@ async function learnedNameFor(image){
     const hit=matchFeature(f,m); if(!hit)continue;
     if(!best||hit.score<best.score)best=hit;
   }
-  if(acceptableMemoryMatch(best))return best;
+  return acceptableMemoryMatch(best)?best:null;
+}
 
-  // 最重要的救援層：庫存裡已經人工確認過「圖片＋名稱」的項目，本身就是可信樣本。
-  // 即使早期 itemMemory 的簽章格式已經不同，也能直接由保存的圖片重新計算新版特徵。
-  let invBest=null;
+// 舊資料的「庫存圖片救援」保留，但只在 OCR 讀不到可靠名稱時才啟動。
+// 這是本版速度提升的關鍵：正常 OCR 成功時，不必掃描所有帳號的所有庫存圖片。
+async function inventoryRescueNameFor(image){
+  const f=await cachedFeatures(image);
+  let best=null;
   const seen=new Set();
   for(const a of (d.accounts||[])){
     for(const x of (a.items||[])){
@@ -1442,14 +1528,13 @@ async function learnedNameFor(image){
         const robust=robustDistance(f.robust,old.robust);
         const cd=colorDistance(f.color,old.color);
         const rgb=signatureDistance(f.sig,old.sig);
-        // 形狀為主、顏色做第二關。這比只放寬 RGB 門檻安全，較不會把不同色熊認成同一隻。
         const score=Math.min(rgb,robust/18)+(cd===null?0:cd*3.0);
         const hit={name:x.name,variant:x.variant||"",fromInventory:true,robustDist:robust,colorDist:cd,score};
-        if(!invBest||hit.score<invBest.score)invBest=hit;
-      }catch(_){}
+        if(!best||hit.score<best.score)best=hit;
+      }catch(_){ }
     }
   }
-  if(invBest && invBest.robustDist<=38 && (invBest.colorDist===null||invBest.colorDist<=.30) && invBest.score<=2.95)return invBest;
+  if(best && best.robustDist<=38 && (best.colorDist===null||best.colorDist<=.30) && best.score<=2.95)return best;
   return null;
 }
 async function rememberItemName(image,name,variant=""){
@@ -1465,15 +1550,26 @@ async function rememberItemName(image,name,variant=""){
   }
   const rec={sig:f.sig,color:f.color,robust:f.robust,name,variant};
   if(nearestSame && nearestSame.colorDist!==null && nearestSame.colorDist<=.03 && (nearestSame.shape<=.45||nearestSame.robustDist<=12)){
+    const old=d.itemMemory[nearestSame.index];
+    const oldId=stableMemoryId(old,nearestSame.index);
     d.itemMemory[nearestSame.index]=rec;
+    const newId=stableMemoryId(rec,nearestSame.index);
+    dirtyMemoryUpserts.set(newId,rec);
+    if(oldId!==newId)dirtyMemoryDeletes.add(oldId);
     return;
   }
   d.itemMemory.push(rec);
+  dirtyMemoryUpserts.set(stableMemoryId(rec,d.itemMemory.length-1),rec);
   // 同一名稱/款式保留多個不同截圖樣本，避免只記住某一次縮放或亮度。
   const same=[];
   d.itemMemory.forEach((m,i)=>{if(String(m?.name||"")===String(name)&&String(m?.variant||"")===String(variant||""))same.push(i)});
   if(same.length>10){
-    const remove=new Set(same.slice(0,same.length-10));
+    const removeIdx=same.slice(0,same.length-10);
+    removeIdx.forEach(i=>{
+      const old=d.itemMemory[i];
+      if(old)dirtyMemoryDeletes.add(stableMemoryId(old,i));
+    });
+    const remove=new Set(removeIdx);
     d.itemMemory=d.itemMemory.filter((_,i)=>!remove.has(i));
   }
 }
@@ -1497,89 +1593,103 @@ function looksLikeItem(text){
   const t=cleanItemName(text).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
+async function recognizeImageCards(worker,img){
+  const g=inferCardGrid(img);
+  const found=[];
+  for(let row=0;row<g.rows;row++){
+    for(let col=0;col<g.cols;col++){
+      if(cellLooksEmpty(img,col,row,g)) continue;
+      const cardImage=cardCrop(img,col,row,g);
+      const learned=await learnedNameFor(cardImage);
+      let name="", confidence=0;
+      if(learned){
+        name=learned.name||"";
+      }else{
+        const bestName=await recognizeBestName(worker,img,col,row,g);
+        name=bestName.text;
+        confidence=bestName.confidence;
+        if(ocrLooksBroken(name,confidence)) name="";
+        if(name && !looksLikeItem(name)) name="";
+        if(!name){
+          const rescued=await inventoryRescueNameFor(cardImage);
+          if(rescued)name=rescued.name||"";
+        }
+      }
+      const restrictionImg=cardRestrictionCrop(img,col,row,g);
+      let restriction="";
+      try{
+        const rr=await worker.recognize(restrictionImg);
+        const rt=String(rr?.data?.text||"");
+        if(/限男/.test(rt)) restriction="限男";
+        else if(/限女/.test(rt)) restriction="限女";
+        else if(/無限制/.test(rt)) restriction="無限制";
+      }catch(_){}
+      let itemName=name||"",variant="";
+      const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+      if(m){itemName=m[1].trim();variant=m[2].trim()}
+      if(learned){
+        itemName=learned.name;
+        if(learned.variant)variant=learned.variant;
+      }
+      found.push({name:itemName,variant,originalName:itemName,originalVariant:variant,restriction,qty:1,image:cardImage,learned:!!learned});
+    }
+  }
+  return found;
+}
 $("#mockRecognize").onclick=async()=>{
-  if(!sourceImage)return alert("先放一張截圖");
+  if(!shotQueue.length){
+    if(sourceImage)shotQueue=[{url:$("#shotImg").src}];
+    else return alert("先放入一張或多張截圖");
+  }
   const btn=$("#mockRecognize");
-  btn.disabled=true; btn.textContent="辨識中…";
+  if(btn.disabled)return;
+  btn.disabled=true;btn.textContent=shotQueue.length>1?"連續辨識中…":"辨識中…";
   recognizedRows=[];
-  $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 實際道具格版型定位辨識…</div>';
+  $("#recognized").innerHTML=`<div class="meta">準備辨識 ${shotQueue.length} 張截圖…</div>`;
   $("#confirmRecognized").style.display="none";
-
-  let createWorker,worker=null;
+  let worker=null;
   try{
     const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
-    createWorker=mod.createWorker||mod.default?.createWorker;
-    if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
+    const createWorker=mod.createWorker||mod.default?.createWorker;
+    if(typeof createWorker!=="function")throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
-
-    const g=inferCardGrid(sourceImage);
-    const found=[];
-    for(let row=0;row<g.rows;row++){
-      for(let col=0;col<g.cols;col++){
-        if(cellLooksEmpty(sourceImage,col,row,g)) continue;
-        // 記憶優先：只要這格確實有道具，就先用圖片找既有記憶。
-        // OCR 就算這次完全讀不到文字，也不能阻止以前教過的記憶被叫回來。
-        const cardImage=cardCrop(sourceImage,col,row,g);
-        const learned=await learnedNameFor(cardImage);
-
-        let name="", confidence=0;
-        if(!learned){
-          const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
-          name=bestName.text;
-          confidence=bestName.confidence;
-          if(ocrLooksBroken(name,confidence)) name="";
-          if(name && !looksLikeItem(name)) name="";
-        }
-
-        // A valid card must have a plausible item-name line. This prevents
-        // buttons/page text elsewhere on the screenshot from becoming items.
-        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
-        let restriction="";
-        try{
-          const rr=await worker.recognize(restrictionImg);
-          const rt=String(rr?.data?.text||"");
-          if(/限男/.test(rt)) restriction="限男";
-          else if(/限女/.test(rt)) restriction="限女";
-          else if(/無限制/.test(rt)) restriction="無限制";
-        }catch(_){}
-
-        // Split the common "道具名稱-顏色" format.
-        let itemName=name||"",variant="";
-        const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
-        if(m){itemName=m[1].trim();variant=m[2].trim()}
-
-        if(learned){
-          itemName=learned.name;
-          if(learned.variant)variant=learned.variant;
-        }
-        found.push({
-          name:itemName,
-          variant,
-          originalName:itemName,
-          originalVariant:variant,
-          restriction,
-          qty:1,
-          image:cardImage,
-          learned:!!learned
-        });
+    const all=[];
+    for(let i=0;i<shotQueue.length;i++){
+      shotQueueIndex=i+1;
+      updateShotQueueInfo();
+      const entry=shotQueue[i];
+      const img=entry.image||await imageFromUrl(entry.url);
+      entry.image=img;
+      sourceImage=img;
+      $("#shotImg").src=entry.url;
+      $("#recognized").innerHTML=`<div class="meta">正在辨識第 ${i+1} / ${shotQueue.length} 張…</div>`;
+      const found=await recognizeImageCards(worker,img);
+      // 標記來源圖片，方便同一批圖片內的記憶建立與後續追蹤。
+      found.forEach(x=>x.sourceShotIndex=i+1);
+      all.push(...found);
+      recognizedRows=all.slice();
+      if(found.length){
+        drawRecognized();
+      }else if(!all.length){
+        $("#recognized").innerHTML=`<div class="meta">第 ${i+1} 張沒有辨識到道具卡片，繼續處理下一張…</div>`;
       }
     }
-    recognizedRows=found;
-    if(!found.length){
+    recognizedRows=all;
+    if(!all.length){
       $("#recognized").innerHTML='<div class="meta">沒有辨識到道具卡片。請確認截圖包含完整的 MSTAR 道具格。</div>';
       return;
     }
-    drawRecognized();
+    $("#recognized").insertAdjacentHTML("afterbegin",`<div class="meta" style="margin-bottom:7px">共 ${shotQueue.length} 張截圖，辨識到 ${all.length} 個道具項目。</div>`);
     $("#confirmRecognized").style.display="inline-block";
   }catch(err){
     console.error(err);
     $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
   }finally{
-    if(worker){try{await worker.terminate()}catch(_){}}
-    btn.disabled=false; btn.textContent="辨識這張截圖";
+    if(worker){try{await worker.terminate()}catch(_){}
+    }
+    btn.disabled=false;btn.textContent=shotQueue.length>1?"重新辨識全部":"辨識這張截圖";
   }
 };
-
 
 shotDlg.addEventListener("close",()=>{
   // 關閉後清理上一張截圖的狀態，下一次不需要 F5。
@@ -1593,6 +1703,10 @@ shotDlg.addEventListener("close",()=>{
   $("#mockRecognize").textContent="辨識這張截圖";
   $("#shotPreview").style.display="none";
   $("#recognized").innerHTML="";
+  clearShotObjectUrls();
+  shotQueue=[];
+  shotQueueIndex=0;
+  $("#shotQueueInfo").style.display="none";
   $("#shotFile").value="";
 });
 $("#confirmRecognized").onclick=async()=>{
