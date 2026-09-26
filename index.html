@@ -1202,7 +1202,7 @@ function updateShotQueueInfo(){
   }
 }
 function loadShotFiles(files){
-  const list=Array.from(files||[]).filter(f=>f && /^image\\//i.test(f.type));
+  const list=Array.from(files||[]).filter(isImageFile);
   if(!list.length)return;
   clearShotObjectUrls();
   shotQueue=list.map(f=>{
@@ -1975,6 +1975,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
 
