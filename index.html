@@ -512,13 +512,20 @@ function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 function normalizeMemoryRecord(m){
   if(!m||typeof m!=="object")return m;
   const out={...m};
-  // Firestore 不允許 array 裡再放 array。雲端改存成 map，讀回來再還原成程式原本使用的二維陣列。
-  if(out.robust && !Array.isArray(out.robust) && Array.isArray(out.robust.samples)) out.robust=out.robust.samples;
+  // Firestore 不允許 array 裡再放 array。雲端以 map 的 s0/s1/s2 各自存一維陣列，讀回再還原。
+  if(out.robust && !Array.isArray(out.robust) && typeof out.robust==="object"){
+    const keys=Object.keys(out.robust).filter(k=>/^s\d+$/.test(k)).sort((a,b)=>Number(a.slice(1))-Number(b.slice(1)));
+    if(keys.length) out.robust=keys.map(k=>out.robust[k]);
+  }
   return out;
 }
 function memoryForFirestore(m){
   const out={...m};
-  if(Array.isArray(out.robust) && out.robust.some(Array.isArray)) out.robust={samples:out.robust};
+  if(Array.isArray(out.robust) && out.robust.some(Array.isArray)){
+    const packed={};
+    out.robust.forEach((sample,i)=>{packed["s"+i]=Array.isArray(sample)?sample:[]});
+    out.robust=packed;
+  }
   return out;
 }
 
