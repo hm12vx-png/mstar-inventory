@@ -1287,52 +1287,67 @@ function gridLineScore(ctx,pos,vertical,W,H){
 }
 
 function inferCardGrid(img){
-  // MSTAR 卡片本身尺寸固定，只是截圖可能是 1x / 1.25x / 1.5x / 2x 顯示縮放。
-  // 不能只看整張圖比例：4x2 與 2x1 的外框比例幾乎一樣，之前戒指因此被四格併成一格。
-  // 現在同時用「單一卡片實際尺寸、卡片比例、格線」判斷。
+  // FINAL GRID ENGINE v6
+  // 不直接把整張圖片硬切成固定 4x4。先依 MSTAR 卡片比例，再用真正的格線/間隔證據決定欄列。
+  // 原始圖片本身永遠不會被修改；只有辨識時建立獨立的卡片視圖。
   const W=img.naturalWidth,H=img.naturalHeight;
-  const probe=document.createElement("canvas"); probe.width=W;probe.height=H;
-  const ctx=probe.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0);
-  const baseW=123, baseH=144;
-  const scales=[.75,1,1.25,1.5,1.75,2,2.25,2.5,3];
-  let best=null;
-  for(let cols=1;cols<=4;cols++){
-    for(let rows=1;rows<=10;rows++){
-      const cw=W/cols,ch=H/rows,ratio=cw/ch;
-      if(ratio<.72||ratio>1.02)continue;
-      let sizeErr=Infinity,chosenScale=1;
-      for(const sc of scales){
-        const err=Math.abs(cw-baseW*sc)/(baseW*sc)+Math.abs(ch-baseH*sc)/(baseH*sc);
-        if(err<sizeErr){sizeErr=err;chosenScale=sc}
-      }
-      // 尺寸是主判斷。這可直接分開 984x552 的 4x2 戒指與小張 2x1 截圖。
-      let score=sizeErr*8 + Math.abs(ratio-(baseW/baseH))*2;
-      // 格線必須逐條計分，不能只取「平均」。
-      // 4x2 與 2x1 在 1x/2x 截圖時，單格尺寸會剛好成倍而產生歧義；
-      // 若只看平均分隔線，2x1 反而可能因中央那條線特別明顯而勝出。
-      // 現在改成：每一條可信的完整格線都提供獨立證據，因此 4x2 會有
-      // 3 條直線 + 1 條橫線，不會再被合併成兩個 2x2 大區塊。
-      let sep=0,n=0,boundaryEvidence=0,weakBoundaries=0;
-      const addBoundary=(v)=>{
-        sep+=v;n++;
-        if(v>=15) boundaryEvidence+=Math.min(1,(v-15)/35);
-        else weakBoundaries++;
-      };
-      for(let c=1;c<cols;c++) addBoundary(gridLineScore(ctx,c*cw,true,W,H));
-      for(let r=1;r<rows;r++) addBoundary(gridLineScore(ctx,r*ch,false,W,H));
-      if(n){
-        score-=boundaryEvidence*.34;       // 每條真的格線都加分
-        score+=weakBoundaries*.16;         // 沒有格線卻硬切，直接扣分
-      }
-      // 若兩個方案尺寸近似，讓「有更多真實格線支持」的方案勝出。
-      if(!best||score<best.score)best={cols,rows,cw,ch,score,scale:chosenScale};
+  const baseRatio=123/144;
+  const c=document.createElement("canvas");
+  const scale=Math.min(1,900/W,900/H); c.width=Math.max(1,Math.round(W*scale)); c.height=Math.max(1,Math.round(H*scale));
+  const ctx=c.getContext("2d",{willReadFrequently:true}); ctx.drawImage(img,0,0,c.width,c.height);
+  const w=c.width,h=c.height;
+  function lineScore(pos,vertical){
+    const span=vertical?h:w, center=vertical?pos:w?pos:0, band=2, n=60;
+    let edge=0,uniform=0;
+    for(let i=0;i<n;i++){
+      const t=(i+.12)/n;
+      const x=vertical?Math.max(2,Math.min(w-3,Math.round(center))):Math.max(2,Math.min(w-3,Math.round(t*w)));
+      const y=vertical?Math.max(2,Math.min(h-3,Math.round(t*h))):Math.max(2,Math.min(h-3,Math.round(center)));
+      const a=ctx.getImageData(vertical?x-band:x,vertical?y:y-band,1,1).data;
+      const b=ctx.getImageData(vertical?x+band:x,vertical?y:y+band,1,1).data;
+      edge+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
+    }
+    return edge/n;
+  }
+  function bestBoundary(expected,vertical){
+    const span=vertical?w:h;
+    const delta=Math.max(4,Math.round(span*.025));
+    let best={score:-1,pos:expected};
+    for(let d=-delta;d<=delta;d+=2){
+      const pos=Math.max(3,Math.min(span-3,expected+d));
+      const score=lineScore(pos,vertical);
+      if(score>best.score)best={score,pos};
+    }
+    return best;
+  }
+  const candidates=[];
+  for(let cols=1;cols<=6;cols++){
+    for(let rows=1;rows<=12;rows++){
+      const cw=w/cols,ch=h/rows,ratio=cw/ch;
+      if(ratio<.68||ratio>1.08)continue;
+      if(cw<70||ch<80)continue;
+      const ratioErr=Math.abs(Math.log(ratio/baseRatio));
+      // 卡片尺寸只作弱限制，避免 2x 縮放與 1x 縮放造成錯判。
+      const sizePenalty=(Math.abs(cw-123)/123+Math.abs(ch-144)/144)*.12;
+      let evidence=0;
+      for(let x=1;x<cols;x++) evidence+=Math.max(0,(bestBoundary(x*w/cols,true).score-10)/25);
+      for(let y=1;y<rows;y++) evidence+=Math.max(0,(bestBoundary(y*h/rows,false).score-10)/25);
+      const boundaryCount=(cols-1)+(rows-1);
+      // 多格方案只有在真的找到更多分隔證據時才獲得額外加分，避免亂切。
+      const evidenceBonus=boundaryCount?evidence/(boundaryCount):0;
+      const score=ratioErr*6+sizePenalty-evidenceBonus*.9-(evidence>0?Math.min(evidence,.8)*.12:0);
+      candidates.push({cols,rows,cw:W/cols,ch:H/rows,score,evidence});
     }
   }
-  if(best)return best;
-  const sc=W>650?2:1;
-  const cols=Math.max(1,Math.min(4,Math.round(W/(baseW*sc))));
-  const rows=Math.max(1,Math.round(H/(baseH*sc)));
-  return {cols,rows,cw:W/cols,ch:H/rows,score:99,scale:sc};
+  candidates.sort((a,b)=>a.score-b.score);
+  const best=candidates[0]||{cols:1,rows:1,cw:W,ch:H,score:99,evidence:0};
+  // 若第二名幾乎同分，優先選擇「實際分隔線較多」的方案，而不是較少格的方案。
+  const tied=candidates.filter(x=>x.score<=best.score+.08);
+  if(tied.length>1){
+    tied.sort((a,b)=>b.evidence-a.evidence || (b.cols*b.rows)-(a.cols*a.rows));
+    return tied[0];
+  }
+  return best;
 }
 function cardLayout(){
   const recognitionCategory=$("#shotCategory")?.value||activeCategory;
@@ -1346,17 +1361,15 @@ function cardLayout(){
 }
 
 function cellLooksEmpty(img,col,row,g){
-  // 最後一排可能只有 1~3 個。直接檢查道具展示區的像素變化，避免把右側空白當成「待確認」。
-  const L=cardLayout(), x=col*g.cw+g.cw*L.picX, y=row*g.ch+g.ch*L.picY;
-  const sw=g.cw*L.picW, sh=g.ch*Math.min(L.picH,.62);
-  const c=document.createElement("canvas"); c.width=32;c.height=32;
-  const ctx=c.getContext("2d"); ctx.drawImage(img,x,y,sw,sh,0,0,32,32);
-  const p=ctx.getImageData(0,0,32,32).data;
-  let sum=0,sum2=0,n=0;
-  for(let i=0;i<p.length;i+=16){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];sum+=v;sum2+=v*v;n++}
-  const mean=sum/n, variance=sum2/n-mean*mean;
-  // 空格通常是低亮度、低細節背景；寧可保留可疑格，也不要漏掉真的道具。
-  return mean<55 && variance<520;
+  // 不再因為「黑色/低亮度商品」而漏掉整個商品格。
+  // 只有幾乎全黑且幾乎沒有細節的真正空白格才跳過。
+  const x=col*g.cw+g.cw*.03,y=row*g.ch+g.ch*.03,sw=g.cw*.94,sh=g.ch*.82;
+  const c=document.createElement("canvas");c.width=28;c.height=28;
+  const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,x,y,sw,sh,0,0,28,28);
+  const p=ctx.getImageData(0,0,28,28).data;let sum=0,sum2=0,n=0;
+  for(let i=0;i<p.length;i+=12){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];sum+=v;sum2+=v*v;n++}
+  const mean=sum/n,variance=Math.max(0,sum2/n-mean*mean);
+  return mean<28&&variance<80;
 }
 function cropRect(img,sx,sy,sw,sh,quality=.9){
   const c=document.createElement("canvas");
@@ -1365,10 +1378,10 @@ function cropRect(img,sx,sy,sw,sh,quality=.9){
   return c.toDataURL("image/jpeg",quality);
 }
 function cardCrop(img,col,row,g){
-  // 縮圖保留完整道具展示區與遊戲內名稱，讓庫存小圖本身也看得出道具名稱。
-  // 最下面的「查看詳情」/刪除按鈕仍排除；圖片比對會在 imageSignature() 內只取 artwork 區，不受名稱影響。
-  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
-  return cropRect(img,x+g.cw*L.picX,y+g.ch*L.picY,g.cw*L.picW,g.ch*L.picH,.82);
+  // 最終版：不再用 picH=.835 之類的比例硬裁商品圖。
+  // 每個辨識到的商品保留該格完整內容，只去掉極薄的邊界，避免「亂切」。
+  const padX=g.cw*.015,padY=g.ch*.015;
+  return cropRect(img,col*g.cw+padX,row*g.ch+padY,g.cw-2*padX,g.ch-2*padY,.90);
 }
 function cardNameCrop(img,col,row,g){
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
@@ -1623,42 +1636,41 @@ async function recognizeImageCards(worker,img){
     for(let col=0;col<g.cols;col++){
       if(cellLooksEmpty(img,col,row,g)) continue;
       const cardImage=cardCrop(img,col,row,g);
-      const learned=await learnedNameFor(cardImage);
-      let name="", confidence=0;
+      let learned=null,name="",confidence=0;
+      try{ learned=await learnedNameFor(cardImage); }catch(_){ learned=null; }
       if(learned){
         name=learned.name||"";
       }else{
         const bestName=await recognizeBestName(worker,img,col,row,g);
-        name=bestName.text;
-        confidence=bestName.confidence;
-        if(ocrLooksBroken(name,confidence)) name="";
-        if(name && !looksLikeItem(name)) name="";
+        name=bestName.text; confidence=bestName.confidence;
+        if(ocrLooksBroken(name,confidence)||!looksLikeItem(name)) name="";
         if(!name){
-          const rescued=await inventoryRescueNameFor(cardImage);
-          if(rescued)name=rescued.name||"";
+          try{ const rescued=await inventoryRescueNameFor(cardImage); if(rescued)name=rescued.name||""; }catch(_){ }
         }
       }
-      const restrictionImg=cardRestrictionCrop(img,col,row,g);
+      // 限制文字只在需要時辨識，避免每個普通家具都多跑一次 OCR。
       let restriction="";
-      try{
-        const rr=await worker.recognize(restrictionImg);
-        const rt=String(rr?.data?.text||"");
-        if(/限男/.test(rt)) restriction="限男";
-        else if(/限女/.test(rt)) restriction="限女";
-        else if(/無限制/.test(rt)) restriction="無限制";
-      }catch(_){}
+      const cat=$("#shotCategory")?.value||activeCategory;
+      if(cat==="戒指"||cat==="作物"){
+        try{
+          const rr=await worker.recognize(cardRestrictionCrop(img,col,row,g));
+          const rt=String(rr?.data?.text||"");
+          if(/限男/.test(rt))restriction="限男"; else if(/限女/.test(rt))restriction="限女"; else if(/無限制/.test(rt))restriction="無限制";
+        }catch(_){ }
+      }
       let itemName=name||"",variant="";
       const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
       if(m){itemName=m[1].trim();variant=m[2].trim()}
-      if(learned){
-        itemName=learned.name;
-        if(learned.variant)variant=learned.variant;
+      if(learned){itemName=learned.name;if(learned.variant)variant=learned.variant}
+      // 只有「有名稱」或「確定不是空白格」才加入；空白格不會製造待確認項目。
+      if(itemName||!cellLooksEmpty(img,col,row,g)){
+        found.push({name:itemName,variant,originalName:itemName,originalVariant:variant,restriction,qty:1,image:cardImage,learned:!!learned});
       }
-      found.push({name:itemName,variant,originalName:itemName,originalVariant:variant,restriction,qty:1,image:cardImage,learned:!!learned});
     }
   }
   return found;
 }
+
 $("#mockRecognize").onclick=async()=>{
   if(!shotQueue.length){
     if(sourceImage)shotQueue=[{url:$("#shotImg").src}];
@@ -1975,4 +1987,5 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
