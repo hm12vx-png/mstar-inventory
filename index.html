@@ -389,6 +389,16 @@
 </div>
 <div class="items" id="items"></div><div class="note">資料會儲存在你的 Firebase Firestore；只有指定的 Google 帳號可讀寫。</div></main></div></div></div>
 
+<dialog id="tempDeleteConfirmDlg">
+  <div style="text-align:center;padding:4px 2px">
+    <div style="font-weight:900;font-size:17px;margin-bottom:8px">已加入庫存</div>
+    <div class="meta" style="font-size:13px">要把這張臨時截圖刪掉嗎？</div>
+    <div class="actions" style="justify-content:center;margin-top:16px">
+      <button class="btn" id="keepTempShot" type="button">保留截圖</button>
+      <button class="btn danger" id="deleteTempShotConfirm" type="button">刪除截圖</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="overviewDlg">
   <div class="overviewBox">
     <div class="overviewTop">
@@ -466,7 +476,7 @@
 <div class="field" id="shotGenderWrap" style="display:none"><label>限制</label><select id="shotGender"><option value="限男">限男</option><option value="限女">限女</option></select></div>
 <div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把庫存截圖拖到這裡<br><span class="meta">或點一下選擇 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" hidden></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
-<div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
+<div style="margin-top:10px;font-weight:800">辨識確認</div><div class="meta">名稱、款式與數量都可在加入前手動修正。</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
@@ -479,7 +489,7 @@ const firebaseConfig={
   projectId:"oo-items-web",
   storageBucket:"oo-items-web.firebasestorage.app",
   messagingSenderId:"163929322708",
-  appId:"1:163929322708:web:39602fb7a9354bd29e8dbc"
+  appId:"1:163929322708:web:1013bafd19150e94a97741"
 };
 const ADMIN_UID="sZ8VOpm0LmfW4KJW9PNBkuOwxG23";
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
@@ -498,6 +508,27 @@ const tempShotCol=accountId=>collection(db,"users",ADMIN_UID,"accounts",accountI
 const tempShotRef=(accountId,shotId)=>doc(db,"users",ADMIN_UID,"accounts",accountId,"tempShots",shotId);
 const tempShotsCache=new Map();
 let tempShotsLoadingFor="";
+let pendingTempDelete=null;
+function askDeleteTempShot(tempSource){
+  pendingTempDelete=tempSource;
+  $("#tempDeleteConfirmDlg").showModal();
+}
+$("#keepTempShot").onclick=()=>{pendingTempDelete=null;$("#tempDeleteConfirmDlg").close()};
+$("#deleteTempShotConfirm").onclick=async()=>{
+  const tempSource=pendingTempDelete;
+  pendingTempDelete=null;
+  $("#tempDeleteConfirmDlg").close();
+  if(!tempSource)return;
+  try{
+    await deleteDoc(tempShotRef(tempSource.accountId,tempSource.shotId));
+    const shots=tempShotsCache.get(tempSource.accountId)||[];
+    tempShotsCache.set(tempSource.accountId,shots.filter(x=>x.id!==tempSource.shotId));
+    if(active===tempSource.accountId)renderTempShots(tempSource.accountId);
+  }catch(err){
+    console.error(err);
+    alert("庫存已加入，但臨時截圖刪除失敗。");
+  }
+};
 const MIGRATION_VERSION=2;
 let migrationReady=false;
 
@@ -509,33 +540,11 @@ function naturalAccountCompare(a,b){
 }
 function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 
-function normalizeMemoryRecord(m){
-  if(!m||typeof m!=="object")return m;
-  const out={...m};
-  // Firestore 不允許 array 裡再放 array。雲端以 map 的 s0/s1/s2 各自存一維陣列，讀回再還原。
-  if(out.robust && !Array.isArray(out.robust) && typeof out.robust==="object"){
-    const keys=Object.keys(out.robust).filter(k=>/^s\d+$/.test(k)).sort((a,b)=>Number(a.slice(1))-Number(b.slice(1)));
-    if(keys.length) out.robust=keys.map(k=>out.robust[k]);
-  }
-  return out;
-}
-function memoryForFirestore(m){
-  const out={...m};
-  if(Array.isArray(out.robust) && out.robust.some(Array.isArray)){
-    const packed={};
-    out.robust.forEach((sample,i)=>{packed["s"+i]=Array.isArray(sample)?sample:[]});
-    out.robust=packed;
-  }
-  return out;
-}
-
 function stableMemoryId(m,index=0){
-  // ID 不再綁陣列位置，避免每次新增/刪除樣本後整批記憶換 ID。
-  // 同一張圖、同一名稱與款式會穩定落在同一筆 Firestore 文件。
-  const raw=JSON.stringify([m?.sig||[],m?.color||[],m?.robust||[],m?.name||"",m?.variant||""]);
+  const raw=JSON.stringify([m?.sig||[],m?.name||"",m?.variant||"",index]);
   let h=2166136261;
   for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)}
-  return "m"+(h>>>0).toString(36);
+  return "m"+(h>>>0).toString(36)+"_"+index;
 }
 async function readSplitCloud(){
   const [metaSnap,accountSnap,memorySnap]=await Promise.all([
@@ -544,7 +553,7 @@ async function readSplitCloud(){
   const meta=metaSnap.exists()?metaSnap.data():{};
   return {
     accounts:accountSnap.docs.map(x=>x.data()),
-    itemMemory:memorySnap.docs.map(x=>normalizeMemoryRecord(x.data())),
+    itemMemory:memorySnap.docs.map(x=>x.data()),
     updated:meta.updated||""
   };
 }
@@ -558,7 +567,7 @@ async function migrateLegacyCloud(legacy){
     a.id=id;
     writes.push({ref:accountRef(id),data:a});
   });
-  memories.forEach((m,i)=>writes.push({ref:memoryRef(stableMemoryId(m,i)),data:memoryForFirestore(normalizeMemoryRecord(m))}));
+  memories.forEach((m,i)=>writes.push({ref:memoryRef(stableMemoryId(m,i)),data:m}));
   writes.push({ref:metaRef(),data:{
     schemaVersion:MIGRATION_VERSION,
     migratedFromLegacy:true,
@@ -595,91 +604,36 @@ async function loadCloud(){
   }
   if(!Array.isArray(d.accounts))d.accounts=[];
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
-  // 舊版若曾在儲存失敗時遺失 itemMemory，直接用庫存內仍保留的「圖片＋正確名稱」重建記憶。
-  // 只補缺少的樣本，不會刪除或覆蓋既有記憶。
-  try{
-    let rebuilt=0;
-    for(const a of d.accounts){
-      for(const x of (a.items||[])){
-        if(!x?.image||!String(x?.name||"").trim()||x.name==="待確認")continue;
-        const exists=d.itemMemory.some(m=>String(m?.name||"")===String(x.name)&&String(m?.variant||"")===String(x.variant||""));
-        if(!exists){await rememberItemName(x.image,x.name,x.variant||"");rebuilt++;}
-      }
-    }
-    if(rebuilt) await save();
-  }catch(err){console.warn("辨識記憶自動重建略過",err)}
   active=d.accounts[0]?.id||null;
   render();
-}
-async function shrinkStoredImage(dataUrl,maxW=160,maxH=150,quality=.68){
-  if(!dataUrl||!String(dataUrl).startsWith("data:image/"))return dataUrl||"";
-  // 已經很小就不要重壓，避免每次儲存都再次失真。
-  if(dataUrl.length<26000)return dataUrl;
-  try{
-    const img=await loadDataImage(dataUrl);
-    const scale=Math.min(1,maxW/img.naturalWidth,maxH/img.naturalHeight);
-    const c=document.createElement("canvas");
-    c.width=Math.max(1,Math.round(img.naturalWidth*scale));
-    c.height=Math.max(1,Math.round(img.naturalHeight*scale));
-    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-    return c.toDataURL("image/jpeg",quality);
-  }catch(_){return dataUrl}
-}
-async function keepAccountDocSafe(a){
-  a.items=Array.isArray(a.items)?a.items:[];
-  for(const x of a.items){if(x?.image)x.image=await shrinkStoredImage(x.image)}
-  // Firestore 單文件上限 1 MiB。先用保守 780 KB 當警戒值；若仍太大再縮一次。
-  let bytes=new Blob([JSON.stringify(a)]).size;
-  if(bytes>780000){
-    for(const x of a.items){if(x?.image)x.image=await shrinkStoredImage(x.image,110,105,.55)}
-    bytes=new Blob([JSON.stringify(a)]).size;
-  }
-  if(bytes>900000){
-    throw new Error(`帳號 ${a.number||a.name||""} 的資料仍過大（${Math.round(bytes/1024)} KB）。請先刪除不需要的舊圖片後再儲存。`);
-  }
+  setTimeout(()=>backfillInventoryMemory(),300);
 }
 async function save(){
-  if(!currentUser||!migrationReady)return false;
-  if(saving)return false;
+  if(!currentUser||!migrationReady)return;
   d.updated=new Date().toLocaleString("zh-TW");
   saving=true;
   try{
-    // 舊版把每個道具縮圖都塞在帳號文件裡，帳號一多就可能再次撞 Firestore 1 MiB。
-    // 儲存前自動縮小「庫存顯示用縮圖」，辨識記憶本身使用特徵值，不受影響。
-    for(const a of (d.accounts||[]))await keepAccountDocSafe(a);
-
-    const remoteAccounts=await getDocs(accountCol());
+    // Accounts are separate documents, so the old 1 MiB main-document limit is gone.
+    const remote=await getDocs(accountCol());
+    const localIds=new Set((d.accounts||[]).map(a=>String(a.id)));
+    const ops=[];
+    remote.docs.forEach(x=>{if(!localIds.has(x.id))ops.push({type:"delete",ref:x.ref})});
+    (d.accounts||[]).forEach(a=>ops.push({type:"set",ref:accountRef(String(a.id)),data:a}));
+    // Recognition memory is also split into separate documents.
     const remoteMem=await getDocs(memoryCol());
-    const localAccountIds=new Set((d.accounts||[]).map(a=>String(a.id)));
-    const desiredMem=new Map();
-    (d.itemMemory||[]).forEach((m,i)=>desiredMem.set(stableMemoryId(m,i),m));
-
-    // 第一階段只做新增/更新，任何一步失敗都不先刪舊資料，避免「儲存失敗順便把記憶刪掉」。
-    const upserts=[];
-    (d.accounts||[]).forEach(a=>upserts.push({ref:accountRef(String(a.id)),data:a}));
-    desiredMem.forEach((m,id)=>upserts.push({ref:memoryRef(id),data:memoryForFirestore(m)}));
-    upserts.push({ref:metaRef(),data:{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated}});
-    for(let i=0;i<upserts.length;i+=350){
+    remoteMem.docs.forEach(x=>ops.push({type:"delete",ref:x.ref}));
+    (d.itemMemory||[]).forEach((m,i)=>ops.push({type:"set",ref:memoryRef(stableMemoryId(m,i)),data:m}));
+    // meta 在批次完成後以 merge 更新，避免清掉補記憶版本標記。
+    for(let i=0;i<ops.length;i+=400){
       const batch=writeBatch(db);
-      upserts.slice(i,i+350).forEach(op=>batch.set(op.ref,op.data));
+      ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
       await batch.commit();
     }
-
-    // 第二階段：新資料全部成功後，才清掉真正已不存在的舊文件。
-    const deletes=[];
-    remoteAccounts.docs.forEach(x=>{if(!localAccountIds.has(x.id))deletes.push(x.ref)});
-    remoteMem.docs.forEach(x=>{if(!desiredMem.has(x.id))deletes.push(x.ref)});
-    for(let i=0;i<deletes.length;i+=350){
-      const batch=writeBatch(db);
-      deletes.slice(i,i+350).forEach(ref=>batch.delete(ref));
-      await batch.commit();
-    }
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
     render();
-    return true;
   }catch(err){
     console.error(err);
-    alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\\n"+(err?.message||String(err)));
-    return false;
+    alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
   }finally{saving=false}
 }
 function migrateCategories(){
@@ -1259,7 +1213,7 @@ function cardCrop(img,col,row,g){
   // 縮圖保留完整道具展示區與遊戲內名稱，讓庫存小圖本身也看得出道具名稱。
   // 最下面的「查看詳情」/刪除按鈕仍排除；圖片比對會在 imageSignature() 內只取 artwork 區，不受名稱影響。
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
-  return cropRect(img,x+g.cw*L.picX,y+g.ch*L.picY,g.cw*L.picW,g.ch*L.picH,.82);
+  return cropRect(img,x+g.cw*L.picX,y+g.ch*L.picY,g.cw*L.picW,g.ch*L.picH,.98);
 }
 function cardNameCrop(img,col,row,g){
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
@@ -1269,6 +1223,51 @@ function cardRestrictionCrop(img,col,row,g){
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
   if(!L.restrictH)return cropRect(img,x,y,1,1,1);
   return cropRect(img,x+g.cw*.18,y+g.ch*L.restrictY,g.cw*.64,g.ch*L.restrictH,1);
+}
+function quantityCropVariants(img,col,row,g){
+  const x=col*g.cw,y=row*g.ch;
+  // 數量通常位於道具卡右下區；做幾個相近裁切，讓不同分類/縮放都能讀。
+  const rects=[
+    [.62,.50,.36,.24],
+    [.66,.56,.31,.20],
+    [.58,.58,.40,.18],
+    [.70,.46,.27,.30]
+  ];
+  return rects.map(([rx,ry,rw,rh])=>{
+    const sx=x+g.cw*rx,sy=y+g.ch*ry,sw=g.cw*rw,sh=g.ch*rh;
+    const scale=7,c=document.createElement("canvas");
+    c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
+    const ctx=c.getContext("2d");
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+    const im=ctx.getImageData(0,0,c.width,c.height),p=im.data;
+    // 高對比灰階，保留亮字/描邊。
+    for(let i=0;i<p.length;i+=4){
+      const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+      const v=lum>125?255:0;
+      p[i]=p[i+1]=p[i+2]=v;
+    }
+    ctx.putImageData(im,0,0);
+    return c.toDataURL("image/png");
+  });
+}
+async function recognizeQuantity(worker,img,col,row,g){
+  let best=null;
+  for(const crop of quantityCropVariants(img,col,row,g)){
+    try{
+      const r=await worker.recognize(crop,{tessedit_char_whitelist:"0123456789xX×"});
+      const raw=String(r?.data?.text||"").replace(/[oO]/g,"0");
+      const nums=[...raw.matchAll(/\d{1,5}/g)].map(m=>Number(m[0])).filter(n=>Number.isInteger(n)&&n>=1&&n<=99999);
+      if(!nums.length)continue;
+      const confidence=Number(r?.data?.confidence||0);
+      // 數量區可能混到其他 UI 數字；優先可信度高、且合理的數值。
+      const qty=nums[nums.length-1];
+      const score=confidence+(qty>1?5:0);
+      if(!best||score>best.score)best={qty,score};
+    }catch(_){}
+  }
+  // 讀不到或信心太低就維持 1，使用者仍可在確認畫面手動修正。
+  return best&&best.score>=30?best.qty:1;
 }
 function preprocessNameForOCR(img,col,row,g){
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
@@ -1316,14 +1315,11 @@ async function recognizeBestName(worker,img,col,row,g){
   }
   return best;
 }
-async function loadDataImage(dataUrl){
+async function imageSignature(dataUrl){
   const img=new Image();
   await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  return img;
-}
-async function imageSignature(dataUrl){
-  const img=await loadDataImage(dataUrl);
-  // 保留原本 24x24 RGB 簽章，讓目前已建立的新式記憶仍可直接使用。
+  // Compare mainly the artwork area. The lower name/button area and NEW badge can
+  // change or add noise, so they are intentionally excluded.
   const size=24,c=document.createElement("canvas");
   c.width=size;c.height=size;
   const ctx=c.getContext("2d",{willReadFrequently:true});
@@ -1332,146 +1328,100 @@ async function imageSignature(dataUrl){
   ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
   const p=ctx.getImageData(0,0,size,size).data;
   const sig=[];
-  for(let i=0;i<p.length;i+=4) sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
+  for(let i=0;i<p.length;i+=4){
+    // Keep coarse colour as well as brightness; this separates similarly-shaped items.
+    sig.push(Math.round(p[i]/16),Math.round(p[i+1]/16),Math.round(p[i+2]/16));
+  }
   return sig;
 }
-async function itemColorFeature(dataUrl){
-  const img=await loadDataImage(dataUrl);
-  const c=document.createElement("canvas"); c.width=18;c.height=18;
-  const ctx=c.getContext("2d",{willReadFrequently:true});
-  ctx.drawImage(img,img.naturalWidth*.13,img.naturalHeight*.10,img.naturalWidth*.74,img.naturalHeight*.50,0,0,18,18);
-  const p=ctx.getImageData(0,0,18,18).data,bins=new Array(12).fill(0); let n=0;
-  for(let i=0;i<p.length;i+=4){
-    const r=p[i],g=p[i+1],b=p[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
-    if(mx<28||mx-mn<12||mx>247)continue;
-    let h=0; const dlt=mx-mn;
-    if(mx===r)h=((g-b)/dlt)%6; else if(mx===g)h=(b-r)/dlt+2; else h=(r-g)/dlt+4;
-    h=(h*60+360)%360; bins[Math.floor(h/30)%12]++; n++;
+function signatureColorProfile(sig){
+  if(!Array.isArray(sig)||sig.length<3)return null;
+  let rs=0,gs=0,bs=0,w=0;
+  for(let i=0;i+2<sig.length;i+=3){
+    const r=Number(sig[i])||0,g=Number(sig[i+1])||0,b=Number(sig[i+2])||0;
+    const mx=Math.max(r,g,b),mn=Math.min(r,g,b),chroma=mx-mn;
+    if(chroma<1.5||mx<2)continue;
+    const weight=chroma;
+    rs+=r*weight;gs+=g*weight;bs+=b*weight;w+=weight;
   }
-  return bins.map(v=>n?v/n:0);
-}
-async function robustArtSignatures(dataUrl){
-  const img=await loadDataImage(dataUrl);
-  // 舊版與新版曾改過卡片裁切比例。一次算三種常見藝術區域，避免「有記憶但裁切稍變就認不到」。
-  const crops=[
-    [.07,.05,.86,.58],
-    [.11,.08,.78,.52],
-    [.03,.03,.94,.66]
-  ];
-  const out=[];
-  for(const [rx,ry,rw,rh] of crops){
-    const c=document.createElement("canvas"); c.width=17;c.height=16;
-    const ctx=c.getContext("2d",{willReadFrequently:true});
-    ctx.drawImage(img,img.naturalWidth*rx,img.naturalHeight*ry,img.naturalWidth*rw,img.naturalHeight*rh,0,0,17,16);
-    const p=ctx.getImageData(0,0,17,16).data,gray=[];
-    for(let i=0;i<p.length;i+=4)gray.push(.299*p[i]+.587*p[i+1]+.114*p[i+2]);
-    const bits=[];
-    for(let y=0;y<16;y++)for(let x=0;x<16;x++)bits.push(gray[y*17+x]>gray[y*17+x+1]?1:0);
-    out.push(bits);
-  }
-  return out;
+  return w?[rs/w,gs/w,bs/w]:null;
 }
 function signatureDistance(a,b){
   if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
-  let sum=0; for(let i=0;i<a.length;i++){const z=a[i]-b[i];sum+=z*z}
-  return Math.sqrt(sum/a.length);
-}
-function hammingDistance(a,b){
-  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
-  let n=0;for(let i=0;i<a.length;i++)if(Number(a[i])!==Number(b[i]))n++;return n;
-}
-function robustDistance(a,b){
-  if(!Array.isArray(a)||!Array.isArray(b))return 999;
-  let best=999;
-  for(const x of a)for(const y of b)best=Math.min(best,hammingDistance(x,y));
-  return best;
-}
-function colorDistance(a,b){
-  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return null;
-  let sum=0; for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);
-  return sum/2;
-}
-const featureCache=new Map();
-async function cachedFeatures(image){
-  if(!image)return null;
-  if(featureCache.has(image))return featureCache.get(image);
-  const promise=Promise.all([imageSignature(image),itemColorFeature(image),robustArtSignatures(image)]).then(([sig,color,robust])=>({sig,color,robust}));
-  featureCache.set(image,promise);
-  try{return await promise}catch(err){featureCache.delete(image);throw err}
-}
-function matchFeature(f,m){
-  if(!m)return null;
-  const shape=Array.isArray(m.sig)?signatureDistance(f.sig,m.sig):999;
-  const robust=Array.isArray(m.robust)?robustDistance(f.robust,m.robust):999;
-  const cd=colorDistance(f.color,m.color);
-  // 新式記憶可走 RGB；新版之後另存 robust，可容忍縮放/裁切差異。
-  const visual=Math.min(shape,robust<999?robust/18:999);
-  const score=visual+(cd===null?0:cd*3.2);
-  return {...m,shape,robustDist:robust,colorDist:cd,score};
-}
-function acceptableMemoryMatch(best){
-  if(!best)return false;
-  if(best.colorDist!==null&&best.colorDist>.38)return false;
-  // MSTAR 卡片縮圖在不同瀏覽器/截圖縮放下會有明顯像素差；dHash 對同一圖仍很穩定。
-  return best.score<=3.20 || best.robustDist<=48;
+  let sum=0;
+  for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d}
+  const pixel=Math.sqrt(sum/a.length);
+  const ca=signatureColorProfile(a),cb=signatureColorProfile(b);
+  let colour=0;
+  if(ca&&cb) colour=Math.sqrt(((ca[0]-cb[0])**2+(ca[1]-cb[1])**2+(ca[2]-cb[2])**2)/3);
+  return pixel+colour*.95;
 }
 async function learnedNameFor(image){
-  const f=await cachedFeatures(image);
+  const sig=await imageSignature(image);
   let best=null;
   for(const m of (d.itemMemory||[])){
-    const hit=matchFeature(f,m); if(!hit)continue;
-    if(!best||hit.score<best.score)best=hit;
+    if(!Array.isArray(m.sig))continue; // old 16x16 hashes are ignored safely
+    const dist=signatureDistance(sig,m.sig);
+    if(!best||dist<best.dist)best={...m,dist};
   }
-  if(acceptableMemoryMatch(best))return best;
-
-  // 最重要的救援層：庫存裡已經人工確認過「圖片＋名稱」的項目，本身就是可信樣本。
-  // 即使早期 itemMemory 的簽章格式已經不同，也能直接由保存的圖片重新計算新版特徵。
-  let invBest=null;
-  const seen=new Set();
-  for(const a of (d.accounts||[])){
-    for(const x of (a.items||[])){
-      if(!x?.image||!String(x?.name||"").trim()||x.name==="待確認")continue;
-      const key=x.image+"|"+x.name+"|"+(x.variant||"");
-      if(seen.has(key))continue; seen.add(key);
-      try{
-        const old=await cachedFeatures(x.image);
-        const robust=robustDistance(f.robust,old.robust);
-        const cd=colorDistance(f.color,old.color);
-        const rgb=signatureDistance(f.sig,old.sig);
-        // 形狀為主、顏色做第二關。這比只放寬 RGB 門檻安全，較不會把不同色熊認成同一隻。
-        const score=Math.min(rgb,robust/18)+(cd===null?0:cd*3.0);
-        const hit={name:x.name,variant:x.variant||"",fromInventory:true,robustDist:robust,colorDist:cd,score};
-        if(!invBest||hit.score<invBest.score)invBest=hit;
-      }catch(_){}
-    }
-  }
-  if(invBest && invBest.robustDist<=52 && (invBest.colorDist===null||invBest.colorDist<=.40) && invBest.score<=3.45)return invBest;
-  return null;
+  // Deliberately strict: a missed match is better than assigning the wrong item name.
+  return best&&best.dist<=1.95?best:null;
 }
 async function rememberItemName(image,name,variant=""){
-  if(!image||!String(name||"").trim()||name==="待確認")return;
+  if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
-  const f=await cachedFeatures(image);
-  let nearestSame=null;
-  for(let i=0;i<d.itemMemory.length;i++){
-    const m=d.itemMemory[i];
-    if(String(m?.name||"")!==String(name)||String(m?.variant||"")!==String(variant||""))continue;
-    const hit=matchFeature(f,m); if(!hit)continue;
-    if(!nearestSame||hit.score<nearestSame.score)nearestSame={...hit,index:i};
-  }
-  const rec={sig:f.sig,color:f.color,robust:f.robust,name,variant};
-  if(nearestSame && nearestSame.colorDist!==null && nearestSame.colorDist<=.03 && (nearestSame.shape<=.45||nearestSame.robustDist<=12)){
-    d.itemMemory[nearestSame.index]=rec;
-    return;
-  }
-  d.itemMemory.push(rec);
-  // 同一名稱/款式保留多個不同截圖樣本，避免只記住某一次縮放或亮度。
-  const same=[];
-  d.itemMemory.forEach((m,i)=>{if(String(m?.name||"")===String(name)&&String(m?.variant||"")===String(variant||""))same.push(i)});
-  if(same.length>10){
-    const remove=new Set(same.slice(0,same.length-10));
-    d.itemMemory=d.itemMemory.filter((_,i)=>!remove.has(i));
-  }
+  const sig=await imageSignature(image);
+  let best=null,idx=-1;
+  d.itemMemory.forEach((m,i)=>{
+    if(!Array.isArray(m.sig))return;
+    const dist=signatureDistance(sig,m.sig);
+    if(!best||dist<best.dist){best={...m,dist};idx=i}
+  });
+  const rec={sig,name,variant};
+  // Only overwrite a genuinely near-identical learned image.
+  if(best&&best.dist<=1.05)d.itemMemory[idx]=rec;else d.itemMemory.push(rec);
+}
+const INVENTORY_MEMORY_BACKFILL_VERSION=1;
+let inventoryMemoryBackfillRunning=false;
+async function backfillInventoryMemory(){
+  if(inventoryMemoryBackfillRunning||!currentUser||!migrationReady)return;
+  inventoryMemoryBackfillRunning=true;
+  try{
+    const metaSnap=await getDoc(metaRef()), meta=metaSnap.exists()?metaSnap.data():{};
+    if(Number(meta.inventoryMemoryBackfillVersion||0)>=INVENTORY_MEMORY_BACKFILL_VERSION)return;
+    const candidates=[];
+    for(const a of (d.accounts||[]))for(const item of (a.items||[])){
+      if(item?.image&&String(item?.name||"").trim()&&item.name!=="待確認")
+        candidates.push({image:item.image,name:String(item.name).trim(),variant:String(item.variant||"").trim()});
+    }
+    const newMem=[];
+    for(let i=0;i<candidates.length;i++){
+      const x=candidates[i]; let sig;
+      try{sig=await imageSignature(x.image)}catch(_){continue}
+      let best=999;
+      for(const m of [...(d.itemMemory||[]),...newMem]){
+        if(!Array.isArray(m.sig)||m.sig.length!==sig.length)continue;
+        best=Math.min(best,signatureDistance(sig,m.sig));
+        if(best<=1.05)break;
+      }
+      if(best>1.05)newMem.push({sig,name:x.name,variant:x.variant});
+      if(i%20===19)await new Promise(r=>setTimeout(r,0));
+    }
+    if(newMem.length){
+      const base=(d.itemMemory||[]).length;
+      for(let i=0;i<newMem.length;i+=350){
+        const batch=writeBatch(db);
+        newMem.slice(i,i+350).forEach((m,j)=>batch.set(memoryRef(stableMemoryId(m,base+i+j)),m));
+        await batch.commit();
+      }
+      d.itemMemory.push(...newMem);
+    }
+    await setDoc(metaRef(),{
+      inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,
+      inventoryMemoryBackfilledAt:new Date().toISOString()
+    },{merge:true});
+  }catch(err){console.error("舊庫存辨識記憶補建失敗",err)}
+  finally{inventoryMemoryBackfillRunning=false}
 }
 function cleanItemName(text){
   let t=String(text||"")
@@ -1513,19 +1463,11 @@ $("#mockRecognize").onclick=async()=>{
     for(let row=0;row<g.rows;row++){
       for(let col=0;col<g.cols;col++){
         if(cellLooksEmpty(sourceImage,col,row,g)) continue;
-        // 記憶優先：只要這格確實有道具，就先用圖片找既有記憶。
-        // OCR 就算這次完全讀不到文字，也不能阻止以前教過的記憶被叫回來。
-        const cardImage=cardCrop(sourceImage,col,row,g);
-        const learned=await learnedNameFor(cardImage);
-
-        let name="", confidence=0;
-        if(!learned){
-          const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
-          name=bestName.text;
-          confidence=bestName.confidence;
-          if(ocrLooksBroken(name,confidence)) name="";
-          if(name && !looksLikeItem(name)) name="";
-        }
+        const bestName=await recognizeBestName(worker,sourceImage,col,row,g);
+        let name=bestName.text;
+        const confidence=bestName.confidence;
+        if(ocrLooksBroken(name,confidence)) name="";
+        if(name && !looksLikeItem(name)) name="";
 
         // A valid card must have a plausible item-name line. This prevents
         // buttons/page text elsewhere on the screenshot from becoming items.
@@ -1540,19 +1482,24 @@ $("#mockRecognize").onclick=async()=>{
         }catch(_){}
 
         // Split the common "道具名稱-顏色" format.
-        let itemName=name||"待確認",variant="";
-        const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+        let itemName=name,variant="";
+        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
         if(m){itemName=m[1].trim();variant=m[2].trim()}
 
+        const cardImage=cardCrop(sourceImage,col,row,g);
+        const learned=await learnedNameFor(cardImage);
         if(learned){
           itemName=learned.name;
           if(learned.variant)variant=learned.variant;
         }
+
+        // 名稱可用記憶，但數量一定以「這一次截圖」重新辨識。
+        const detectedQty=await recognizeQuantity(worker,sourceImage,col,row,g);
         found.push({
           name:itemName,
           variant,
           restriction,
-          qty:1,
+          qty:detectedQty,
           image:cardImage,
           learned:!!learned
         });
@@ -1576,36 +1523,56 @@ $("#mockRecognize").onclick=async()=>{
 
 $("#confirmRecognized").onclick=async()=>{
   const a=cur(); if(!a||!recognizedRows.length)return;
-  const cat=$("#shotCategory").value||"家具";
-  const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
-  const bad=recognizedRows.find(x=>!String(x.name||"").trim()||String(x.name||"").trim()==="待確認");
-  if(bad)return alert("還有道具名稱是「待確認」，請先輸入正確名稱；確認後才會建立辨識記憶。");
-  for(const x of recognizedRows){
-    x.name=String(x.name||"").trim(); x.variant=String(x.variant||"").trim();
-    const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
-    await rememberItemName(item.image,item.name,item.variant);
-    const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
-    if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
-    else a.items.push(item);
-  }
-  activeCategory=cat; activeGender=gen; activeCandy="";
-  const tempSource=recognizingTempShot;
-  const saved=await save();
-  if(!saved)return;
-  shotDlg.close();
-  if(tempSource){
-    recognizingTempShot=null;
-    if(confirm("已加入庫存。\n\n要把這張臨時截圖刪掉嗎？")){
-      try{
-        await deleteDoc(tempShotRef(tempSource.accountId,tempSource.shotId));
-        const shots=tempShotsCache.get(tempSource.accountId)||[];
-        tempShotsCache.set(tempSource.accountId,shots.filter(x=>x.id!==tempSource.shotId));
-        if(active===tempSource.accountId)renderTempShots(tempSource.accountId);
-      }catch(err){
-        console.error(err);
-        alert("庫存已加入，但臨時截圖刪除失敗。");
-      }
+  const btn=$("#confirmRecognized");
+  if(btn.disabled)return;
+  const oldText=btn.textContent;
+  btn.disabled=true; btn.textContent="加入中…";
+  try{
+    const cat=$("#shotCategory").value||"家具";
+    const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
+    for(const x of recognizedRows){
+      const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
+      await rememberItemName(item.image,item.name,item.variant);
+      const same=a.items.find(y=>y.name===item.name&&(y.variant||"")===item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
+      if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
+      else a.items.push(item);
     }
+    activeCategory=cat; activeGender=gen; activeCandy="";
+    const tempSource=recognizingTempShot;
+
+    // 這裡只寫目前帳號，不再因為一張截圖重寫全部 600 個帳號。
+    d.updated=new Date().toLocaleString("zh-TW");
+    await setDoc(accountRef(String(a.id)),a);
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+
+    // 只補上雲端缺少的辨識記憶，不刪掉整包重建。
+    const remoteMemSnap=await getDocs(memoryCol());
+    const remoteKeys=new Set(remoteMemSnap.docs.map(ds=>{
+      const m=ds.data()||{};
+      return JSON.stringify([m.sig||[],m.name||"",m.variant||""]);
+    }));
+    const missing=(d.itemMemory||[]).filter(m=>!remoteKeys.has(JSON.stringify([m.sig||[],m.name||"",m.variant||""])));
+    for(let i=0;i<missing.length;i+=350){
+      const batch=writeBatch(db);
+      missing.slice(i,i+350).forEach((m,j)=>{
+        const idx=(d.itemMemory||[]).indexOf(m);
+        batch.set(memoryRef(stableMemoryId(m,idx<0?i+j:idx)),m);
+      });
+      await batch.commit();
+    }
+
+    render();
+    shotDlg.close();
+
+    if(tempSource){
+      recognizingTempShot=null;
+      askDeleteTempShot(tempSource);
+    }
+  }catch(err){
+    console.error(err);
+    alert("加入庫存失敗｜"+(err?.code||"unknown")+"\\n"+(err?.message||String(err)));
+  }finally{
+    btn.disabled=false; btn.textContent=oldText;
   }
 };
 
@@ -1657,7 +1624,7 @@ function buildAllOverview(){
   for(const a of (d.accounts||[])){
     for(const item of (a.items||[])){
       const name=String(item.name||"").trim();
-      if(!name)return;
+      if(!name)continue;
       const category=String(item.category||"未分類");
       const variant=String(item.variant||"").trim();
       const gender=String(item.gender||item.restriction||"").trim();
@@ -1685,7 +1652,7 @@ function renderAllOverview(){
     [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
   );
   const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
-  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號總覽</div>
+  $("#overviewCapture").innerHTML=`<div class="overviewTitle">🤎 內內的小倉倉｜全帳號總覽 🤎</div>
     <div class="overviewSub">${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}</div>`+
     (cats.length?cats.map(cat=>{
       const list=rows.filter(x=>x.category===cat);
@@ -1736,7 +1703,7 @@ $("#saveOverviewJpg").onclick=async()=>{
     const ctx=c.getContext("2d");
     ctx.fillStyle="#f5e9df";ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#4d3c33";ctx.textAlign="center";ctx.font="900 30px sans-serif";
-    ctx.fillText("MSTAR 庫存管理｜全帳號總覽",W/2,48);
+    ctx.fillText("內內的小倉倉｜全帳號總覽",W/2,48);
     ctx.font="16px sans-serif";ctx.globalAlpha=.72;
     ctx.fillText(`${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}`,W/2,78);ctx.globalAlpha=1;
     ctx.textAlign="left";
@@ -1777,3 +1744,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
