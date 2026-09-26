@@ -464,7 +464,7 @@
 <option value="家具">家具</option><option value="玩偶">玩偶</option><option value="花盆">花盆</option><option value="戒指">戒指</option><option value="作物">作物</option><option value="材料">材料</option><option value="寵物">寵物</option><option value="釣魚">釣魚</option>
 </select></div>
 <div class="field" id="shotGenderWrap" style="display:none"><label>限制</label><select id="shotGender"><option value="限男">限男</option><option value="限女">限女</option></select></div>
-<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">可一次拖曳多張庫存截圖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
+<div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer;user-select:none">把庫存截圖拖曳到這裡<br><span class="meta">可一次拖曳多張 JPG / PNG｜或點一下選擇多張圖片</span><input id="shotFile" type="file" accept="image/*,.jpg,.jpeg,.png,.webp" multiple hidden></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div id="shotQueueInfo" class="note" style="display:none;font-weight:800"></div><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
@@ -1151,11 +1151,34 @@ $("#shotCategory").onchange=()=>{
   $("#shotGenderWrap").style.display=(["戒指","作物"].includes($("#shotCategory").value))?"block":"none";
 };
 $("#importShot").onclick=()=>{if(!cur())return alert("先選擇要匯入的帳號");recognizingTempShot=null;syncShotCategory();$("#shotAccount").textContent="帳號 "+cur().name;$("#shotPreview").style.display="none";$("#confirmRecognized").style.display="none";recognizedRows=[];shotDlg.showModal()};
-$("#dropShot").onclick=()=>$("#shotFile").click();
-$("#dropShot").ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect="copy";$("#dropShot").style.background="#f6eee8"};
-$("#dropShot").ondragleave=()=>{$("#dropShot").style.background="#fff"};
-$("#dropShot").ondrop=e=>{e.preventDefault();$("#dropShot").style.background="#fff";loadShotFiles(Array.from(e.dataTransfer.files||[]).filter(f=>/^image\\//i.test(f.type)))};
-$("#shotFile").onchange=e=>{loadShotFiles(Array.from(e.target.files||[]));e.target.value=""};
+const dropShot=$("#dropShot");
+const shotFile=$("#shotFile");
+let dragDepth=0;
+function isImageFile(f){return !!f && (((f.type||"")&&/^image\//i.test(f.type)) || /\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name||""));}
+function getDroppedImageFiles(e){
+  const dt=e.dataTransfer;
+  if(!dt)return [];
+  const files=Array.from(dt.files||[]).filter(isImageFile);
+  if(files.length)return files;
+  return Array.from(dt.items||[]).filter(it=>it.kind==="file").map(it=>it.getAsFile()).filter(isImageFile);
+}
+function setDropActive(on){
+  dropShot.style.background=on?"#f6eee8":"#fff";
+  dropShot.style.borderColor=on?"#ad8068":"";
+}
+dropShot.addEventListener("click",e=>{if(e.target!==shotFile)shotFile.click()});
+dropShot.addEventListener("dragenter",e=>{e.preventDefault();e.stopPropagation();dragDepth++;setDropActive(true)},{passive:false});
+dropShot.addEventListener("dragover",e=>{e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect="copy";setDropActive(true)},{passive:false});
+dropShot.addEventListener("dragleave",e=>{e.preventDefault();e.stopPropagation();dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)setDropActive(false)},{passive:false});
+dropShot.addEventListener("drop",e=>{
+  e.preventDefault();e.stopPropagation();dragDepth=0;setDropActive(false);
+  const files=getDroppedImageFiles(e);
+  if(files.length)loadShotFiles(files);else alert("請拖曳 JPG、PNG 或其他圖片檔案。" );
+},{passive:false});
+shotFile.addEventListener("change",e=>{loadShotFiles(Array.from(e.target.files||[]).filter(isImageFile));e.target.value=""});
+// 防止瀏覽器把圖片直接開成新分頁，讓拖曳一定由上傳區處理。
+["dragenter","dragover"].forEach(type=>document.addEventListener(type,e=>{if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes("Files"))e.preventDefault()},{passive:false}));
+document.addEventListener("drop",e=>{if(!dropShot.contains(e.target))e.preventDefault()},{passive:false});
 let sourceImage=null;
 let recognizingTempShot=null;
 let shotQueue=[];
