@@ -1287,116 +1287,140 @@ function gridLineScore(ctx,pos,vertical,W,H){
 }
 
 function inferCardGrid(img){
-  // MSTAR 截圖的商品區不一定從整張圖片的左上角開始。
-  // 先找四欄遊戲區的左右外框，再找完整商品列；不再用整張截圖平均切割。
+  // MSTAR 固定 4 欄商品卡：先找三條「欄間分隔線」，再找「列間分隔線」。
+  // 不把整張截圖平均切割，也不從 y=0 強制開始。
   const W=img.naturalWidth,H=img.naturalHeight,cols=4;
   const c=document.createElement("canvas");
-  const scale=Math.min(1,900/W,900/H);
+  const scale=Math.min(1,1100/W,900/H);
   c.width=Math.max(1,Math.round(W*scale));
   c.height=Math.max(1,Math.round(H*scale));
   const ctx=c.getContext("2d",{willReadFrequently:true});
   ctx.drawImage(img,0,0,c.width,c.height);
   const sx=c.width/W,sy=c.height/H;
 
-  function edgeX(x){
+  function verticalScore(x,y0,y1){
     const xx=Math.max(2,Math.min(c.width-3,Math.round(x*sx)));
+    const ya=Math.max(2,Math.round(y0*sy));
+    const yb=Math.min(c.height-3,Math.round(y1*sy));
     let sum=0,n=0;
-    const step=Math.max(1,Math.round(c.height/260));
-    for(let y=2;y<c.height-2;y+=step){
+    const step=Math.max(1,Math.round((yb-ya)/280));
+    for(let y=ya;y<=yb;y+=step){
       const a=ctx.getImageData(xx-2,y,1,1).data;
       const b=ctx.getImageData(xx+2,y,1,1).data;
-      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;n++;
+      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
+      n++;
     }
     return n?sum/n:0;
   }
-  function edgeY(y,x0=0,x1=W){
+  function horizontalScore(y,x0,x1){
     const yy=Math.max(2,Math.min(c.height-3,Math.round(y*sy)));
-    const ax=Math.max(0,Math.round(x0*sx)),bx=Math.min(c.width-1,Math.round(x1*sx));
+    const xa=Math.max(2,Math.round(x0*sx));
+    const xb=Math.min(c.width-3,Math.round(x1*sx));
     let sum=0,n=0;
-    const step=Math.max(1,Math.round((bx-ax)/300));
-    for(let x=ax;x<=bx;x+=step){
+    const step=Math.max(1,Math.round((xb-xa)/360));
+    for(let x=xa;x<=xb;x+=step){
       const a=ctx.getImageData(x,yy-2,1,1).data;
       const b=ctx.getImageData(x,yy+2,1,1).data;
-      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;n++;
+      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
+      n++;
     }
     return n?sum/n:0;
   }
-  function localPeaks(values,minGap,unit=1){
+  function localPeaks(values,minGap){
     const peaks=[];
     for(let i=2;i<values.length-2;i++){
       const v=values[i];
       if(v<values[i-1]||v<values[i+1])continue;
-      peaks.push({p:(i+2)/unit,v});
+      peaks.push({p:i+2,v});
     }
     peaks.sort((a,b)=>b.v-a.v);
     const out=[];
     for(const q of peaks){
       if(out.every(x=>Math.abs(x.p-q.p)>=minGap))out.push(q);
-      if(out.length>=36)break;
+      if(out.length>=100)break;
     }
     return out.sort((a,b)=>a.p-b.p);
   }
 
-  // 真正的遊戲區左右邊界通常比商品本身的邊緣更強。
-  // 只接受約佔整張圖片 42%～78% 寬度的四欄區，避免抓到網頁左右欄。
+  // ---------- 先定位 4 欄商品區 ----------
+  // MSTAR 截圖左右兩側通常是網頁背景，中間是一個完整的 4 欄遊戲區。
+  // 直接找這個遊戲區的「左外框」與「右外框」，再四等分。
+  // 這比找商品內部的線穩定，因為商品圖、名稱、NEW 標籤都可能產生假分隔線。
   const xVals=[];
-  for(let x=2;x<c.width-2;x++)xVals.push(edgeX(x/sx));
-  const xPeaks=localPeaks(xVals,Math.max(8,Math.round(12/sx)),sx);
+  for(let x=2;x<W-2;x++)xVals.push(verticalScore(x,Math.max(0,H*.015),Math.min(H,H*.94)));
+  const leftBand=Math.max(2,Math.round(W*.00)),leftBandEnd=Math.min(W-2,Math.round(W*.35));
+  const rightBand=Math.max(2,Math.round(W*.65)),rightBandEnd=Math.min(W-2,Math.round(W*.995));
+  let leftEdge=null,rightEdge=null;
+  for(let x=leftBand;x<=leftBandEnd;x++){
+    const v=xVals[x-2]??0;
+    if(!leftEdge||v>leftEdge.v)leftEdge={x,v};
+  }
+  for(let x=rightBand;x<=rightBandEnd;x++){
+    const v=xVals[x-2]??0;
+    if(!rightEdge||v>rightEdge.v)rightEdge={x,v};
+  }
+
   let bestX=null;
-  const minGridW=Math.max(W*.42,4*90),maxGridW=Math.min(W*.78,4*Math.min(W/2,Math.max(130,W/3)));
-  for(const lp of xPeaks){
-    for(const rp of xPeaks){
-      const left=lp.p,right=rp.p,gridW=right-left;
-      if(right<=left||gridW<minGridW||gridW>maxGridW)continue;
-      const cw=gridW/cols;
-      const score=lp.v+rp.v;
-      if(!bestX||score>bestX.score)bestX={x:left,cw,right,score};
-    }
+  if(leftEdge&&rightEdge&&rightEdge.x-leftEdge.x>W*.45&&rightEdge.x-leftEdge.x<W*.92){
+    const width=rightEdge.x-leftEdge.x;
+    bestX={left:leftEdge.x,cw:width/cols,right:rightEdge.x,score:leftEdge.v+rightEdge.v};
   }
+
   if(!bestX){
-    const left=Math.max(0,Math.min(W-4*90,xPeaks[0]?.p||0));
-    const right=Math.min(W,left+4*90);
-    bestX={x:left,cw:(right-left)/cols,right,score:0};
+    // MSTAR 4 欄保底；仍只切欄，不碰整張圖片高度。
+    const cw=Math.max(120,Math.min(W/4,W*.16));
+    const left=Math.max(0,(W-cw*4)/2);
+    bestX={left,cw,right:Math.min(W,left+cw*4),score:0};
   }
 
-  const x0=bestX.x,cw=bestX.cw,x1=Math.min(W,x0+cw*cols);
+  const x0=bestX.left,cw=bestX.cw,x1=Math.min(W,x0+cw*cols);
 
-  // MSTAR 商品卡高度約為欄寬的 1.05～1.35 倍。
-  // 先鎖定最可信的「最後完整列底線」，再往上反推列數與第一列頂線，
-  // 避免把截圖最上方的網頁／查看詳情區誤當成商品列。
+  // ---------- 再定位商品列 ----------
+  // 商品卡列高約為欄寬的 1.05～1.30 倍；只找這個範圍內的連續水平邊界。
   const yVals=[];
-  for(let y=2;y<c.height-2;y++)yVals.push(edgeY(y/sy,x0,x1));
-  const yPeaks=localPeaks(yVals,Math.max(6,Math.round(10/sy)),sy);
-  const ratios=[1.05,1.1,1.15,1.2,1.25,1.3,1.35];
-  const yPeakMax=yPeaks.reduce((m,p)=>Math.max(m,p.v),0);
-  const bottomCandidates=yPeaks
-    .filter(p=>p.p>cw*.8&&p.v>=yPeakMax*.55)
-    .sort((a,b)=>b.p-a.p)
-    .slice(0,8);
+  for(let y=2;y<H-2;y++)yVals.push(horizontalScore(y,x0,x1));
+  const yPeaks=localPeaks(yVals,Math.max(7,Math.round(cw*.045)));
   let bestY=null;
-  for(const bottomPeak of bottomCandidates){
-    const bottom=bottomPeak.p;
-    for(const ratio of ratios){
-      const ch=cw*ratio;
-      const rowsMax=Math.min(12,Math.floor(bottom/ch));
-      for(let rows=1;rows<=rowsMax;rows++){
-        const top=bottom-rows*ch;
-        if(top<0)continue;
-        const topScore=edgeY(top,x0,x1);
-        let inner=0;
-        for(let r=1;r<rows;r++)inner+=edgeY(top+r*ch,x0,x1);
-        const score=bottomPeak.v+topScore+inner*1.12-Math.abs(ratio-1.2)*3;
-        if(!bestY||score>bestY.score)bestY={y:top,ch,rows,score,bottom};
-      }
+  const minRowGap=cw*1.02,maxRowGap=cw*1.30;
+  const expectedRowGap=cw*1.16;
+
+  for(let i=0;i<yPeaks.length;i++){
+    const top=yPeaks[i].p;
+    for(let j=i+1;j<yPeaks.length;j++){
+      const gap=yPeaks[j].p-top;
+      if(gap<minRowGap)continue;
+      if(gap>maxRowGap)break;
+      // MSTAR 的完整商品卡高度約為欄寬 1.16 倍。
+      // 強邊緣可能來自截圖最底部或下一排按鈕，所以不能只看邊緣強度。
+      const score=yPeaks[i].v+yPeaks[j].v-Math.abs(gap-expectedRowGap)*6;
+      if(!bestY||score>bestY.score)bestY={top,gap,score};
     }
   }
+
   if(!bestY){
-    const bottom=yPeaks[0]?.p||H;
-    const ch=cw*1.2;
-    const rows=Math.max(1,Math.floor(bottom/ch));
-    bestY={y:Math.max(0,bottom-rows*ch),ch,rows,score:0,bottom};
+    // 單列截圖：選擇最可信的水平邊界，列高採 MSTAR 固定比例。
+    const topPeak=yPeaks.filter(p=>p.p<H*.90).sort((a,b)=>b.v-a.v)[0];
+    const top=topPeak?.p??Math.max(0,Math.round(H*.07));
+    bestY={top,gap:Math.min(H-top,Math.max(cw*1.08,cw*1.16)),score:topPeak?.v||0};
   }
-  return {cols,rows:bestY.rows,cw,ch:bestY.ch,offset:bestY.y,xOffset:x0,xEnd:x1};
+
+  let firstRow=Math.max(0,Math.round(bestY.top));
+  const ch=Math.max(1,bestY.gap);
+
+  // 若最上方邊界落在上一排按鈕區，往後找一個同樣規格的邊界。
+  // 只有「完整卡片」才建立辨識項目。
+  while(firstRow+ch>H && firstRow>0)firstRow--;
+  const rows=Math.max(1,Math.floor((H-firstRow)/ch));
+
+  return {
+    cols,
+    rows,
+    cw,
+    ch,
+    offset:firstRow,
+    xOffset:x0,
+    xEnd:x1
+  };
 }
 
 function cardLayout(){
