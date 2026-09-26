@@ -469,6 +469,7 @@
 <div style="margin-top:10px;font-weight:800">辨識確認</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
+// OO recognition memory repair 2026-09-26: old-memory/inventory-first, cached index, conservative OCR
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
@@ -914,6 +915,7 @@ $("#is").onclick=async()=>{
     $("#in").value="";$("#iv").value="";$("#iq").value=1;
     const saved=await saveRecognitionFast(a);
     if(!saved)throw new Error("雲端儲存沒有完成，請稍後再試。");
+    resetInventoryFeatureIndex();
     idg.close();
   }catch(err){
     console.error(err);
@@ -1582,27 +1584,40 @@ async function learnedNameFor(image){
 
 // 舊資料的「庫存圖片救援」保留，但只在 OCR 讀不到可靠名稱時才啟動。
 // 這是本版速度提升的關鍵：正常 OCR 成功時，不必掃描所有帳號的所有庫存圖片。
-async function inventoryRescueNameFor(image){
-  const f=await cachedFeatures(image);
-  let best=null;
+async function buildInventoryFeatureIndex(){
+  // 只建立一次舊庫存圖片索引。舊 itemMemory 因裁切版本不同命不中時，
+  // 直接用已確認過的庫存圖片救回名稱；之後辨識都重用索引，不反覆掃全庫存。
+  const rows=[];
   const seen=new Set();
   for(const a of (d.accounts||[])){
     for(const x of (a.items||[])){
-      if(!x?.image||!String(x?.name||"").trim()||x.name==="待確認")continue;
-      const key=x.image+"|"+x.name+"|"+(x.variant||"");
+      const name=String(x?.name||"").trim();
+      if(!x?.image||!name||name==="待確認")continue;
+      const key=x.image+"|"+name+"|"+(x.variant||"");
       if(seen.has(key))continue; seen.add(key);
-      try{
-        const old=await cachedFeatures(x.image);
-        const robust=robustDistance(f.robust,old.robust);
-        const cd=colorDistance(f.color,old.color);
-        const rgb=signatureDistance(f.sig,old.sig);
-        const score=Math.min(rgb,robust/18)+(cd===null?0:cd*3.0);
-        const hit={name:x.name,variant:x.variant||"",fromInventory:true,robustDist:robust,colorDist:cd,score};
-        if(!best||hit.score<best.score)best=hit;
-      }catch(_){ }
+      try{ rows.push({name,variant:x.variant||"",f:await cachedFeatures(x.image)}); }catch(_){ }
     }
   }
-  if(best && best.robustDist<=38 && (best.colorDist===null||best.colorDist<=.30) && best.score<=2.95)return best;
+  return rows;
+}
+function resetInventoryFeatureIndex(){inventoryFeatureIndexPromise=null}
+async function inventoryRescueNameFor(image){
+  const f=await cachedFeatures(image);
+  if(!inventoryFeatureIndexPromise)inventoryFeatureIndexPromise=buildInventoryFeatureIndex();
+  const rows=await inventoryFeatureIndexPromise;
+  let best=null,second=null;
+  for(const x of rows){
+    const robust=robustDistance(f.robust,x.f.robust);
+    const cd=colorDistance(f.color,x.f.color);
+    const rgb=signatureDistance(f.sig,x.f.sig);
+    const score=Math.min(rgb,robust/18)+(cd===null?0:cd*3.0);
+    const hit={name:x.name,variant:x.variant,fromInventory:true,robustDist:robust,colorDist:cd,score};
+    if(!best||score<best.score){second=best;best=hit}else if(!second||score<second.score)second=hit;
+  }
+  // 必須夠像，而且第一名要明顯勝過第二名；避免「有記憶」卻記到別的道具。
+  if(best && best.robustDist<=34 && (best.colorDist===null||best.colorDist<=.26) && best.score<=2.72){
+    if(!second || second.name===best.name || (second.score-best.score)>=.18)return best;
+  }
   return null;
 }
 async function rememberItemName(image,name,variant=""){
@@ -1673,19 +1688,16 @@ async function recognizeImageCards(worker,img){
         if(learned){
           name=learned.name||"";
         }else{
-          // 先用既有庫存圖片救援舊記憶；不要讓 OCR 蓋掉以前已確認過的名稱。
-          try{
-            const rescued=await inventoryRescueNameFor(cardImage);
-            if(rescued){ learned=rescued; name=rescued.name||""; }
-          }catch(_){ }
+          // 舊記憶可能是舊裁切版本：OCR 前先查「已確認庫存圖片」。
+          // 命中就直接用既有名稱，既準確又省掉 OCR。
+          try{ const rescued=await inventoryRescueNameFor(cardImage); if(rescued){name=rescued.name||""; learned=rescued;} }catch(_){ }
           if(!name){
             const bestName=await recognizeBestName(worker,img,col,row,g);
-            confidence=bestName.confidence;
-            const candidate=bestName.text;
-            // OCR 只作提示來源；門檻拉高，避免亂字直接成為正式名稱。
-            if(!ocrLooksBroken(candidate,confidence)&&looksLikeItem(candidate)&&confidence>=82) name=candidate;
-            else name="待確認";
+            name=bestName.text; confidence=bestName.confidence;
+            if(ocrLooksBroken(name,confidence)||!looksLikeItem(name)) name="";
           }
+          // 沒有可靠記憶時不讓 OCR 亂猜低可信結果。
+          if(!name)name="待確認";
         }
         let restriction="";
         const cat=$("#shotCategory")?.value||activeCategory;
@@ -2043,6 +2055,10 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
+
 
 
 
