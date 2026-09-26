@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MSTAR 庫存管理</title>
 <style>
 :root{--bg:#ded0c5;--p:#f1e6dd;--line:#bda493;--text:#3f3029;--muted:#725f55;--a:#9f725c}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(#e4d7cd,#d5c3b6);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{width:100%;max-width:none;margin:0;padding:clamp(10px,1.5vw,20px)}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#d5c0b1;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accountTypeTabs{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 7px;overflow:visible;padding-bottom:0}.accountTypeTab{flex:0 0 auto;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#dfcec1;color:#59463c;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap}.accountTypeTab.active{background:#ad8068;color:#fff8f3;border-color:#946650;box-shadow:none;font-weight:900}.accountSearch{display:flex;gap:6px;margin:7px 0 10px}.accountSearch input{min-width:0;flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.accountSearch .btn{padding:9px 10px}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#ddcbbf;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:#aa7c65;color:#fff9f5;box-shadow:inset 0 0 0 1px #8f624d}.acc.active small{color:#f2e3da}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}.galleryCard{border:1px solid #e1ccbd;border-radius:13px;background:#fff;padding:8px;overflow:hidden}.galleryCard img{width:100%;height:130px;object-fit:contain;border-radius:9px;background:#eee4dc;display:block}.galleryName{font-weight:800;font-size:13px;margin-top:7px;word-break:break-word}.galleryMeta{font-size:11px;color:var(--muted);margin-top:3px}.galleryEmpty{padding:35px;text-align:center;color:var(--muted)}#galleryDlg{width:min(980px,94vw);max-width:94vw;max-height:90vh;padding:0}.galleryBox{padding:16px}.galleryTop{display:flex;justify-content:space-between;align-items:center;gap:10px}.gallerySearch{display:flex;gap:7px;margin-top:10px}.gallerySearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain;background:#e8ddd5}.recFields{display:grid;grid-template-columns:minmax(0,1fr) 90px 64px;gap:6px}.recFields input[type="number"]{text-align:center}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#e4d7cd,#d5c3b6);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{width:100%;max-width:none;margin:0;padding:clamp(10px,1.5vw,20px)}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#d5c0b1;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accountTypeTabs{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 7px;overflow:visible;padding-bottom:0}.accountTypeTab{flex:0 0 auto;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#dfcec1;color:#59463c;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap}.accountTypeTab.active{background:#ad8068;color:#fff8f3;border-color:#946650;box-shadow:none;font-weight:900}.accountSearch{display:flex;gap:6px;margin:7px 0 10px}.accountSearch input{min-width:0;flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.accountSearch .btn{padding:9px 10px}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#ddcbbf;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:#aa7c65;color:#fff9f5;box-shadow:inset 0 0 0 1px #8f624d}.acc.active small{color:#f2e3da}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}.galleryCard{border:1px solid #e1ccbd;border-radius:13px;background:#fff;padding:8px;overflow:hidden}.galleryCard img{width:100%;height:130px;object-fit:contain;border-radius:9px;background:#eee4dc;display:block}.galleryName{font-weight:800;font-size:13px;margin-top:7px;word-break:break-word}.galleryMeta{font-size:11px;color:var(--muted);margin-top:3px}.galleryActions{display:flex;gap:5px;margin-top:7px}.galleryActions .btn{flex:1;padding:6px 7px;font-size:11px}.galleryEmpty{padding:35px;text-align:center;color:var(--muted)}#galleryDlg{width:min(980px,94vw);max-width:94vw;max-height:90vh;padding:0}.galleryBox{padding:16px}.galleryTop{display:flex;justify-content:space-between;align-items:center;gap:10px}.gallerySearch{display:flex;gap:7px;margin-top:10px}.gallerySearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain;background:#e8ddd5}.recFields{display:grid;grid-template-columns:minmax(0,1fr) 90px 64px;gap:6px}.recFields input[type="number"]{text-align:center}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
 @media(max-width:900px){
  .wrap{width:100%;max-width:none;padding:14px}
  .main{grid-template-columns:minmax(220px,30vw) minmax(0,1fr);gap:10px}
@@ -1082,7 +1082,7 @@ function drawRecognized(){
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>{
    const row=recognizedRows[+el.dataset.i];
    if(el.dataset.k==="qty") row.qty=Math.max(1,Math.floor(Number(el.value)||1));
-   else row[el.dataset.k]=el.value;
+   else { row[el.dataset.k]=el.value; row.edited=true; }
  });
  document.querySelectorAll(".removeRec").forEach(b=>b.onclick=()=>{recognizedRows.splice(+b.dataset.i,1);drawRecognized()});
 }
@@ -1281,16 +1281,24 @@ async function learnedNameFor(image){
     }
     if(!Array.isArray(ms)||ms.length!==432)continue;
     const dist=signatureDistance(sig,ms);
-    if(!best||dist<best.dist)best={...m,dist,sig:ms};
+    if(!best||dist<best.dist)best={...m,dist,sig:ms,index:(d.itemMemory||[]).indexOf(m)};
   }
   // 新版區塊簽章對位置/縮放更穩定；先用嚴格門檻，避免把相似商品誤認成同一件。
   if(best&&best.dist<=2.35)return best;
   return null;
 }
-async function rememberItemName(image,name,variant=""){
+async function rememberItemName(image,name,variant="",forceIndex=-1){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
   const sig=await imageSignature(image);
+
+  // 如果使用者在辨識確認畫面手動改過名稱，直接更新「這一筆」記憶。
+  // 這比單純依圖片相似度找最近項目安全，避免錯誤 OCR 把原本正確的圖庫名稱覆蓋掉。
+  if(Number.isInteger(forceIndex)&&forceIndex>=0&&forceIndex<d.itemMemory.length){
+    d.itemMemory[forceIndex]={...d.itemMemory[forceIndex],sig,name,variant,image};
+    return;
+  }
+
   let best=null,idx=-1;
   for(let i=0;i<d.itemMemory.length;i++){
     const m=d.itemMemory[i];
@@ -1303,18 +1311,37 @@ async function rememberItemName(image,name,variant=""){
     if(!best||dist<best.dist){best={...m,dist};idx=i}
   }
   const rec={sig,name,variant,image};
-  // 同一圖片/同一商品只保留一筆；新版區塊簽章允許小幅截圖偏移。
   if(best&&best.dist<=2.35){
-    d.itemMemory[idx]={...d.itemMemory[idx],...rec};
+    // 已經有圖庫記憶時，只更新圖片特徵，不自動改掉已記住的正確名稱。
+    d.itemMemory[idx]={...d.itemMemory[idx],sig,image};
   }else{
     d.itemMemory.push(rec);
   }
 }
+
 function renderGallery(){
   const q=String($("#gallerySearch")?.value||"").trim().toLowerCase();
-  const rows=(d.itemMemory||[]).filter(m=>m?.image&&(!q||[m.name,m.variant].filter(Boolean).join(" ").toLowerCase().includes(q)));
+  const rows=(d.itemMemory||[]).map((m,index)=>({...m,_index:index})).filter(m=>m?.image&&(!q||[m.name,m.variant].filter(Boolean).join(" ").toLowerCase().includes(q)));
   $("#galleryCount").textContent=`(${(d.itemMemory||[]).filter(m=>m?.image).length})`;
-  $("#galleryGrid").innerHTML=rows.length?rows.map(m=>`<div class="galleryCard"><img src="${m.image}" alt=""><div class="galleryName">${e(m.name||"未命名")}</div><div class="galleryMeta">${m.variant?`款式：${e(m.variant)}`:""}</div></div>`).join(""): '<div class="galleryEmpty">目前圖庫還沒有商品圖片。完成一次截圖辨識並確認加入庫存後，圖片會自動記住。</div>';
+  $("#galleryGrid").innerHTML=rows.length?rows.map(m=>`<div class="galleryCard">
+    <img src="${m.image}" alt="">
+    <div class="galleryName">${e(m.name||"未命名")}</div>
+    <div class="galleryMeta">${m.variant?`款式：${e(m.variant)}`:""}</div>
+    <div class="galleryActions"><button class="btn editGallery" data-i="${m._index}" type="button">✏️ 修正名稱</button></div>
+  </div>`).join(""): '<div class="galleryEmpty">目前圖庫還沒有商品圖片。完成一次截圖辨識並確認加入庫存後，圖片會自動記住。</div>';
+  document.querySelectorAll(".editGallery").forEach(btn=>btn.onclick=async()=>{
+    const i=Number(btn.dataset.i),m=d.itemMemory?.[i];
+    if(!m)return;
+    const name=prompt("請輸入正確的商品名稱：",m.name||"");
+    if(name===null)return;
+    const clean=String(name).trim();
+    if(!clean)return alert("商品名稱不能空白。");
+    const variant=prompt("請輸入款式／顏色（沒有可留空）：",m.variant||"");
+    if(variant===null)return;
+    d.itemMemory[i]={...m,name:clean,variant:String(variant).trim()};
+    await save();
+    renderGallery();
+  });
 }
 $("#openGallery").onclick=()=>{renderGallery();$("#galleryDlg").showModal()};
 $("#closeGallery").onclick=()=>$("#galleryDlg").close();
@@ -1396,7 +1423,9 @@ $("#mockRecognize").onclick=async()=>{
           restriction,
           qty:1,
           image:learned?.image||cardImage,
-          learned:!!learned
+          learned:!!learned,
+          memoryIndex:learned?.index??-1,
+          edited:false
         });
       }
     }
@@ -1422,7 +1451,7 @@ $("#confirmRecognized").onclick=async()=>{
   const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
   for(const x of recognizedRows){
     const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
-    await rememberItemName(item.image,item.name,item.variant);
+    await rememberItemName(item.image,item.name,item.variant, x.edited ? Number(x.memoryIndex) : -1);
     const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
     if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
     else a.items.push(item);
@@ -1625,4 +1654,5 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
