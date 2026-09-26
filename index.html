@@ -510,10 +510,12 @@ function naturalAccountCompare(a,b){
 function sortAccountsNaturally(){ d.accounts.sort(naturalAccountCompare); }
 
 function stableMemoryId(m,index=0){
-  const raw=JSON.stringify([m?.sig||[],m?.color||[],m?.robust||[],m?.name||"",m?.variant||"",index]);
+  // ID 不再綁陣列位置，避免每次新增/刪除樣本後整批記憶換 ID。
+  // 同一張圖、同一名稱與款式會穩定落在同一筆 Firestore 文件。
+  const raw=JSON.stringify([m?.sig||[],m?.color||[],m?.robust||[],m?.name||"",m?.variant||""]);
   let h=2166136261;
   for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)}
-  return "m"+(h>>>0).toString(36)+"_"+index;
+  return "m"+(h>>>0).toString(36);
 }
 async function readSplitCloud(){
   const [metaSnap,accountSnap,memorySnap]=await Promise.all([
@@ -576,31 +578,75 @@ async function loadCloud(){
   active=d.accounts[0]?.id||null;
   render();
 }
+async function shrinkStoredImage(dataUrl,maxW=160,maxH=150,quality=.68){
+  if(!dataUrl||!String(dataUrl).startsWith("data:image/"))return dataUrl||"";
+  // 已經很小就不要重壓，避免每次儲存都再次失真。
+  if(dataUrl.length<26000)return dataUrl;
+  try{
+    const img=await loadDataImage(dataUrl);
+    const scale=Math.min(1,maxW/img.naturalWidth,maxH/img.naturalHeight);
+    const c=document.createElement("canvas");
+    c.width=Math.max(1,Math.round(img.naturalWidth*scale));
+    c.height=Math.max(1,Math.round(img.naturalHeight*scale));
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    return c.toDataURL("image/jpeg",quality);
+  }catch(_){return dataUrl}
+}
+async function keepAccountDocSafe(a){
+  a.items=Array.isArray(a.items)?a.items:[];
+  for(const x of a.items){if(x?.image)x.image=await shrinkStoredImage(x.image)}
+  // Firestore 單文件上限 1 MiB。先用保守 780 KB 當警戒值；若仍太大再縮一次。
+  let bytes=new Blob([JSON.stringify(a)]).size;
+  if(bytes>780000){
+    for(const x of a.items){if(x?.image)x.image=await shrinkStoredImage(x.image,110,105,.55)}
+    bytes=new Blob([JSON.stringify(a)]).size;
+  }
+  if(bytes>900000){
+    throw new Error(`帳號 ${a.number||a.name||""} 的資料仍過大（${Math.round(bytes/1024)} KB）。請先刪除不需要的舊圖片後再儲存。`);
+  }
+}
 async function save(){
-  if(!currentUser||!migrationReady)return;
+  if(!currentUser||!migrationReady)return false;
+  if(saving)return false;
   d.updated=new Date().toLocaleString("zh-TW");
   saving=true;
   try{
-    // Accounts are separate documents, so the old 1 MiB main-document limit is gone.
-    const remote=await getDocs(accountCol());
-    const localIds=new Set((d.accounts||[]).map(a=>String(a.id)));
-    const ops=[];
-    remote.docs.forEach(x=>{if(!localIds.has(x.id))ops.push({type:"delete",ref:x.ref})});
-    (d.accounts||[]).forEach(a=>ops.push({type:"set",ref:accountRef(String(a.id)),data:a}));
-    // Recognition memory is also split into separate documents.
+    // 舊版把每個道具縮圖都塞在帳號文件裡，帳號一多就可能再次撞 Firestore 1 MiB。
+    // 儲存前自動縮小「庫存顯示用縮圖」，辨識記憶本身使用特徵值，不受影響。
+    for(const a of (d.accounts||[]))await keepAccountDocSafe(a);
+
+    const remoteAccounts=await getDocs(accountCol());
     const remoteMem=await getDocs(memoryCol());
-    remoteMem.docs.forEach(x=>ops.push({type:"delete",ref:x.ref}));
-    (d.itemMemory||[]).forEach((m,i)=>ops.push({type:"set",ref:memoryRef(stableMemoryId(m,i)),data:m}));
-    ops.push({type:"set",ref:metaRef(),data:{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated}});
-    for(let i=0;i<ops.length;i+=400){
+    const localAccountIds=new Set((d.accounts||[]).map(a=>String(a.id)));
+    const desiredMem=new Map();
+    (d.itemMemory||[]).forEach((m,i)=>desiredMem.set(stableMemoryId(m,i),m));
+
+    // 第一階段只做新增/更新，任何一步失敗都不先刪舊資料，避免「儲存失敗順便把記憶刪掉」。
+    const upserts=[];
+    (d.accounts||[]).forEach(a=>upserts.push({ref:accountRef(String(a.id)),data:a}));
+    desiredMem.forEach((m,id)=>upserts.push({ref:memoryRef(id),data:m}));
+    upserts.push({ref:metaRef(),data:{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated}});
+    for(let i=0;i<upserts.length;i+=350){
       const batch=writeBatch(db);
-      ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
+      upserts.slice(i,i+350).forEach(op=>batch.set(op.ref,op.data));
+      await batch.commit();
+    }
+
+    // 第二階段：新資料全部成功後，才清掉真正已不存在的舊文件。
+    const deletes=[];
+    remoteAccounts.docs.forEach(x=>{if(!localAccountIds.has(x.id))deletes.push(x.ref)});
+    remoteMem.docs.forEach(x=>{if(!desiredMem.has(x.id))deletes.push(x.ref)});
+    for(let i=0;i<deletes.length;i+=350){
+      const batch=writeBatch(db);
+      deletes.slice(i,i+350).forEach(ref=>batch.delete(ref));
       await batch.commit();
     }
     render();
+    return true;
   }catch(err){
     console.error(err);
-    alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
+    alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\\n"+(err?.message||String(err)));
+    return false;
   }finally{saving=false}
 }
 function migrateCategories(){
@@ -1180,7 +1226,7 @@ function cardCrop(img,col,row,g){
   // 縮圖保留完整道具展示區與遊戲內名稱，讓庫存小圖本身也看得出道具名稱。
   // 最下面的「查看詳情」/刪除按鈕仍排除；圖片比對會在 imageSignature() 內只取 artwork 區，不受名稱影響。
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
-  return cropRect(img,x+g.cw*L.picX,y+g.ch*L.picY,g.cw*L.picW,g.ch*L.picH,.98);
+  return cropRect(img,x+g.cw*L.picX,y+g.ch*L.picY,g.cw*L.picW,g.ch*L.picH,.82);
 }
 function cardNameCrop(img,col,row,g){
   const L=cardLayout(),x=col*g.cw,y=row*g.ch;
@@ -1460,8 +1506,8 @@ $("#mockRecognize").onclick=async()=>{
         }catch(_){}
 
         // Split the common "道具名稱-顏色" format.
-        let itemName=name,variant="";
-        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+        let itemName=name||"待確認",variant="";
+        const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
         if(m){itemName=m[1].trim();variant=m[2].trim()}
 
         if(learned){
@@ -1498,7 +1544,10 @@ $("#confirmRecognized").onclick=async()=>{
   const a=cur(); if(!a||!recognizedRows.length)return;
   const cat=$("#shotCategory").value||"家具";
   const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
+  const bad=recognizedRows.find(x=>!String(x.name||"").trim()||String(x.name||"").trim()==="待確認");
+  if(bad)return alert("還有道具名稱是「待確認」，請先輸入正確名稱；確認後才會建立辨識記憶。");
   for(const x of recognizedRows){
+    x.name=String(x.name||"").trim(); x.variant=String(x.variant||"").trim();
     const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
     await rememberItemName(item.image,item.name,item.variant);
     const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
@@ -1507,7 +1556,9 @@ $("#confirmRecognized").onclick=async()=>{
   }
   activeCategory=cat; activeGender=gen; activeCandy="";
   const tempSource=recognizingTempShot;
-  shotDlg.close(); await save();
+  const saved=await save();
+  if(!saved)return;
+  shotDlg.close();
   if(tempSource){
     recognizingTempShot=null;
     if(confirm("已加入庫存。\n\n要把這張臨時截圖刪掉嗎？")){
@@ -1692,5 +1743,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
 
