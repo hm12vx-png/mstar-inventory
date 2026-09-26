@@ -1287,65 +1287,80 @@ function gridLineScore(ctx,pos,vertical,W,H){
 }
 
 function inferCardGrid(img){
-  // FINAL GRID ENGINE v6
-  // 不直接把整張圖片硬切成固定 4x4。先依 MSTAR 卡片比例，再用真正的格線/間隔證據決定欄列。
-  // 原始圖片本身永遠不會被修改；只有辨識時建立獨立的卡片視圖。
+  // FINAL GRID ENGINE v7
+  // 不再用固定卡片寬高比例限制候選格數。MSTAR 不同截圖尺寸/縮放比例會改變，
+  // 真正可靠的是「重複出現的垂直/水平分隔線」。
   const W=img.naturalWidth,H=img.naturalHeight;
-  const baseRatio=123/144;
   const c=document.createElement("canvas");
-  const scale=Math.min(1,900/W,900/H); c.width=Math.max(1,Math.round(W*scale)); c.height=Math.max(1,Math.round(H*scale));
+  const scale=Math.min(1,1000/W,1000/H);
+  c.width=Math.max(1,Math.round(W*scale)); c.height=Math.max(1,Math.round(H*scale));
   const ctx=c.getContext("2d",{willReadFrequently:true}); ctx.drawImage(img,0,0,c.width,c.height);
   const w=c.width,h=c.height;
-  function lineScore(pos,vertical){
-    const span=vertical?h:w, center=vertical?pos:w?pos:0, band=2, n=60;
-    let edge=0,uniform=0;
-    for(let i=0;i<n;i++){
-      const t=(i+.12)/n;
-      const x=vertical?Math.max(2,Math.min(w-3,Math.round(center))):Math.max(2,Math.min(w-3,Math.round(t*w)));
-      const y=vertical?Math.max(2,Math.min(h-3,Math.round(t*h))):Math.max(2,Math.min(h-3,Math.round(center)));
-      const a=ctx.getImageData(vertical?x-band:x,vertical?y:y-band,1,1).data;
-      const b=ctx.getImageData(vertical?x+band:x,vertical?y:y+band,1,1).data;
-      edge+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
-    }
-    return edge/n;
+
+  function edgeAt(x,y,vertical){
+    const band=2;
+    const a=ctx.getImageData(Math.max(0,Math.min(w-1,x+(vertical?-band:0))),Math.max(0,Math.min(h-1,y+(vertical?0:-band))),1,1).data;
+    const b=ctx.getImageData(Math.max(0,Math.min(w-1,x+(vertical?band:0))),Math.max(0,Math.min(h-1,y+(vertical?0:band))),1,1).data;
+    return (Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
   }
-  function bestBoundary(expected,vertical){
-    const span=vertical?w:h;
-    const delta=Math.max(4,Math.round(span*.025));
-    let best={score:-1,pos:expected};
-    for(let d=-delta;d<=delta;d+=2){
-      const pos=Math.max(3,Math.min(span-3,expected+d));
-      const score=lineScore(pos,vertical);
-      if(score>best.score)best={score,pos};
+  function boundaryScore(pos,vertical){
+    const n=80; let total=0, strong=0;
+    for(let i=2;i<n-2;i++){
+      const t=i/(n-1);
+      const x=vertical?Math.round(pos):Math.round(t*w);
+      const y=vertical?Math.round(t*h):Math.round(pos);
+      const v=edgeAt(x,y,vertical);
+      total+=v; if(v>24)strong++;
     }
-    return best;
+    return total/(n-4) + strong/(n-4)*12;
   }
+  function occupancy(cols,rows){
+    let valid=0, nonEmpty=0;
+    const cw=w/cols,ch=h/rows;
+    const c2=document.createElement("canvas");c2.width=24;c2.height=24;
+    const q=c2.getContext("2d",{willReadFrequently:true});
+    for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){
+      const sx=col*cw+cw*.08,sy=r*ch+ch*.08,sw=cw*.84,sh=ch*.70;
+      q.clearRect(0,0,24,24);q.drawImage(c,sx,sy,sw,sh,0,0,24,24);
+      const p=q.getImageData(0,0,24,24).data;let sum=0,sum2=0,edge=0,n=0;
+      for(let i=0;i<p.length;i+=16){const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];sum+=v;sum2+=v*v;n++}
+      const mean=sum/n,variance=Math.max(0,sum2/n-mean*mean);
+      // 商品可能很暗，所以亮度不是必要條件；只要有色彩/紋理變化即可視為有內容。
+      if(mean>22 || variance>65)nonEmpty++;
+      valid++;
+    }
+    return valid?nonEmpty/valid:0;
+  }
+
   const candidates=[];
-  for(let cols=1;cols<=6;cols++){
+  for(let cols=1;cols<=8;cols++){
     for(let rows=1;rows<=12;rows++){
-      const cw=w/cols,ch=h/rows,ratio=cw/ch;
-      if(ratio<.68||ratio>1.08)continue;
-      if(cw<70||ch<80)continue;
-      const ratioErr=Math.abs(Math.log(ratio/baseRatio));
-      // 卡片尺寸只作弱限制，避免 2x 縮放與 1x 縮放造成錯判。
-      const sizePenalty=(Math.abs(cw-123)/123+Math.abs(ch-144)/144)*.12;
-      let evidence=0;
-      for(let x=1;x<cols;x++) evidence+=Math.max(0,(bestBoundary(x*w/cols,true).score-10)/25);
-      for(let y=1;y<rows;y++) evidence+=Math.max(0,(bestBoundary(y*h/rows,false).score-10)/25);
-      const boundaryCount=(cols-1)+(rows-1);
-      // 多格方案只有在真的找到更多分隔證據時才獲得額外加分，避免亂切。
-      const evidenceBonus=boundaryCount?evidence/(boundaryCount):0;
-      const score=ratioErr*6+sizePenalty-evidenceBonus*.9-(evidence>0?Math.min(evidence,.8)*.12:0);
-      candidates.push({cols,rows,cw:W/cols,ch:H/rows,score,evidence});
+      const cw=w/cols,ch=h/rows;
+      if(cw<65||ch<65)continue;
+      let vb=0,hb=0;
+      for(let x=1;x<cols;x++) vb+=boundaryScore(x*w/cols,true);
+      for(let y=1;y<rows;y++) hb+=boundaryScore(y*h/rows,false);
+      const vAvg=cols>1?vb/(cols-1):0;
+      const hAvg=rows>1?hb/(rows-1):0;
+      const occ=occupancy(cols,rows);
+      const boundaries=(cols-1)+(rows-1);
+      // 真正的格線通常同時具備：多條一致的分隔線 + 多數格子有內容。
+      // 不讓「1x1 整張圖」因為沒有分隔線而取得優勢。
+      const lineStrength=(vAvg+hAvg)/2;
+      const evidence=(vAvg*(cols-1)+hAvg*(rows-1));
+      const complexityPenalty=Math.max(0,boundaries-1)*1.2;
+      const score=evidence*1.25 + occ*18 + boundaries*3 - complexityPenalty - Math.abs(occ-.85)*4;
+      candidates.push({cols,rows,cw:W/cols,ch:H/rows,score,evidence,occ,vAvg,hAvg});
     }
   }
-  candidates.sort((a,b)=>a.score-b.score);
-  const best=candidates[0]||{cols:1,rows:1,cw:W,ch:H,score:99,evidence:0};
-  // 若第二名幾乎同分，優先選擇「實際分隔線較多」的方案，而不是較少格的方案。
-  const tied=candidates.filter(x=>x.score<=best.score+.08);
-  if(tied.length>1){
-    tied.sort((a,b)=>b.evidence-a.evidence || (b.cols*b.rows)-(a.cols*a.rows));
-    return tied[0];
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0]||{cols:1,rows:1,cw:W,ch:H,score:0,evidence:0,occ:1};
+  // 若候選過度切割，選擇下一個具有明顯格線證據的方案。
+  const acceptable=candidates.filter(x=>x.occ>=.35 && x.evidence>Math.max(8,best.evidence*.42));
+  if(acceptable.length){
+    acceptable.sort((a,b)=>b.score-a.score);
+    const top=acceptable[0];
+    if(top.cols*top.rows>best.cols*best.rows && top.evidence>best.evidence*1.12)return top;
   }
   return best;
 }
@@ -1630,46 +1645,71 @@ function looksLikeItem(text){
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
 async function recognizeImageCards(worker,img){
-  const g=inferCardGrid(img);
-  const found=[];
-  for(let row=0;row<g.rows;row++){
-    for(let col=0;col<g.cols;col++){
-      if(cellLooksEmpty(img,col,row,g)) continue;
-      const cardImage=cardCrop(img,col,row,g);
-      let learned=null,name="",confidence=0;
-      try{ learned=await learnedNameFor(cardImage); }catch(_){ learned=null; }
-      if(learned){
-        name=learned.name||"";
-      }else{
-        const bestName=await recognizeBestName(worker,img,col,row,g);
-        name=bestName.text; confidence=bestName.confidence;
-        if(ocrLooksBroken(name,confidence)||!looksLikeItem(name)) name="";
-        if(!name){
-          try{ const rescued=await inventoryRescueNameFor(cardImage); if(rescued)name=rescued.name||""; }catch(_){ }
+  async function runGrid(g){
+    const found=[];
+    for(let row=0;row<g.rows;row++){
+      for(let col=0;col<g.cols;col++){
+        if(cellLooksEmpty(img,col,row,g)) continue;
+        const cardImage=cardCrop(img,col,row,g);
+        let learned=null,name="",confidence=0;
+        try{ learned=await learnedNameFor(cardImage); }catch(_){ learned=null; }
+        if(learned){
+          name=learned.name||"";
+        }else{
+          const bestName=await recognizeBestName(worker,img,col,row,g);
+          name=bestName.text; confidence=bestName.confidence;
+          if(ocrLooksBroken(name,confidence)||!looksLikeItem(name)) name="";
+          if(!name){
+            try{ const rescued=await inventoryRescueNameFor(cardImage); if(rescued)name=rescued.name||""; }catch(_){ }
+          }
         }
-      }
-      // 限制文字只在需要時辨識，避免每個普通家具都多跑一次 OCR。
-      let restriction="";
-      const cat=$("#shotCategory")?.value||activeCategory;
-      if(cat==="戒指"||cat==="作物"){
-        try{
-          const rr=await worker.recognize(cardRestrictionCrop(img,col,row,g));
-          const rt=String(rr?.data?.text||"");
-          if(/限男/.test(rt))restriction="限男"; else if(/限女/.test(rt))restriction="限女"; else if(/無限制/.test(rt))restriction="無限制";
-        }catch(_){ }
-      }
-      let itemName=name||"",variant="";
-      const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
-      if(m){itemName=m[1].trim();variant=m[2].trim()}
-      if(learned){itemName=learned.name;if(learned.variant)variant=learned.variant}
-      // 只有「有名稱」或「確定不是空白格」才加入；空白格不會製造待確認項目。
-      if(itemName||!cellLooksEmpty(img,col,row,g)){
+        let restriction="";
+        const cat=$("#shotCategory")?.value||activeCategory;
+        if(cat==="戒指"||cat==="作物"){
+          try{
+            const rr=await worker.recognize(cardRestrictionCrop(img,col,row,g));
+            const rt=String(rr?.data?.text||"");
+            if(/限男/.test(rt))restriction="限男"; else if(/限女/.test(rt))restriction="限女"; else if(/無限制/.test(rt))restriction="無限制";
+          }catch(_){ }
+        }
+        let itemName=name||"",variant="";
+        const m=String(name||"").match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+        if(m){itemName=m[1].trim();variant=m[2].trim()}
+        if(learned){itemName=learned.name;if(learned.variant)variant=learned.variant}
         found.push({name:itemName,variant,originalName:itemName,originalVariant:variant,restriction,qty:1,image:cardImage,learned:!!learned});
       }
+    }
+    return found;
+  }
+
+  const g=inferCardGrid(img);
+  let found=await runGrid(g);
+
+  // 多圖批次中最常見的錯誤是某張截圖的比例不同，導致自動格線選錯。
+  // 若結果數量明顯不足，立刻用幾個常見 MSTAR 格式做一次低成本重試，
+  // 不修改原圖，也不改已經正確辨識的圖片。
+  const totalCells=g.cols*g.rows;
+  const suspicious=found.length===0 || (totalCells>=4 && found.length<Math.max(2,Math.floor(totalCells*.45)));
+  if(suspicious){
+    const W=img.naturalWidth,H=img.naturalHeight;
+    const common=[];
+    for(const cols of [2,3,4,5]){
+      const rows=Math.max(1,Math.round((H/W)*cols));
+      if(rows>=1&&rows<=10)common.push({cols,rows,cw:W/cols,ch:H/rows});
+    }
+    // 也嘗試由常見的 4 欄固定版型直接估算列數。
+    const rows4=Math.max(1,Math.round(H/(W/4)));
+    common.push({cols:4,rows:rows4,cw:W/4,ch:H/rows4});
+    const seen=new Set();
+    for(const cg of common){
+      const key=`${cg.cols}x${cg.rows}`; if(seen.has(key))continue; seen.add(key);
+      const alt=await runGrid(cg);
+      if(alt.length>found.length)found=alt;
     }
   }
   return found;
 }
+
 
 $("#mockRecognize").onclick=async()=>{
   if(!shotQueue.length){
