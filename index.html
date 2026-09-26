@@ -1533,8 +1533,10 @@ function hammingDistance(a,b){
 }
 function robustDistance(a,b){
   if(!Array.isArray(a)||!Array.isArray(b))return 999;
+  // 相容舊版 robustSig（一維）與新版 robust（多樣本二維）。
+  const aa=Array.isArray(a[0])?a:[a], bb=Array.isArray(b[0])?b:[b];
   let best=999;
-  for(const x of a)for(const y of b)best=Math.min(best,hammingDistance(x,y));
+  for(const x of aa)for(const y of bb)best=Math.min(best,hammingDistance(x,y));
   return best;
 }
 function colorDistance(a,b){
@@ -1552,10 +1554,13 @@ async function cachedFeatures(image){
 }
 function matchFeature(f,m){
   if(!m)return null;
-  const shape=Array.isArray(m.sig)?signatureDistance(f.sig,m.sig):999;
-  const robust=Array.isArray(m.robust)?robustDistance(f.robust,m.robust):999;
-  const cd=colorDistance(f.color,m.color);
-  // 新式記憶可走 RGB；新版之後另存 robust，可容忍縮放/裁切差異。
+  // 舊 V2/V3/V4 記憶欄位也直接讀，不能因新版改欄位就像「失憶」。
+  const oldSig=Array.isArray(m.sig)?m.sig:(Array.isArray(m.shapeSig)?m.shapeSig:null);
+  const oldRobust=Array.isArray(m.robust)?m.robust:(Array.isArray(m.robustSig)?m.robustSig:null);
+  const oldColor=Array.isArray(m.color)?m.color:(Array.isArray(m.colorSig)?m.colorSig:null);
+  const shape=oldSig?signatureDistance(f.sig,oldSig):999;
+  const robust=oldRobust?robustDistance(f.robust,oldRobust):999;
+  const cd=colorDistance(f.color,oldColor);
   const visual=Math.min(shape,robust<999?robust/18:999);
   const score=visual+(cd===null?0:cd*3.2);
   return {...m,shape,robustDist:robust,colorDist:cd,score};
@@ -1668,11 +1673,18 @@ async function recognizeImageCards(worker,img){
         if(learned){
           name=learned.name||"";
         }else{
-          const bestName=await recognizeBestName(worker,img,col,row,g);
-          name=bestName.text; confidence=bestName.confidence;
-          if(ocrLooksBroken(name,confidence)||!looksLikeItem(name)) name="";
+          // 先用既有庫存圖片救援舊記憶；不要讓 OCR 蓋掉以前已確認過的名稱。
+          try{
+            const rescued=await inventoryRescueNameFor(cardImage);
+            if(rescued){ learned=rescued; name=rescued.name||""; }
+          }catch(_){ }
           if(!name){
-            try{ const rescued=await inventoryRescueNameFor(cardImage); if(rescued)name=rescued.name||""; }catch(_){ }
+            const bestName=await recognizeBestName(worker,img,col,row,g);
+            confidence=bestName.confidence;
+            const candidate=bestName.text;
+            // OCR 只作提示來源；門檻拉高，避免亂字直接成為正式名稱。
+            if(!ocrLooksBroken(candidate,confidence)&&looksLikeItem(candidate)&&confidence>=82) name=candidate;
+            else name="待確認";
           }
         }
         let restriction="";
@@ -2031,7 +2043,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
 
 
