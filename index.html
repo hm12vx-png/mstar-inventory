@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MSTAR 庫存管理</title>
 <style>
 :root{--bg:#ded0c5;--p:#f1e6dd;--line:#bda493;--text:#3f3029;--muted:#725f55;--a:#9f725c}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(#e4d7cd,#d5c3b6);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{width:100%;max-width:none;margin:0;padding:clamp(10px,1.5vw,20px)}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#d5c0b1;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accountTypeTabs{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 7px;overflow:visible;padding-bottom:0}.accountTypeTab{flex:0 0 auto;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#dfcec1;color:#59463c;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap}.accountTypeTab.active{background:#ad8068;color:#fff8f3;border-color:#946650;box-shadow:none;font-weight:900}.accountSearch{display:flex;gap:6px;margin:7px 0 10px}.accountSearch input{min-width:0;flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.accountSearch .btn{padding:9px 10px}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#ddcbbf;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:#aa7c65;color:#fff9f5;box-shadow:inset 0 0 0 1px #8f624d}.acc.active small{color:#f2e3da}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain;background:#e8ddd5}.recFields{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:6px}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#e4d7cd,#d5c3b6);color:var(--text);font-family:system-ui,"Microsoft JhengHei",sans-serif}button,input{font:inherit}.wrap{width:100%;max-width:none;margin:0;padding:clamp(10px,1.5vw,20px)}h1{margin:0;font-size:25px}header p{margin:5px 0 18px;color:var(--muted)}.box,.panel,.stat{background:var(--p);border:1px solid var(--line);border-radius:20px}.box{padding:17px}.search{display:flex;gap:9px}.search input{flex:1;padding:13px;border:1px solid var(--line);border-radius:13px}.btn{border:0;border-radius:12px;padding:11px 14px;background:#d5c0b1;color:var(--text);font-weight:700;cursor:pointer}.primary{background:var(--a);color:#fff}.danger{background:#efd6d3;color:#914f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.stat{padding:14px}.stat small{color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:4px}.main{display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px}.panel{padding:15px}.head{display:flex;justify-content:space-between;align-items:center}.accountTypeTabs{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 7px;overflow:visible;padding-bottom:0}.accountTypeTab{flex:0 0 auto;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#dfcec1;color:#59463c;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap}.accountTypeTab.active{background:#ad8068;color:#fff8f3;border-color:#946650;box-shadow:none;font-weight:900}.accountSearch{display:flex;gap:6px;margin:7px 0 10px}.accountSearch input{min-width:0;flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.accountSearch .btn{padding:9px 10px}.accounts{display:flex;flex-direction:column;gap:7px}.acc{padding:10px;border-radius:11px;background:#ddcbbf;cursor:pointer;display:flex;justify-content:space-between}.acc.active{background:#aa7c65;color:#fff9f5;box-shadow:inset 0 0 0 1px #8f624d}.acc.active small{color:#f2e3da}.acc[draggable="true"]{user-select:none}.acc.dragging{opacity:.45}.dragHandle{cursor:grab;font-size:18px;padding-left:6px}.toolbar{display:flex;gap:7px;flex-wrap:wrap}.genderTabs{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0 0}.genderTab.active,.candyTab.active{background:var(--a);color:#fff}.categoryTabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.catTab{padding:8px 12px}.catTab.active{background:var(--a);color:#fff}.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.item{border:1px solid #e1ccbd;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center}.thumb{width:58px;height:58px;border-radius:11px;background:#eadfd7;display:grid;place-items:center;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.recCard{display:grid;grid-template-columns:112px 1fr 46px;gap:8px;align-items:center;margin:8px 0;padding:8px;border:1px solid #e1ccbd;border-radius:13px;background:#fff}.recPic{width:112px;height:102px;border-radius:10px;object-fit:contain!important;background:#e8ddd5;display:block}.recFields{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:6px}.cropNote{font-size:11px;color:var(--muted);margin-top:3px}.item h3{font-size:14px;margin:0 0 4px}.meta{font-size:12px;color:var(--muted)}.qty{font-size:19px;font-weight:800;color:#986650}.itemActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.mini{border:0;border-radius:8px;padding:5px 7px;cursor:pointer;background:#eadbd0;color:#6b5145;font-size:11px}.mini.del{background:#f2dcda;color:#984f4b}.empty{padding:35px 8px;text-align:center;color:var(--muted)}#results{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}.row{display:flex;justify-content:space-between;padding:7px 2px}.total{font-weight:800;color:#986650;margin-top:8px}dialog{width:min(430px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--p);padding:20px;color:var(--text)}dialog::backdrop{background:#3c2c2866}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px}.actions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}.note{font-size:12px;color:var(--muted);margin-top:15px}
 @media(max-width:900px){
  .wrap{width:100%;max-width:none;padding:14px}
  .main{grid-template-columns:minmax(220px,30vw) minmax(0,1fr);gap:10px}
@@ -1287,92 +1287,108 @@ function gridLineScore(ctx,pos,vertical,W,H){
 }
 
 function inferCardGrid(img){
-  // MSTAR 道具截圖固定以 4 欄卡片為主要版型。
-  // 舊版會讓「商品本身的邊緣」被誤判成格線，導致 4 欄被切成 8 欄，
-  // 最後辨識縮圖只剩半個商品。這裡改成「先固定 4 欄，再只判斷列數」。
-  // 任何情況都不再自動把一張完整卡片切成更多欄。
+  // MSTAR 截圖：固定 4 欄，但「列」不能再用整張圖片平均切割。
+  // 截圖上方常常有查看詳情／標題區，直接 H / rows 會讓每張商品圖上下錯位，
+  // 最後就會出現「只剩商品中間一截」的情況。
+  // 這裡改成：4 欄固定 + 自動尋找「完整卡片高度」+ 自動尋找第一張卡片的 Y 起點。
   const W=img.naturalWidth,H=img.naturalHeight;
   const cols=4;
+  const cw=W/cols;
   const c=document.createElement("canvas");
   const scale=Math.min(1,1000/W,1000/H);
   c.width=Math.max(1,Math.round(W*scale));
   c.height=Math.max(1,Math.round(H*scale));
   const ctx=c.getContext("2d",{willReadFrequently:true});
   ctx.drawImage(img,0,0,c.width,c.height);
-  const w=c.width,h=c.height;
+  const sw=c.width/W, sh=c.height/H;
 
-  function edgeAt(x,y,vertical){
-    const band=2;
-    const x1=Math.max(0,Math.min(w-1,x+(vertical?-band:0)));
-    const y1=Math.max(0,Math.min(h-1,y+(vertical?0:-band)));
-    const x2=Math.max(0,Math.min(w-1,x+(vertical?band:0)));
-    const y2=Math.max(0,Math.min(h-1,y+(vertical?0:band)));
-    const a=ctx.getImageData(x1,y1,1,1).data;
-    const b=ctx.getImageData(x2,y2,1,1).data;
-    return (Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
-  }
-
-  function horizontalBoundaryScore(pos){
+  function boundaryScoreY(y){
+    // 真正卡片上下邊界會跨過 4 欄；商品本身的邊緣通常只存在局部。
+    const yy=Math.max(2,Math.min(c.height-3,Math.round(y*sh)));
     let total=0,strong=0,n=0;
-    // 分隔線應該橫跨大部分欄位；商品圖內的水平邊緣只會出現在局部。
     for(let col=0;col<cols;col++){
-      const x0=Math.round((col+.12)*w/cols);
-      const x1=Math.round((col+.88)*w/cols);
-      for(let x=x0;x<=x1;x+=Math.max(3,Math.round(w/180))){
-        const v=edgeAt(x,Math.round(pos),false);
-        total+=v;n++;if(v>28)strong++;
+      const x0=Math.round((col+.06)*c.width/cols);
+      const x1=Math.round((col+.94)*c.width/cols);
+      const step=Math.max(3,Math.round(c.width/220));
+      for(let x=x0;x<=x1;x+=step){
+        const a=ctx.getImageData(x,Math.max(0,yy-2),1,1).data;
+        const b=ctx.getImageData(x,Math.min(c.height-1,yy+2),1,1).data;
+        const v=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
+        total+=v;n++;if(v>25)strong++;
       }
     }
-    return n?total/n + strong/n*10:0;
+    return n ? total/n + strong/n*12 : 0;
   }
 
-  function rowOccupancy(rows){
-    let nonEmpty=0,total=0;
-    const cw=w/cols,ch=h/rows;
+  function interiorScore(y0,y1){
+    // 完整商品卡的內部應有大量非背景像素；避免選到單純空白區。
+    const sy=Math.max(0,Math.round(y0*sh));
+    const ey=Math.min(c.height-1,Math.round(y1*sh));
+    if(ey<=sy+5)return 0;
+    let score=0,n=0;
     const q=document.createElement("canvas");q.width=24;q.height=24;
     const qx=q.getContext("2d",{willReadFrequently:true});
-    for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){
-      const sx=col*cw+cw*.08,sy=r*ch+ch*.08,sw=cw*.84,sh=ch*.78;
-      qx.clearRect(0,0,24,24);qx.drawImage(c,sx,sy,sw,sh,0,0,24,24);
+    for(let col=0;col<cols;col++){
+      const sx=Math.round((col+.08)*c.width/cols);
+      const ex=Math.round((col+.92)*c.width/cols);
+      const ww=Math.max(1,ex-sx),hh=Math.max(1,ey-sy);
+      qx.clearRect(0,0,24,24);qx.drawImage(c,sx,sy,ww,hh,0,0,24,24);
       const p=qx.getImageData(0,0,24,24).data;
-      let sum=0,sum2=0,n=0;
+      let non=0,total=0;
       for(let i=0;i<p.length;i+=16){
-        const v=.299*p[i]+.587*p[i+1]+.114*p[i+2];
-        sum+=v;sum2+=v*v;n++;
+        const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];
+        if(lum>25)non++;
+        total++;
       }
-      const mean=sum/n,variance=Math.max(0,sum2/n-mean*mean);
-      if(mean>22||variance>65)nonEmpty++;
-      total++;
+      score+=total?non/total:0;n++;
     }
-    return total?nonEmpty/total:0;
+    return n?score/n:0;
   }
 
   const candidates=[];
-  for(let rows=1;rows<=10;rows++){
-    const cw=w/cols,ch=h/rows;
-    if(cw<90||ch<70)continue;
-    let separators=0;
-    for(let r=1;r<rows;r++)separators+=horizontalBoundaryScore(r*h/rows);
-    const sepAvg=rows>1?separators/(rows-1):0;
-    const occ=rowOccupancy(rows);
-    // MSTAR 卡片通常接近寬:高 = 1.2~1.5；加入輕微偏好，避免切成過多矮列。
-    const ratio=cw/ch;
-    const ratioPenalty=Math.min(24,Math.abs(ratio-1.35)*18);
-    const score=sepAvg*(rows-1)*1.8 + occ*20 - ratioPenalty - Math.max(0,rows-2)*1.5;
-    candidates.push({cols,rows,cw:W/cols,ch:H/rows,score,occ,sepAvg});
+  // MSTAR 常見卡片高寬比約 0.65~0.95；寧可留白，也絕不把卡片切短。
+  const ratios=[1.05,1.10,1.15,1.20,1.25,1.30,1.35,1.40,1.45,1.50];
+  for(const ratio of ratios){
+    const ch=cw/ratio;
+    if(ch<90)continue;
+    const maxRows=Math.min(12,Math.ceil(H/ch));
+    for(let rows=Math.max(1,maxRows-1);rows<=maxRows;rows++){
+      if(rows<1)continue;
+      // 第一列上方可能存在頁首／查看詳情；掃描起點，而不是強迫 y=0。
+      const maxOffset=Math.min(H-ch,Math.round(ch*.55));
+      const step=Math.max(3,Math.round(ch*.035));
+      for(let offset=0;offset<=maxOffset;offset+=step){
+        const last=offset+(rows-1)*ch;
+        if(last+ch>H+ch*.18)continue;
+        let sep=0,count=0;
+        for(let r=1;r<rows;r++){
+          const y=offset+r*ch;
+          sep+=boundaryScoreY(y);count++;
+        }
+        const sepAvg=count?sep/count:boundaryScoreY(offset)+boundaryScoreY(Math.min(H-1,offset+ch));
+        let inside=0,insideN=0;
+        for(let r=0;r<rows;r++){
+          const y0=offset+r*ch+ch*.05;
+          const y1=Math.min(H,offset+(r+1)*ch-ch*.05);
+          inside+=interiorScore(y0,y1);insideN++;
+        }
+        const occ=insideN?inside/insideN:0;
+        // 分隔線最重要；其次是完整卡片內部有內容；避免卡片高度過小。
+        const score=sepAvg*2.2+occ*24-Math.abs(ratio-1.2)*4-(rows>1?0:5);
+        candidates.push({cols,rows,cw,ch,offset,score,sepAvg,occ});
+      }
+    }
   }
 
   candidates.sort((a,b)=>b.score-a.score);
-  const best=candidates[0]||{cols:4,rows:Math.max(1,Math.round(H/(W/4/1.35))),cw:W/4,ch:H/Math.max(1,Math.round(H/(W/4/1.35)))};
+  const best=candidates[0];
+  if(best)return best;
 
-  // 若最佳列數沒有明顯分隔線證據，優先使用卡片合理比例，
-  // 仍然維持 4 欄，絕不把原本一張卡再切成 2 張以上。
-  if(best.rows>1 && best.sepAvg<10){
-    const expected=Math.max(1,Math.round(H/(W/4/1.35)));
-    const safe=candidates.find(x=>x.rows===expected);
-    if(safe)return safe;
-  }
-  return best;
+  // 最後保底：仍然固定 4 欄，不再嘗試 2/3/5 欄。
+  const ch=cw/1.2;
+  const rows=Math.max(1,Math.floor(H/ch));
+  const offset=Math.max(0,Math.min(H-ch*rows,Math.round((H-ch*rows)/2)));
+  return {cols,rows,cw,ch,offset,score:0,sepAvg:0,occ:0};
 }
 
 function cardLayout(){
@@ -1389,7 +1405,7 @@ function cardLayout(){
 function cellLooksEmpty(img,col,row,g){
   // 不再因為「黑色/低亮度商品」而漏掉整個商品格。
   // 只有幾乎全黑且幾乎沒有細節的真正空白格才跳過。
-  const x=col*g.cw+g.cw*.03,y=row*g.ch+g.ch*.03,sw=g.cw*.94,sh=g.ch*.82;
+  const x=col*g.cw+g.cw*.03,y=(g.offset||0)+row*g.ch+g.ch*.03,sw=g.cw*.94,sh=g.ch*.82;
   const c=document.createElement("canvas");c.width=28;c.height=28;
   const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,x,y,sw,sh,0,0,28,28);
   const p=ctx.getImageData(0,0,28,28).data;let sum=0,sum2=0,n=0;
@@ -1404,21 +1420,25 @@ function cropRect(img,sx,sy,sw,sh,quality=.9){
   return c.toDataURL("image/jpeg",quality);
 }
 function cardCrop(img,col,row,g){
-  // 辨識縮圖直接使用「完整卡片格」，不再做任何比例裁切或縮小範圍。
-  // 這樣即使商品圖位置、大小、NEW 標籤或名稱區略有變，也不會只留下商品的一角。
-  return cropRect(img,col*g.cw,row*g.ch,g.cw,g.ch,.92);
+  // 完整卡片：包含商品圖、NEW 標籤、限制／數量與遊戲內名稱。
+  // 絕不從卡片四周再縮掉任何像素，也不再使用固定 row=0。
+  const x=col*g.cw;
+  const y=(g.offset||0)+row*g.ch;
+  const w=Math.min(g.cw,img.naturalWidth-x);
+  const h=Math.min(g.ch,img.naturalHeight-y);
+  return cropRect(img,x,y,w,h,1);
 }
 function cardNameCrop(img,col,row,g){
-  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  const L=cardLayout(),x=col*g.cw,y=(g.offset||0)+row*g.ch;
   return cropRect(img,x+g.cw*.025,y+g.ch*L.nameY,g.cw*.95,g.ch*L.nameH,1);
 }
 function cardRestrictionCrop(img,col,row,g){
-  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  const L=cardLayout(),x=col*g.cw,y=(g.offset||0)+row*g.ch;
   if(!L.restrictH)return cropRect(img,x,y,1,1,1);
   return cropRect(img,x+g.cw*.18,y+g.ch*L.restrictY,g.cw*.64,g.ch*L.restrictH,1);
 }
 function preprocessNameForOCR(img,col,row,g){
-  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  const L=cardLayout(),x=col*g.cw,y=(g.offset||0)+row*g.ch;
   const sx=x+g.cw*.015, sy=y+g.ch*(L.nameY-.015), sw=g.cw*.97, sh=g.ch*(L.nameH+.03);
   const scale=6,c=document.createElement("canvas");
   c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
@@ -1443,7 +1463,7 @@ async function recognizeBestName(worker,img,col,row,g){
 
   // Second variant: enlarged original color crop. Sometimes antialiasing survives
   // better than hard thresholding for thin Traditional Chinese strokes.
-  const x=col*g.cw, y=row*g.ch, sw=g.cw*.98, sh=g.ch*.18;
+  const x=col*g.cw, y=(g.offset||0)+row*g.ch, sw=g.cw*.98, sh=g.ch*.18;
   const raw=cropRect(img,x+g.cw*.01,y+g.ch*.675,sw,sh,1);
   const temp=new Image();
   await new Promise((ok,bad)=>{temp.onload=ok;temp.onerror=bad;temp.src=raw});
@@ -1695,28 +1715,9 @@ async function recognizeImageCards(worker,img){
   const g=inferCardGrid(img);
   let found=await runGrid(g);
 
-  // 多圖批次中最常見的錯誤是某張截圖的比例不同，導致自動格線選錯。
-  // 若結果數量明顯不足，立刻用幾個常見 MSTAR 格式做一次低成本重試，
-  // 不修改原圖，也不改已經正確辨識的圖片。
-  const totalCells=g.cols*g.rows;
-  const suspicious=found.length===0 || (totalCells>=4 && found.length<Math.max(2,Math.floor(totalCells*.45)));
-  if(suspicious){
-    const W=img.naturalWidth,H=img.naturalHeight;
-    const common=[];
-    for(const cols of [2,3,4,5]){
-      const rows=Math.max(1,Math.round((H/W)*cols));
-      if(rows>=1&&rows<=10)common.push({cols,rows,cw:W/cols,ch:H/rows});
-    }
-    // 也嘗試由常見的 4 欄固定版型直接估算列數。
-    const rows4=Math.max(1,Math.round(H/(W/4)));
-    common.push({cols:4,rows:rows4,cw:W/4,ch:H/rows4});
-    const seen=new Set();
-    for(const cg of common){
-      const key=`${cg.cols}x${cg.rows}`; if(seen.has(key))continue; seen.add(key);
-      const alt=await runGrid(cg);
-      if(alt.length>found.length)found=alt;
-    }
-  }
+  // 不再使用 2/3/5 欄 fallback；錯誤 fallback 會把一張完整 MSTAR 卡再次切開。
+  // 若自動網格判斷失敗，也維持「4 欄 + 完整卡片高度」的結果。
+
   return found;
 }
 
