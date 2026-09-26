@@ -355,6 +355,8 @@
 .overviewSearch{display:flex;gap:7px;margin:0 0 10px}
 .overviewSearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
 #shotDlg select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
+
+.galleryEditFields{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}.galleryEditFields input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:12px}.galleryEditActions{display:flex;gap:5px;margin-top:7px}.galleryEditActions .btn{flex:1;padding:6px 7px;font-size:11px}.memoryBadge{display:inline-block;margin-top:5px;padding:2px 6px;border-radius:999px;background:#eadbd0;color:#76594b;font-size:10px;font-weight:800}#editGalleryDlg{width:min(560px,94vw);max-width:94vw}.galleryEditPreview{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:start}.galleryEditPreview img{width:150px;height:150px;object-fit:contain;border-radius:12px;background:#eee4dc}.galleryEditPreview .field{margin:0 0 9px}.galleryEditPreview .field input{background:#fff}@media(max-width:620px){.galleryEditFields{grid-template-columns:1fr}.galleryEditPreview{grid-template-columns:1fr}.galleryEditPreview img{width:100%;height:190px}}
 </style></head><body>
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
@@ -390,6 +392,7 @@
 <div class="items" id="items"></div><div class="note">資料會儲存在你的 Firebase Firestore；只有指定的 Google 帳號可讀寫。</div></main></div></div></div>
 
 <dialog id="galleryDlg"><div class="galleryBox"><div class="galleryTop"><div><b>🖼️ 商品圖庫</b><div class="meta">辨識新圖片會自動加入；再次辨識相同商品會直接套用記憶。</div></div><button class="btn" id="closeGallery" type="button">關閉</button></div><div class="gallerySearch"><input id="gallerySearch" type="search" placeholder="搜尋商品名稱／款式…"><button class="btn" id="clearGallerySearch" type="button">清除</button></div><div id="galleryGrid" class="galleryGrid"></div></div></dialog>
+<dialog id="editGalleryDlg"><h3>✏️ 修改圖庫商品</h3><div class="galleryEditPreview"><img id="editGalleryImg" alt="商品圖"><div><div class="field"><label>商品名稱</label><input id="editGalleryName" placeholder="例如：可愛情侶熊"></div><div class="field"><label>款式／顏色</label><input id="editGalleryVariant" placeholder="例如：粉色"></div><div class="note">修改後會成為這張商品圖片的永久記憶。下次再次匯入相同／高度相似圖片，會自動套用這裡的名稱＋款式＋圖庫圖片。</div></div></div><div class="actions"><button class="btn" id="editGalleryCancel" type="button">取消</button><button class="btn primary" id="editGallerySave" type="button">儲存並更新記憶</button></div></dialog>
 <dialog id="overviewDlg">
   <div class="overviewBox">
     <div class="overviewTop">
@@ -1076,7 +1079,7 @@ function cropGridImage(img,index,cols=4){
 function drawRecognized(){
  $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
    ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
-   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" placeholder="道具名稱" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input type="number" min="1" step="1" inputmode="numeric" data-k="qty" data-i="${i}" value="${Math.max(1,Number(x.qty)||1)}" title="數量" aria-label="數量" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div></div>
+   <div><div class="meta" style="margin-bottom:5px;color:${x.learned?"#76594b":"#986650"};font-weight:800">${e(x.learned?"✓ 已從圖庫記憶套用":"＋ 新商品｜確認後自動建立圖庫")}</div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" placeholder="道具名稱" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input type="number" min="1" step="1" inputmode="numeric" data-k="qty" data-i="${i}" value="${Math.max(1,Number(x.qty)||1)}" title="數量" aria-label="數量" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div></div>
    <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
  </div>`).join("");
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>{
@@ -1216,182 +1219,19 @@ function ocrLooksBroken(text,confidence){
   return !hasCJK || cjkCount(t)<2 || Number(confidence||0)<42;
 }
 function cjkCount(t){return (String(t||"").match(/[\u3400-\u9FFF]/g)||[]).length}
-async function recognizeBestName(worker,img,col,row,g){
-  const variants=[];
-  const base=preprocessNameForOCR(img,col,row,g);
-  variants.push(base);
+async function recognizeBestName(worker,img,col,row,g){const variants=[],L=cardLayout(),x=col*g.cw,y=row*g.ch,sx=x+g.cw*.012,sy=y+g.ch*(L.nameY-.025),sw=g.cw*.976,sh=g.ch*(L.nameH+.05),scale=8,raw=cropRect(img,sx,sy,sw,sh,1),temp=await loadImageDataUrl(raw);for(const mode of ["color","gray","threshold120","threshold150","threshold180"]){const c=document.createElement("canvas");c.width=Math.max(1,Math.round(temp.width*scale));c.height=Math.max(1,Math.round(temp.height*scale));const cx=c.getContext("2d",{willReadFrequently:true});cx.imageSmoothingEnabled=false;cx.drawImage(temp,0,0,c.width,c.height);if(mode!=="color"){const im=cx.getImageData(0,0,c.width,c.height),p=im.data,threshold=mode==="threshold120"?120:mode==="threshold180"?180:150;for(let i=0;i<p.length;i+=4){const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];if(mode==="gray")p[i]=p[i+1]=p[i+2]=lum;else{const v=lum>=threshold?255:0;p[i]=p[i+1]=p[i+2]=v}}cx.putImageData(im,0,0)}variants.push(c.toDataURL("image/png"))}let best={text:"",confidence:0,score:-1};for(const v of variants){const res=await worker.recognize(v),text=cleanItemName(res?.data?.text||""),confidence=Number(res?.data?.confidence||0),cjk=cjkCount(text),broken=ocrLooksBroken(text,confidence),score=(broken?-120:0)+cjk*26+confidence-Math.max(0,text.length-28)*1.5;if(score>best.score)best={text,confidence,score}}if(ocrLooksBroken(best.text,best.confidence)){const narrow=cropRect(img,x+g.cw*.05,y+g.ch*(L.nameY+.005),g.cw*.90,g.ch*Math.max(.04,L.nameH-.005),1),nimg=await loadImageDataUrl(narrow),c=document.createElement("canvas");c.width=nimg.width*10;c.height=nimg.height*10;const cx=c.getContext("2d");cx.imageSmoothingEnabled=false;cx.drawImage(nimg,0,0,c.width,c.height);const res=await worker.recognize(c.toDataURL("image/png")),text=cleanItemName(res?.data?.text||""),confidence=Number(res?.data?.confidence||0);if(cjkCount(text)>cjkCount(best.text)||confidence>best.confidence)best={text,confidence,score:cjkCount(text)*26+confidence}}return best}
 
-  // Second variant: enlarged original color crop. Sometimes antialiasing survives
-  // better than hard thresholding for thin Traditional Chinese strokes.
-  const x=col*g.cw, y=row*g.ch, sw=g.cw*.98, sh=g.ch*.18;
-  const raw=cropRect(img,x+g.cw*.01,y+g.ch*.675,sw,sh,1);
-  const temp=new Image();
-  await new Promise((ok,bad)=>{temp.onload=ok;temp.onerror=bad;temp.src=raw});
-  const c=document.createElement("canvas"),scale=6;
-  c.width=Math.round(temp.width*scale);c.height=Math.round(temp.height*scale);
-  const cx=c.getContext("2d");cx.imageSmoothingEnabled=false;
-  cx.drawImage(temp,0,0,c.width,c.height);
-  variants.push(c.toDataURL("image/png"));
-
-  let best={text:"",confidence:0,score:-1};
-  for(const v of variants){
-    const res=await worker.recognize(v);
-    const text=cleanItemName(res?.data?.text||"");
-    const confidence=Number(res?.data?.confidence||0);
-    const score=cjkCount(text)*18 + confidence - Math.max(0,text.length-24)*2;
-    if(score>best.score) best={text,confidence,score};
-  }
-  return best;
-}
-async function imageSignature(dataUrl){
-  const img=new Image();
-  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=dataUrl});
-  // 商品卡片的真正圖像區域做固定尺寸標準化。除了顏色，也加入灰階結構，
-  // 避免「白色小熊列車」這類外觀相近商品被錯配。
-  const size=16,c=document.createElement("canvas");
-  c.width=size;c.height=size;
-  const ctx=c.getContext("2d",{willReadFrequently:true});
-  const sw=img.naturalWidth*.80, sh=img.naturalHeight*.62;
-  const sx=img.naturalWidth*.10, sy=img.naturalHeight*.08;
-  ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);
-  const p=ctx.getImageData(0,0,size,size).data;
-  const sig=[];
-  for(let by=0;by<size;by++){
-    for(let bx=0;bx<size;bx++){
-      const i=(by*size+bx)*4;
-      const r=p[i],g=p[i+1],b=p[i+2];
-      const lum=.299*r+.587*g+.114*b;
-      sig.push(Math.round(r/16),Math.round(g/16),Math.round(b/16),Math.round(lum/16));
-    }
-  }
-  return sig;
-}
-function signatureDistance(a,b){
-  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;
-  let color=0,gray=0,n=0;
-  for(let i=0;i<a.length;i+=4){
-    const dr=a[i]-b[i],dg=a[i+1]-b[i+1],db=a[i+2]-b[i+2],dl=a[i+3]-b[i+3];
-    color+=(dr*dr+dg*dg+db*db)/3;
-    gray+=dl*dl;
-    n++;
-  }
-  return Math.sqrt((color*.65+gray*.35)/n);
-}
-async function visualImageDistance(aDataUrl,bDataUrl){
-  if(!aDataUrl||!bDataUrl)return 999;
-  const load=src=>new Promise((ok,bad)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=bad;im.src=src});
-  try{
-    const [a,b]=await Promise.all([load(aDataUrl),load(bDataUrl)]);
-    const size=32,c=document.createElement("canvas");c.width=size;c.height=size;
-    const ctx=c.getContext("2d",{willReadFrequently:true});
-    // 只比較商品展示區，不讓下方名稱文字干擾圖片配對。
-    const draw=(im)=>{
-      ctx.clearRect(0,0,size,size);
-      const sw=im.naturalWidth*.80,sh=im.naturalHeight*.62;
-      const sx=im.naturalWidth*.10,sy=im.naturalHeight*.08;
-      ctx.drawImage(im,sx,sy,sw,sh,0,0,size,size);
-      const p=ctx.getImageData(0,0,size,size).data;
-      const out=new Float32Array(size*size);
-      for(let i=0,j=0;i<p.length;i+=4,j++)out[j]=.299*p[i]+.587*p[i+1]+.114*p[i+2];
-      return out;
-    };
-    const pa=draw(a),pb=draw(b);
-    let mse=0,grad=0;
-    for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-      const i=y*size+x,d=pa[i]-pb[i];mse+=d*d;
-      if(x>0&&y>0){
-        const ga=pa[i]-pa[i-1],gb=pb[i]-pb[i-1];
-        const ha=pa[i]-pa[i-size],hb=pb[i]-pb[i-size];
-        grad+=(ga-gb)*(ga-gb)+(ha-hb)*(ha-hb);
-      }
-    }
-    const n=size*size;
-    return Math.sqrt(mse/n)*.72+Math.sqrt(grad/((size-1)*(size-1)*2))*.28;
-  }catch(_){return 999}
-}
-async function learnedNameFor(image){
-  const sig=await imageSignature(image);
-  let best=null;
-  for(const m of (d.itemMemory||[])){
-    if(!m?.image)continue;
-    let ms=m?.sig;
-    if(!Array.isArray(ms)||ms.length!==16*16*4){
-      try{ms=await imageSignature(m.image)}catch(_){ms=null}
-    }
-    if(!Array.isArray(ms)||ms.length!==16*16*4)continue;
-    const dist=signatureDistance(sig,ms);
-    let visual=999;
-    try{visual=await visualImageDistance(image,m.image)}catch(_){ }
-    // 視覺結構是第一優先，簽章作為輔助。完全相同/高度相似的圖庫圖片
-    // 即使 OCR 猜成別的中文字，也要直接套用圖庫正確名稱。
-    const score=visual*.72+dist*.28;
-    if(!best||score<best.score)best={...m,dist,visual,score,sig:ms,index:(d.itemMemory||[]).indexOf(m)};
-  }
-  if(best && ((best.visual<=18 && best.dist<=5.8) || (best.visual<=24 && best.dist<=4.8)))return best;
-  return null;
-}
-
-async function rememberItemName(image,name,variant="",forceIndex=-1){
-  if(!image||!name||name==="待確認")return;
-  d.itemMemory=d.itemMemory||[];
-  const sig=await imageSignature(image);
-
-  // 如果使用者在辨識確認畫面手動改過名稱，直接更新「這一筆」記憶。
-  // 這比單純依圖片相似度找最近項目安全，避免錯誤 OCR 把原本正確的圖庫名稱覆蓋掉。
-  if(Number.isInteger(forceIndex)&&forceIndex>=0&&forceIndex<d.itemMemory.length){
-    d.itemMemory[forceIndex]={...d.itemMemory[forceIndex],sig,name,variant,image};
-    return;
-  }
-
-  let best=null,idx=-1;
-  for(let i=0;i<d.itemMemory.length;i++){
-    const m=d.itemMemory[i];
-    let ms=m?.sig;
-    if((!Array.isArray(ms)||ms.length!==16*16*4)&&m?.image){
-      try{ms=await imageSignature(m.image)}catch(_){ms=null}
-    }
-    if(!Array.isArray(ms)||ms.length!==16*16*4)continue;
-    const dist=signatureDistance(sig,ms);
-    if(!best||dist<best.dist){best={...m,dist};idx=i}
-  }
-  const rec={sig,name,variant,image};
-  if(best&&best.dist<=5.8){
-    // 已經有圖庫記憶時，只更新圖片特徵，不自動改掉已記住的正確名稱。
-    d.itemMemory[idx]={...d.itemMemory[idx],sig,image};
-  }else{
-    d.itemMemory.push(rec);
-  }
-}
-
-function renderGallery(){
-  const q=String($("#gallerySearch")?.value||"").trim().toLowerCase();
-  const rows=(d.itemMemory||[]).map((m,index)=>({...m,_index:index})).filter(m=>m?.image&&(!q||[m.name,m.variant].filter(Boolean).join(" ").toLowerCase().includes(q)));
-  $("#galleryCount").textContent=`(${(d.itemMemory||[]).filter(m=>m?.image).length})`;
-  $("#galleryGrid").innerHTML=rows.length?rows.map(m=>`<div class="galleryCard">
-    <img src="${m.image}" alt="">
-    <div class="galleryName">${e(m.name||"未命名")}</div>
-    <div class="galleryMeta">${m.variant?`款式：${e(m.variant)}`:""}</div>
-    <div class="galleryActions"><button class="btn editGallery" data-i="${m._index}" type="button">✏️ 修正名稱</button></div>
-  </div>`).join(""): '<div class="galleryEmpty">目前圖庫還沒有商品圖片。完成一次截圖辨識並確認加入庫存後，圖片會自動記住。</div>';
-  document.querySelectorAll(".editGallery").forEach(btn=>btn.onclick=async()=>{
-    const i=Number(btn.dataset.i),m=d.itemMemory?.[i];
-    if(!m)return;
-    const name=prompt("請輸入正確的商品名稱：",m.name||"");
-    if(name===null)return;
-    const clean=String(name).trim();
-    if(!clean)return alert("商品名稱不能空白。");
-    const variant=prompt("請輸入款式／顏色（沒有可留空）：",m.variant||"");
-    if(variant===null)return;
-    d.itemMemory[i]={...m,name:clean,variant:String(variant).trim()};
-    await save();
-    renderGallery();
-  });
-}
-$("#openGallery").onclick=()=>{renderGallery();$("#galleryDlg").showModal()};
-$("#closeGallery").onclick=()=>$("#galleryDlg").close();
-$("#gallerySearch").oninput=renderGallery;
-$("#clearGallerySearch").onclick=()=>{$("#gallerySearch").value="";renderGallery()};
-
+async function imageSignature(dataUrl){const img=await loadImageDataUrl(dataUrl),size=16,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true}),sw=img.naturalWidth*.82,sh=img.naturalHeight*.66,sx=img.naturalWidth*.09,sy=img.naturalHeight*.05;ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,sig=[];for(let by=0;by<size;by++)for(let bx=0;bx<size;bx++){const i=(by*size+bx)*4,r=p[i],g=p[i+1],b=p[i+2],lum=.299*r+.587*g+.114*b;sig.push(Math.round(r/16),Math.round(g/16),Math.round(b/16),Math.round(lum/16))}return sig}
+async function imageFeaturePack(dataUrl){const img=await loadImageDataUrl(dataUrl),size=32,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true}),sw=img.naturalWidth*.84,sh=img.naturalHeight*.68,sx=img.naturalWidth*.08,sy=img.naturalHeight*.04;ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,gray=new Float32Array(size*size),hist=new Array(64).fill(0);for(let i=0,j=0;i<p.length;i+=4,j++){const r=p[i],g=p[i+1],b=p[i+2],lum=.299*r+.587*g+.114*b;gray[j]=lum;hist[(Math.min(3,r>>6)<<4)|(Math.min(3,g>>6)<<2)|Math.min(3,b>>6)]++}const mean=gray.reduce((a,b)=>a+b,0)/gray.length,hash=Array.from(gray,v=>v>=mean?1:0),edge=[];for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=y*size+x,gx=x?gray[i]-gray[i-1]:0,gy=y?gray[i]-gray[i-size]:0;edge.push(Math.min(255,Math.round(Math.sqrt(gx*gx+gy*gy))))}const hs=Math.sqrt(hist.reduce((a,b)=>a+b*b,0))||1;return {hash,hist:hist.map(v=>v/hs),edge}}
+function signatureDistance(a,b){if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return 999;let color=0,gray=0,n=0;for(let i=0;i<a.length;i+=4){const dr=a[i]-b[i],dg=a[i+1]-b[i+1],db=a[i+2]-b[i+2],dl=a[i+3]-b[i+3];color+=(dr*dr+dg*dg+db*db)/3;gray+=dl*dl;n++}return Math.sqrt((color*.65+gray*.35)/n)}
+function featureDistance(a,b){if(!a||!b)return {hash:99,hist:99,edge:99,total:99};let hd=99,hh=99,ed=99;if(Array.isArray(a.hash)&&Array.isArray(b.hash)&&a.hash.length===b.hash.length){let n=0;for(let i=0;i<a.hash.length;i++)n+=a.hash[i]===b.hash[i]?0:1;hd=n/a.hash.length*16}if(Array.isArray(a.hist)&&Array.isArray(b.hist)&&a.hist.length===b.hist.length){let n=0;for(let i=0;i<a.hist.length;i++){const d=a.hist[i]-b.hist[i];n+=d*d}hh=Math.sqrt(n)*16}if(Array.isArray(a.edge)&&Array.isArray(b.edge)&&a.edge.length===b.edge.length){let n=0;for(let i=0;i<a.edge.length;i++)n+=Math.abs(a.edge[i]-b.edge[i]);ed=n/a.edge.length/8}return {hash:hd,hist:hh,edge:ed,total:hd*.48+hh*.22+ed*.30}}
+async function visualImageDistance(aDataUrl,bDataUrl){if(!aDataUrl||!bDataUrl)return 999;try{const [a,b]=await Promise.all([loadImageDataUrl(aDataUrl),loadImageDataUrl(bDataUrl)]),size=40,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true});const draw=im=>{ctx.clearRect(0,0,size,size);const sw=im.naturalWidth*.84,sh=im.naturalHeight*.68,sx=im.naturalWidth*.08,sy=im.naturalHeight*.04;ctx.drawImage(im,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,out=new Float32Array(size*size);for(let i=0,j=0;i<p.length;i+=4,j++)out[j]=.299*p[i]+.587*p[i+1]+.114*p[i+2];return out};const pa=draw(a),pb=draw(b);let mse=0,grad=0;for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=y*size+x,d=pa[i]-pb[i];mse+=d*d;if(x>0&&y>0){const ga=pa[i]-pa[i-1],gb=pb[i]-pb[i-1],ha=pa[i]-pa[i-size],hb=pb[i]-pb[i-size];grad+=(ga-gb)*(ga-gb)+(ha-hb)*(ha-hb)}}return Math.sqrt(mse/(size*size))*.62+Math.sqrt(grad/((size-1)*(size-1)*2))*.38}catch(_){return 999}}
+async function buildMemoryFeatures(m){if(!m?.image)return null;if(m._features)return m._features;try{m._features=await imageFeaturePack(m.image);return m._features}catch(_){return null}}
+async function learnedNameFor(image){const sig=await imageSignature(image),feat=await imageFeaturePack(image);let best=null;for(const m of (d.itemMemory||[])){if(!m?.image)continue;let ms=m?.sig;if(!Array.isArray(ms)||ms.length!==16*16*4){try{ms=await imageSignature(m.image)}catch(_){ms=null}}if(!Array.isArray(ms)||ms.length!==16*16*4)continue;const dist=signatureDistance(sig,ms),mf=await buildMemoryFeatures(m),fd=featureDistance(feat,mf);let visual=999;try{visual=await visualImageDistance(image,m.image)}catch(_){}const score=visual*.38+dist*.20+fd.total*.42;if(!best||score<best.score)best={...m,dist,visual,fd,score,sig:ms,index:(d.itemMemory||[]).indexOf(m)}}if(best){const strong=best.visual<=27&&best.dist<=8.2&&best.fd.total<=8.5,near=best.visual<=34&&best.dist<=6.8&&best.fd.total<=6.8;if(strong||near)return best}return null}
+async function rememberItemName(image,name,variant="",forceIndex=-1){if(!image||!name||name==="待確認")return;d.itemMemory=d.itemMemory||[];const sig=await imageSignature(image),features=await imageFeaturePack(image);if(Number.isInteger(forceIndex)&&forceIndex>=0&&forceIndex<d.itemMemory.length){d.itemMemory[forceIndex]={...d.itemMemory[forceIndex],sig,features,name,variant,image};return}const learned=await learnedNameFor(image),rec={sig,features,name,variant,image};if(learned){const idx=Number(learned.index);d.itemMemory[idx]={...d.itemMemory[idx],sig,features,image}}else d.itemMemory.push(rec)}
+function renderGallery(){const q=String($("#gallerySearch")?.value||"").trim().toLowerCase(),rows=(d.itemMemory||[]).map((m,index)=>({...m,_index:index})).filter(m=>m?.image&&(!q||[m.name,m.variant].filter(Boolean).join(" ").toLowerCase().includes(q)));$("#galleryCount").textContent=`(${(d.itemMemory||[]).filter(m=>m?.image).length})`;$("#galleryGrid").innerHTML=rows.length?rows.map(m=>`<div class="galleryCard"><img src="${m.image}" alt=""><div class="galleryName">${e(m.name||"未命名")}</div><div class="galleryEditFields"><input class="galleryInlineName" data-i="${m._index}" value="${e(m.name||"")}" placeholder="商品名稱"><input class="galleryInlineVariant" data-i="${m._index}" value="${e(m.variant||"")}" placeholder="款式／顏色"></div><div class="memoryBadge">✓ 圖片已自動記憶｜下次自動套用</div><div class="galleryEditActions"><button class="btn editGallery" data-i="${m._index}" type="button">✏️ 編輯</button><button class="btn saveGalleryInline" data-i="${m._index}" type="button">儲存</button></div></div>`).join(""):'<div class="galleryEmpty">目前圖庫還沒有商品圖片。第一次辨識並確認加入庫存後，會自動建立圖庫記錄，不需要手動上傳圖片。</div>';document.querySelectorAll(".saveGalleryInline").forEach(btn=>btn.onclick=async()=>{const i=Number(btn.dataset.i),m=d.itemMemory?.[i];if(!m)return;const name=document.querySelector(`.galleryInlineName[data-i="${i}"]`)?.value.trim()||"",variant=document.querySelector(`.galleryInlineVariant[data-i="${i}"]`)?.value.trim()||"";if(!name)return alert("商品名稱不能空白。");await updateGalleryMemory(i,name,variant)});document.querySelectorAll(".editGallery").forEach(btn=>btn.onclick=()=>{const i=Number(btn.dataset.i),m=d.itemMemory?.[i];if(!m)return;$("#editGalleryImg").src=m.image||"";$("#editGalleryName").value=m.name||"";$("#editGalleryVariant").value=m.variant||"";$("#editGalleryDlg").dataset.index=i;$("#editGalleryDlg").showModal()})}
+async function updateGalleryMemory(index,name,variant){const m=d.itemMemory?.[index];if(!m)return;const clean=String(name||"").trim(),cleanVariant=String(variant||"").trim();if(!clean)return alert("商品名稱不能空白。");d.itemMemory[index]={...m,name:clean,variant:cleanVariant};for(const a of (d.accounts||[]))for(const item of (a.items||[])){if(!item.image)continue;try{const f1=await imageSignature(item.image),f2=await imageSignature(m.image);if(signatureDistance(f1,f2)<=7.2){item.name=clean;item.variant=cleanVariant}}catch(_){}}await save();render();renderGallery()}
+$("#editGallerySave").onclick=async()=>{const dlg=$("#editGalleryDlg"),i=Number(dlg.dataset.index),name=$("#editGalleryName").value.trim(),variant=$("#editGalleryVariant").value.trim();if(!name)return alert("商品名稱不能空白。");dlg.close();await updateGalleryMemory(i,name,variant)};$("#editGalleryCancel").onclick=()=>$("#editGalleryDlg").close();$("#openGallery").onclick=()=>{renderGallery();$("#galleryDlg").showModal()};$("#closeGallery").onclick=()=>$("#galleryDlg").close();$("#gallerySearch").oninput=renderGallery;$("#clearGallerySearch").onclick=()=>{$("#gallerySearch").value="";renderGallery()};
 function cleanItemName(text){
   let t=String(text||"")
     .replace(/查看詳情|NEW|新品|無限制|限男|限女/gi," ")
@@ -1426,6 +1266,7 @@ $("#mockRecognize").onclick=async()=>{
     createWorker=mod.createWorker||mod.default?.createWorker;
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
+    try{await worker.setParameters({tessedit_pageseg_mode:"7",preserve_interword_spaces:"0"})}catch(_){}
 
     const g=inferCardGrid(sourceImage);
     const found=[];
