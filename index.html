@@ -1285,27 +1285,34 @@ function featureDistance(a,b){if(!a||!b)return {hash:99,hist:99,edge:99,total:99
 async function visualImageDistance(aDataUrl,bDataUrl){if(!aDataUrl||!bDataUrl)return 999;try{const [a,b]=await Promise.all([loadImageDataUrl(aDataUrl),loadImageDataUrl(bDataUrl)]),size=40,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true});const draw=im=>{ctx.clearRect(0,0,size,size);const sw=im.naturalWidth*.84,sh=im.naturalHeight*.68,sx=im.naturalWidth*.08,sy=im.naturalHeight*.04;ctx.drawImage(im,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,out=new Float32Array(size*size);for(let i=0,j=0;i<p.length;i+=4,j++)out[j]=.299*p[i]+.587*p[i+1]+.114*p[i+2];return out};const pa=draw(a),pb=draw(b);let mse=0,grad=0;for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=y*size+x,d=pa[i]-pb[i];mse+=d*d;if(x>0&&y>0){const ga=pa[i]-pa[i-1],gb=pb[i]-pb[i-1],ha=pa[i]-pa[i-size],hb=pb[i]-pb[i-size];grad+=(ga-gb)*(ga-gb)+(ha-hb)*(ha-hb)}}return Math.sqrt(mse/(size*size))*.62+Math.sqrt(grad/((size-1)*(size-1)*2))*.38}catch(_){return 999}}
 async function buildMemoryFeatures(m){if(!m?.image)return null;if(m._features)return m._features;try{m._features=await imageFeaturePack(m.image);return m._features}catch(_){return null}}
 async function learnedNameFor(image){
-  const sig=await imageSignature(image),feat=await imageFeaturePack(image);
+  const sig=await imageSignature(image);
+  const mem=d.itemMemory||[];
   const candidates=[];
-  for(const m of (d.itemMemory||[])){
-    if(!m?.image)continue;
-    let ms=m?.sig;
-    if(!Array.isArray(ms)||ms.length!==16*16*4){try{ms=await imageSignature(m.image)}catch(_){ms=null}}
-    if(!Array.isArray(ms)||ms.length!==16*16*4)continue;
-    const dist=signatureDistance(sig,ms),mf=await buildMemoryFeatures(m),fd=featureDistance(feat,mf);
-    const pre=dist*.45+fd.total*.55;
-    candidates.push({m,ms,dist,mf,fd,pre,index:(d.itemMemory||[]).indexOf(m)});
+  for(let i=0;i<mem.length;i++){
+    const m=mem[i]; if(!m?.image)continue;
+    let ms=Array.isArray(m.sig)&&m.sig.length===16*16*4?m.sig:null;
+    // 舊圖庫沒有 sig 時只補一次；補完後直接留在記憶體，不重算。
+    if(!ms){try{ms=await imageSignature(m.image);m.sig=ms}catch(_){ms=null}}
+    if(!ms)continue;
+    const dist=signatureDistance(sig,ms);
+    candidates.push({m,ms,dist,index:i});
   }
-  // 先用便宜的 signature/feature 篩選，只有最接近的少數圖片才做昂貴的逐像素比對。
-  candidates.sort((a,b)=>a.pre-b.pre);
+  // 先用 16x16 RGB 簽名快速排序；只有最接近的 2 張才做昂貴的逐像素比對。
+  candidates.sort((a,b)=>a.dist-b.dist);
   let best=null;
-  for(const c of candidates.slice(0,Math.min(4,candidates.length))){
-    let visual=999;try{visual=await visualImageDistance(image,c.m.image)}catch(_){}
-    const score=visual*.38+c.dist*.20+c.fd.total*.42;
-    if(!best||score<best.score)best={...c.m,dist:c.dist,visual,fd:c.fd,score,sig:c.ms,index:c.index};
+  for(const c of candidates.slice(0,2)){
+    let visual=999;
+    try{visual=await visualImageDistance(image,c.m.image)}catch(_){}
+    const score=visual*.45+c.dist*.55;
+    if(!best||score<best.score)best={...c.m,dist:c.dist,visual,score,sig:c.ms,index:c.index};
   }
-  if(best){const strong=best.visual<=27&&best.dist<=8.2&&best.fd.total<=8.5,near=best.visual<=34&&best.dist<=6.8&&best.fd.total<=6.8;if(strong||near)return best}
-  return null;
+  if(best){
+    // 兩層門檻：避免不同顏色因圖片相似被誤認成同一商品。
+    const strong=best.visual<=27&&best.dist<=8.2;
+    const near=best.visual<=34&&best.dist<=6.8;
+    if(strong||near)return best;
+  }
+  return {index:-1,sig};
 }
 function normalizeGalleryText(v){
   return String(v||"").trim().toLowerCase().replace(/\s+/g,"");
@@ -1318,55 +1325,29 @@ function dedupeGalleryMemory(){
   const out=[],byKey=new Map();
   for(const m of d.itemMemory){
     if(!m?.image||!m?.name||m.name==="待確認")continue;
-    // 只有「名稱＋款式／顏色」完全相同才去重。
-    // 不再用圖片本身作為跨款式的去重條件，避免同商品不同顏色被合併。
     const key=galleryMemoryKey(m.name,m.variant);
     const existing=byKey.get(key);
-    if(existing){
-      if(!existing.sig&&m.sig)existing.sig=m.sig;
-      if(!existing.features&&m.features)existing.features=m.features;
-      continue;
-    }
-    const copy={...m}; out.push(copy); byKey.set(key,copy);
+    if(existing){if(!existing.sig&&m.sig)existing.sig=m.sig;if(!existing.features&&m.features)existing.features=m.features;continue}
+    const copy={...m};out.push(copy);byKey.set(key,copy);
   }
   d.itemMemory=out;
 }
-async function rememberItemName(image,name,variant="",forceIndex=-1){
-  if(!image||!name||name==="待確認")return;
+async function rememberItemName(image,name,variant="",forceIndex=-1,knownSig=null){
+  if(!image||!name||name==="待確認")return -1;
   d.itemMemory=d.itemMemory||[];
-  const cleanName=String(name).trim(), cleanVariant=String(variant||"").trim();
+  const cleanName=String(name).trim(),cleanVariant=String(variant||"").trim();
   if(Number.isInteger(forceIndex)&&forceIndex>=0&&forceIndex<d.itemMemory.length){
     const old=d.itemMemory[forceIndex];
     d.itemMemory[forceIndex]={...old,name:cleanName,variant:cleanVariant,image};
     dedupeGalleryMemory();
     return d.itemMemory.findIndex(x=>x===d.itemMemory[forceIndex]);
   }
-  // 只有名稱＋款式／顏色相同才視為同一筆。
-  // 同商品不同顏色即使圖片很相似，也必須保留為不同圖庫項目。
   const key=galleryMemoryKey(cleanName,cleanVariant);
   const same=d.itemMemory.find(m=>m?.image&&galleryMemoryKey(m.name,m.variant)===key);
-  if(same){
-    same.name=cleanName; same.variant=cleanVariant;
-    if(!same.image) same.image=image;
-    return d.itemMemory.indexOf(same);
-  }
-  // 只有在「名稱＋款式／顏色」也吻合時，才允許視覺學習結果回填；
-  // 禁止單純因圖片相似而把不同顏色合併。
-  const sig=await imageSignature(image),features=await imageFeaturePack(image);
-  const learned=await learnedNameFor(image);
-  if(learned){
-    const sameLearned=normalizeGalleryText(learned.name)===normalizeGalleryText(cleanName) &&
-      normalizeGalleryText(learned.variant)===normalizeGalleryText(cleanVariant);
-    if(sameLearned){
-      const idx=Number(learned.index);
-      if(Number.isInteger(idx)&&idx>=0&&idx<d.itemMemory.length){
-        d.itemMemory[idx]={...d.itemMemory[idx],sig,features,image,name:cleanName,variant:cleanVariant};
-        return idx;
-      }
-    }
-  }
-  d.itemMemory.push({sig,features,name:cleanName,variant:cleanVariant,image});
-  dedupeGalleryMemory();
+  if(same){same.name=cleanName;same.variant=cleanVariant;if(!same.image)same.image=image;return d.itemMemory.indexOf(same)}
+  const sig=knownSig||(await imageSignature(image));
+  const rec={sig,name:cleanName,variant:cleanVariant,image};
+  d.itemMemory.push(rec);dedupeGalleryMemory();
   return d.itemMemory.findIndex(m=>galleryMemoryKey(m.name,m.variant)===key);
 }
 
@@ -1402,6 +1383,22 @@ function looksLikeItem(text){
   const t=cleanItemName(text).replace(/[\s\-_=~·•.，。,:：/\\()[\]{}]+/g,"");
   return t.length>=2 && !/^(查看詳情|下一頁|上一頁|NEXT|PREV|\d+)$/.test(t);
 }
+let ocrWorker=null;
+let ocrWorkerPromise=null;
+async function getOCRWorker(){
+  if(ocrWorker)return ocrWorker;
+  if(ocrWorkerPromise)return ocrWorkerPromise;
+  ocrWorkerPromise=(async()=>{
+    const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
+    const createWorker=mod.createWorker||mod.default?.createWorker;
+    if(typeof createWorker!=="function")throw new Error("OCR 工具載入異常");
+    const w=await createWorker("chi_tra+eng",1);
+    try{await w.setParameters({tessedit_pageseg_mode:"7",preserve_interword_spaces:"0"})}catch(_){}
+    ocrWorker=w;return w;
+  })();
+  try{return await ocrWorkerPromise}finally{ocrWorkerPromise=null}
+}
+
 $("#mockRecognize").onclick=async()=>{
   if(!sourceImage)return alert("先放一張截圖");
   const btn=$("#mockRecognize");
@@ -1410,13 +1407,9 @@ $("#mockRecognize").onclick=async()=>{
   $("#recognized").innerHTML='<div class="meta">正在依 MSTAR 實際道具格版型定位辨識…</div>';
   $("#confirmRecognized").style.display="none";
 
-  let createWorker,worker=null;
+  let worker=null;
   try{
-    const mod=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js");
-    createWorker=mod.createWorker||mod.default?.createWorker;
-    if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
-    worker=await createWorker("chi_tra+eng",1);
-    try{await worker.setParameters({tessedit_pageseg_mode:"7",preserve_interword_spaces:"0"})}catch(_){}
+    worker=await getOCRWorker();
 
     const g=inferCardGrid(sourceImage);
     const found=[];
@@ -1453,6 +1446,7 @@ $("#mockRecognize").onclick=async()=>{
           image:learned?.image||cardImage,
           learned:!!learned,
           memoryIndex:learned?.index??-1,
+          memorySig:learned?.sig||null,
           edited:false
         });
       }
@@ -1468,7 +1462,6 @@ $("#mockRecognize").onclick=async()=>{
     console.error(err);
     $("#recognized").innerHTML=`<div class="meta">OCR 辨識失敗：${e(err?.message||String(err))}</div>`;
   }finally{
-    if(worker){try{await worker.terminate()}catch(_){}}
     btn.disabled=false; btn.textContent="辨識這張截圖";
   }
 };
@@ -1500,7 +1493,14 @@ $("#confirmRecognized").onclick=async()=>{
   const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
   for(const x of recognizedRows){
     const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
-    x.memoryIndex=await rememberItemName(item.image,item.name,item.variant, (x.learned && Number(x.memoryIndex)>=0) ? Number(x.memoryIndex) : -1);
+    if(x.edited){
+      x.memoryIndex=await rememberItemName(item.image,item.name,item.variant,Number(x.memoryIndex)>=0?Number(x.memoryIndex):-1,x.memorySig);
+    }else if(Number(x.memoryIndex)>=0 && d.itemMemory[x.memoryIndex]){
+      // 已從圖庫記憶命中：確認時不再重新做圖片分析，直接沿用記憶。
+      x.memoryIndex=Number(x.memoryIndex);
+    }else{
+      x.memoryIndex=await rememberItemName(item.image,item.name,item.variant,-1,x.memorySig);
+    }
     const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
     if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
     else a.items.push(item);
@@ -1704,3 +1704,4 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
