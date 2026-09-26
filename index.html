@@ -578,11 +578,13 @@ async function loadCloud(){
   }
   if(!Array.isArray(d.accounts))d.accounts=[];
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
+  dedupeGalleryMemory();
   active=d.accounts[0]?.id||null;
   render();
 }
 async function save(){
   if(!currentUser||!migrationReady)return;
+  dedupeGalleryMemory();
   d.updated=new Date().toLocaleString("zh-TW");
   saving=true;
   try{
@@ -1254,7 +1256,27 @@ async function loadImageDataUrl(source){
     if(revoke)URL.revokeObjectURL(url);
   }
 }
-async function recognizeBestName(worker,img,col,row,g){const variants=[],L=cardLayout(),x=col*g.cw,y=row*g.ch,sx=x+g.cw*.012,sy=y+g.ch*(L.nameY-.025),sw=g.cw*.976,sh=g.ch*(L.nameH+.05),scale=8,raw=cropRect(img,sx,sy,sw,sh,1),temp=await loadImageDataUrl(raw);for(const mode of ["color","gray","threshold120","threshold150","threshold180"]){const c=document.createElement("canvas");c.width=Math.max(1,Math.round(temp.width*scale));c.height=Math.max(1,Math.round(temp.height*scale));const cx=c.getContext("2d",{willReadFrequently:true});cx.imageSmoothingEnabled=false;cx.drawImage(temp,0,0,c.width,c.height);if(mode!=="color"){const im=cx.getImageData(0,0,c.width,c.height),p=im.data,threshold=mode==="threshold120"?120:mode==="threshold180"?180:150;for(let i=0;i<p.length;i+=4){const lum=.299*p[i]+.587*p[i+1]+.114*p[i+2];if(mode==="gray")p[i]=p[i+1]=p[i+2]=lum;else{const v=lum>=threshold?255:0;p[i]=p[i+1]=p[i+2]=v}}cx.putImageData(im,0,0)}variants.push(c.toDataURL("image/png"))}let best={text:"",confidence:0,score:-1};for(const v of variants){const res=await worker.recognize(v),text=cleanItemName(res?.data?.text||""),confidence=Number(res?.data?.confidence||0),cjk=cjkCount(text),broken=ocrLooksBroken(text,confidence),score=(broken?-120:0)+cjk*26+confidence-Math.max(0,text.length-28)*1.5;if(score>best.score)best={text,confidence,score}}if(ocrLooksBroken(best.text,best.confidence)){const narrow=cropRect(img,x+g.cw*.05,y+g.ch*(L.nameY+.005),g.cw*.90,g.ch*Math.max(.04,L.nameH-.005),1),nimg=await loadImageDataUrl(narrow),c=document.createElement("canvas");c.width=nimg.width*10;c.height=nimg.height*10;const cx=c.getContext("2d");cx.imageSmoothingEnabled=false;cx.drawImage(nimg,0,0,c.width,c.height);const res=await worker.recognize(c.toDataURL("image/png")),text=cleanItemName(res?.data?.text||""),confidence=Number(res?.data?.confidence||0);if(cjkCount(text)>cjkCount(best.text)||confidence>best.confidence)best={text,confidence,score:cjkCount(text)*26+confidence}}return best}
+async function recognizeBestName(worker,img,col,row,g){
+  // 快速模式：每格先只做一次 OCR；只有明顯失敗才做第二次窄裁切。
+  // 舊版每格固定做 5 次 OCR，格數一多會非常慢。
+  const L=cardLayout(),x=col*g.cw,y=row*g.ch;
+  const raw=cropRect(img,x+g.cw*.012,y+g.ch*(L.nameY-.02),g.cw*.976,g.ch*(L.nameH+.045),1);
+  const temp=await loadImageDataUrl(raw),scale=6;
+  const c=document.createElement("canvas");
+  c.width=Math.max(1,Math.round(temp.width*scale));c.height=Math.max(1,Math.round(temp.height*scale));
+  const cx=c.getContext("2d",{willReadFrequently:true});cx.imageSmoothingEnabled=false;cx.drawImage(temp,0,0,c.width,c.height);
+  let res=await worker.recognize(c.toDataURL("image/png"));
+  let text=cleanItemName(res?.data?.text||""),confidence=Number(res?.data?.confidence||0);
+  if(!ocrLooksBroken(text,confidence)) return {text,confidence,score:cjkCount(text)*26+confidence};
+  // 第二次只在第一次失敗時使用，避免正常情況下浪費 OCR。
+  const narrow=cropRect(img,x+g.cw*.05,y+g.ch*(L.nameY+.005),g.cw*.90,g.ch*Math.max(.04,L.nameH-.005),1);
+  const nimg=await loadImageDataUrl(narrow),nc=document.createElement("canvas");
+  nc.width=Math.max(1,nimg.width*8);nc.height=Math.max(1,nimg.height*8);
+  const nx=nc.getContext("2d");nx.imageSmoothingEnabled=false;nx.drawImage(nimg,0,0,nc.width,nc.height);
+  res=await worker.recognize(nc.toDataURL("image/png"));
+  const text2=cleanItemName(res?.data?.text||""),confidence2=Number(res?.data?.confidence||0);
+  return (cjkCount(text2)>cjkCount(text)||confidence2>confidence)?{text:text2,confidence:confidence2,score:cjkCount(text2)*26+confidence2}:{text,confidence,score:cjkCount(text)*26+confidence};
+}
 
 async function imageSignature(dataUrl){const img=await loadImageDataUrl(dataUrl),size=16,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true}),sw=img.naturalWidth*.82,sh=img.naturalHeight*.66,sx=img.naturalWidth*.09,sy=img.naturalHeight*.05;ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,sig=[];for(let by=0;by<size;by++)for(let bx=0;bx<size;bx++){const i=(by*size+bx)*4,r=p[i],g=p[i+1],b=p[i+2],lum=.299*r+.587*g+.114*b;sig.push(Math.round(r/16),Math.round(g/16),Math.round(b/16),Math.round(lum/16))}return sig}
 async function imageFeaturePack(dataUrl){const img=await loadImageDataUrl(dataUrl),size=32,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true}),sw=img.naturalWidth*.84,sh=img.naturalHeight*.68,sx=img.naturalWidth*.08,sy=img.naturalHeight*.04;ctx.drawImage(img,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,gray=new Float32Array(size*size),hist=new Array(64).fill(0);for(let i=0,j=0;i<p.length;i+=4,j++){const r=p[i],g=p[i+1],b=p[i+2],lum=.299*r+.587*g+.114*b;gray[j]=lum;hist[(Math.min(3,r>>6)<<4)|(Math.min(3,g>>6)<<2)|Math.min(3,b>>6)]++}const mean=gray.reduce((a,b)=>a+b,0)/gray.length,hash=Array.from(gray,v=>v>=mean?1:0),edge=[];for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=y*size+x,gx=x?gray[i]-gray[i-1]:0,gy=y?gray[i]-gray[i-size]:0;edge.push(Math.min(255,Math.round(Math.sqrt(gx*gx+gy*gy))))}const hs=Math.sqrt(hist.reduce((a,b)=>a+b*b,0))||1;return {hash,hist:hist.map(v=>v/hs),edge}}
@@ -1262,8 +1284,92 @@ function signatureDistance(a,b){if(!Array.isArray(a)||!Array.isArray(b)||a.lengt
 function featureDistance(a,b){if(!a||!b)return {hash:99,hist:99,edge:99,total:99};let hd=99,hh=99,ed=99;if(Array.isArray(a.hash)&&Array.isArray(b.hash)&&a.hash.length===b.hash.length){let n=0;for(let i=0;i<a.hash.length;i++)n+=a.hash[i]===b.hash[i]?0:1;hd=n/a.hash.length*16}if(Array.isArray(a.hist)&&Array.isArray(b.hist)&&a.hist.length===b.hist.length){let n=0;for(let i=0;i<a.hist.length;i++){const d=a.hist[i]-b.hist[i];n+=d*d}hh=Math.sqrt(n)*16}if(Array.isArray(a.edge)&&Array.isArray(b.edge)&&a.edge.length===b.edge.length){let n=0;for(let i=0;i<a.edge.length;i++)n+=Math.abs(a.edge[i]-b.edge[i]);ed=n/a.edge.length/8}return {hash:hd,hist:hh,edge:ed,total:hd*.48+hh*.22+ed*.30}}
 async function visualImageDistance(aDataUrl,bDataUrl){if(!aDataUrl||!bDataUrl)return 999;try{const [a,b]=await Promise.all([loadImageDataUrl(aDataUrl),loadImageDataUrl(bDataUrl)]),size=40,c=document.createElement("canvas");c.width=size;c.height=size;const ctx=c.getContext("2d",{willReadFrequently:true});const draw=im=>{ctx.clearRect(0,0,size,size);const sw=im.naturalWidth*.84,sh=im.naturalHeight*.68,sx=im.naturalWidth*.08,sy=im.naturalHeight*.04;ctx.drawImage(im,sx,sy,sw,sh,0,0,size,size);const p=ctx.getImageData(0,0,size,size).data,out=new Float32Array(size*size);for(let i=0,j=0;i<p.length;i+=4,j++)out[j]=.299*p[i]+.587*p[i+1]+.114*p[i+2];return out};const pa=draw(a),pb=draw(b);let mse=0,grad=0;for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=y*size+x,d=pa[i]-pb[i];mse+=d*d;if(x>0&&y>0){const ga=pa[i]-pa[i-1],gb=pb[i]-pb[i-1],ha=pa[i]-pa[i-size],hb=pb[i]-pb[i-size];grad+=(ga-gb)*(ga-gb)+(ha-hb)*(ha-hb)}}return Math.sqrt(mse/(size*size))*.62+Math.sqrt(grad/((size-1)*(size-1)*2))*.38}catch(_){return 999}}
 async function buildMemoryFeatures(m){if(!m?.image)return null;if(m._features)return m._features;try{m._features=await imageFeaturePack(m.image);return m._features}catch(_){return null}}
-async function learnedNameFor(image){const sig=await imageSignature(image),feat=await imageFeaturePack(image);let best=null;for(const m of (d.itemMemory||[])){if(!m?.image)continue;let ms=m?.sig;if(!Array.isArray(ms)||ms.length!==16*16*4){try{ms=await imageSignature(m.image)}catch(_){ms=null}}if(!Array.isArray(ms)||ms.length!==16*16*4)continue;const dist=signatureDistance(sig,ms),mf=await buildMemoryFeatures(m),fd=featureDistance(feat,mf);let visual=999;try{visual=await visualImageDistance(image,m.image)}catch(_){}const score=visual*.38+dist*.20+fd.total*.42;if(!best||score<best.score)best={...m,dist,visual,fd,score,sig:ms,index:(d.itemMemory||[]).indexOf(m)}}if(best){const strong=best.visual<=27&&best.dist<=8.2&&best.fd.total<=8.5,near=best.visual<=34&&best.dist<=6.8&&best.fd.total<=6.8;if(strong||near)return best}return null}
-async function rememberItemName(image,name,variant="",forceIndex=-1){if(!image||!name||name==="待確認")return;d.itemMemory=d.itemMemory||[];const sig=await imageSignature(image),features=await imageFeaturePack(image);if(Number.isInteger(forceIndex)&&forceIndex>=0&&forceIndex<d.itemMemory.length){d.itemMemory[forceIndex]={...d.itemMemory[forceIndex],sig,features,name,variant,image};return}const learned=await learnedNameFor(image),rec={sig,features,name,variant,image};if(learned){const idx=Number(learned.index);d.itemMemory[idx]={...d.itemMemory[idx],sig,features,image}}else d.itemMemory.push(rec)}
+async function learnedNameFor(image){
+  const sig=await imageSignature(image),feat=await imageFeaturePack(image);
+  const candidates=[];
+  for(const m of (d.itemMemory||[])){
+    if(!m?.image)continue;
+    let ms=m?.sig;
+    if(!Array.isArray(ms)||ms.length!==16*16*4){try{ms=await imageSignature(m.image)}catch(_){ms=null}}
+    if(!Array.isArray(ms)||ms.length!==16*16*4)continue;
+    const dist=signatureDistance(sig,ms),mf=await buildMemoryFeatures(m),fd=featureDistance(feat,mf);
+    const pre=dist*.45+fd.total*.55;
+    candidates.push({m,ms,dist,mf,fd,pre,index:(d.itemMemory||[]).indexOf(m)});
+  }
+  // 先用便宜的 signature/feature 篩選，只有最接近的少數圖片才做昂貴的逐像素比對。
+  candidates.sort((a,b)=>a.pre-b.pre);
+  let best=null;
+  for(const c of candidates.slice(0,Math.min(4,candidates.length))){
+    let visual=999;try{visual=await visualImageDistance(image,c.m.image)}catch(_){}
+    const score=visual*.38+c.dist*.20+c.fd.total*.42;
+    if(!best||score<best.score)best={...c.m,dist:c.dist,visual,fd:c.fd,score,sig:c.ms,index:c.index};
+  }
+  if(best){const strong=best.visual<=27&&best.dist<=8.2&&best.fd.total<=8.5,near=best.visual<=34&&best.dist<=6.8&&best.fd.total<=6.8;if(strong||near)return best}
+  return null;
+}
+function normalizeGalleryText(v){
+  return String(v||"").trim().toLowerCase().replace(/\s+/g,"");
+}
+function galleryMemoryKey(name,variant=""){
+  return `${normalizeGalleryText(name)}\u0000${normalizeGalleryText(variant)}`;
+}
+function dedupeGalleryMemory(){
+  d.itemMemory=Array.isArray(d.itemMemory)?d.itemMemory:[];
+  const out=[],byKey=new Map();
+  for(const m of d.itemMemory){
+    if(!m?.image||!m?.name||m.name==="待確認")continue;
+    // 只有「名稱＋款式／顏色」完全相同才去重。
+    // 不再用圖片本身作為跨款式的去重條件，避免同商品不同顏色被合併。
+    const key=galleryMemoryKey(m.name,m.variant);
+    const existing=byKey.get(key);
+    if(existing){
+      if(!existing.sig&&m.sig)existing.sig=m.sig;
+      if(!existing.features&&m.features)existing.features=m.features;
+      continue;
+    }
+    const copy={...m}; out.push(copy); byKey.set(key,copy);
+  }
+  d.itemMemory=out;
+}
+async function rememberItemName(image,name,variant="",forceIndex=-1){
+  if(!image||!name||name==="待確認")return;
+  d.itemMemory=d.itemMemory||[];
+  const cleanName=String(name).trim(), cleanVariant=String(variant||"").trim();
+  if(Number.isInteger(forceIndex)&&forceIndex>=0&&forceIndex<d.itemMemory.length){
+    const old=d.itemMemory[forceIndex];
+    d.itemMemory[forceIndex]={...old,name:cleanName,variant:cleanVariant,image};
+    dedupeGalleryMemory();
+    return d.itemMemory.findIndex(x=>x===d.itemMemory[forceIndex]);
+  }
+  // 只有名稱＋款式／顏色相同才視為同一筆。
+  // 同商品不同顏色即使圖片很相似，也必須保留為不同圖庫項目。
+  const key=galleryMemoryKey(cleanName,cleanVariant);
+  const same=d.itemMemory.find(m=>m?.image&&galleryMemoryKey(m.name,m.variant)===key);
+  if(same){
+    same.name=cleanName; same.variant=cleanVariant;
+    if(!same.image) same.image=image;
+    return d.itemMemory.indexOf(same);
+  }
+  // 只有在「名稱＋款式／顏色」也吻合時，才允許視覺學習結果回填；
+  // 禁止單純因圖片相似而把不同顏色合併。
+  const sig=await imageSignature(image),features=await imageFeaturePack(image);
+  const learned=await learnedNameFor(image);
+  if(learned){
+    const sameLearned=normalizeGalleryText(learned.name)===normalizeGalleryText(cleanName) &&
+      normalizeGalleryText(learned.variant)===normalizeGalleryText(cleanVariant);
+    if(sameLearned){
+      const idx=Number(learned.index);
+      if(Number.isInteger(idx)&&idx>=0&&idx<d.itemMemory.length){
+        d.itemMemory[idx]={...d.itemMemory[idx],sig,features,image,name:cleanName,variant:cleanVariant};
+        return idx;
+      }
+    }
+  }
+  d.itemMemory.push({sig,features,name:cleanName,variant:cleanVariant,image});
+  dedupeGalleryMemory();
+  return d.itemMemory.findIndex(m=>galleryMemoryKey(m.name,m.variant)===key);
+}
+
 function renderGallery(){const q=String($("#gallerySearch")?.value||"").trim().toLowerCase(),rows=(d.itemMemory||[]).map((m,index)=>({...m,_index:index})).filter(m=>m?.image&&(!q||[m.name,m.variant].filter(Boolean).join(" ").toLowerCase().includes(q)));$("#galleryCount").textContent=`(${(d.itemMemory||[]).filter(m=>m?.image).length})`;$("#galleryGrid").innerHTML=rows.length?rows.map(m=>`<div class="galleryCard"><img src="${m.image}" alt=""><div class="galleryName">${e(m.name||"未命名")}</div><div class="galleryEditFields"><input class="galleryInlineName" data-i="${m._index}" value="${e(m.name||"")}" placeholder="商品名稱"><input class="galleryInlineVariant" data-i="${m._index}" value="${e(m.variant||"")}" placeholder="款式／顏色"></div><div class="memoryBadge">✓ 圖片已自動記憶｜下次自動套用</div><div class="galleryEditActions"><button class="btn editGallery" data-i="${m._index}" type="button">✏️ 編輯</button><button class="btn saveGalleryInline" data-i="${m._index}" type="button">儲存</button><button class="btn danger deleteGallery" data-i="${m._index}" type="button">🗑 刪除圖片</button></div></div>`).join(""):'<div class="galleryEmpty">目前圖庫還沒有商品圖片。第一次辨識並確認加入庫存後，會自動建立圖庫記錄，不需要手動上傳圖片。</div>';document.querySelectorAll(".saveGalleryInline").forEach(btn=>btn.onclick=async()=>{const i=Number(btn.dataset.i),m=d.itemMemory?.[i];if(!m)return;const name=document.querySelector(`.galleryInlineName[data-i="${i}"]`)?.value.trim()||"",variant=document.querySelector(`.galleryInlineVariant[data-i="${i}"]`)?.value.trim()||"";if(!name)return alert("商品名稱不能空白。");await updateGalleryMemory(i,name,variant)});document.querySelectorAll(".editGallery").forEach(btn=>btn.onclick=()=>{const i=Number(btn.dataset.i),m=d.itemMemory?.[i];if(!m)return;$("#editGalleryImg").src=m.image||"";$("#editGalleryName").value=m.name||"";$("#editGalleryVariant").value=m.variant||"";$("#editGalleryDlg").dataset.index=i;$("#editGalleryDlg").showModal()});document.querySelectorAll(".deleteGallery").forEach(btn=>btn.onclick=async()=>{await deleteGalleryMemory(Number(btn.dataset.i))})}
 async function updateGalleryMemory(index,name,variant){const m=d.itemMemory?.[index];if(!m)return;const clean=String(name||"").trim(),cleanVariant=String(variant||"").trim();if(!clean)return alert("商品名稱不能空白。");d.itemMemory[index]={...m,name:clean,variant:cleanVariant};for(const a of (d.accounts||[]))for(const item of (a.items||[])){if(!item.image)continue;try{const f1=await imageSignature(item.image),f2=await imageSignature(m.image);if(signatureDistance(f1,f2)<=7.2){item.name=clean;item.variant=cleanVariant}}catch(_){}}await save();render();renderGallery()}
 async function deleteGalleryMemory(index){
@@ -1325,15 +1431,8 @@ $("#mockRecognize").onclick=async()=>{
 
         // A valid card must have a plausible item-name line. This prevents
         // buttons/page text elsewhere on the screenshot from becoming items.
-        const restrictionImg=cardRestrictionCrop(sourceImage,col,row,g);
-        let restriction="";
-        try{
-          const rr=await worker.recognize(restrictionImg);
-          const rt=String(rr?.data?.text||"");
-          if(/限男/.test(rt)) restriction="限男";
-          else if(/限女/.test(rt)) restriction="限女";
-          else if(/無限制/.test(rt)) restriction="無限制";
-        }catch(_){}
+        // 限男／限女不在每一格額外 OCR；確認時由分類的限制選項決定，避免每格再跑一次 OCR。
+        const restriction="";
 
         // Split the common "道具名稱-顏色" format.
         let itemName=name,variant="";
@@ -1374,20 +1473,42 @@ $("#mockRecognize").onclick=async()=>{
   }
 };
 
+async function saveFastConfirm(accountId,memoryIndexes){
+  if(!currentUser||!migrationReady)return;
+  d.updated=new Date().toLocaleString("zh-TW");
+  try{
+    const batch=writeBatch(db);
+    batch.set(accountRef(String(accountId)),(d.accounts||[]).find(a=>String(a.id)===String(accountId))||{}, {merge:false});
+    const seen=new Set();
+    for(const idx of memoryIndexes||[]){
+      const i=Number(idx); if(!Number.isInteger(i)||i<0||i>=d.itemMemory.length||seen.has(i))continue;
+      seen.add(i); const m=d.itemMemory[i];
+      batch.set(memoryRef(stableMemoryId(m,i)),m);
+    }
+    batch.set(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated});
+    await batch.commit();
+    render();
+  }catch(err){
+    console.error(err);
+    alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
+  }
+}
+
 $("#confirmRecognized").onclick=async()=>{
   const a=cur(); if(!a||!recognizedRows.length)return;
   const cat=$("#shotCategory").value||"家具";
   const gen=(cat==="戒指"||cat==="作物")?($("#shotGender").value||recognizedRows[0]?.restriction||"限男"):"";
   for(const x of recognizedRows){
     const item={name:x.name,variant:x.variant||"",category:cat,gender:gen,candyType:"",qty:Number(x.qty)||1,image:x.image||""};
-    await rememberItemName(item.image,item.name,item.variant, x.edited ? Number(x.memoryIndex) : -1);
+    x.memoryIndex=await rememberItemName(item.image,item.name,item.variant, (x.learned && Number(x.memoryIndex)>=0) ? Number(x.memoryIndex) : -1);
     const same=a.items.find(y=>y.name===item.name&&(y.variant||"")==item.variant&&(y.category||"")===cat&&(y.gender||"")===gen);
     if(same){same.qty+=item.qty;if(item.image)same.image=item.image}
     else a.items.push(item);
   }
   activeCategory=cat; activeGender=gen; activeCandy="";
   const tempSource=recognizingTempShot;
-  await save();
+  const changedMemoryIndexes=recognizedRows.map(x=>Number(x.memoryIndex)).filter(i=>Number.isInteger(i)&&i>=0);
+  await saveFastConfirm(a.id,changedMemoryIndexes);
   if(tempSource){
     shotDlg.close();
     recognizingTempShot=null;
@@ -1583,5 +1704,3 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
