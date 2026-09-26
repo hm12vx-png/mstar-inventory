@@ -1415,51 +1415,47 @@ function signatureDistance(a,b){
   return pixel+colour*.95;
 }
 async function learnedNameFor(image){
-  const [features,legacySig,robustSig]=await Promise.all([imageMemoryFeatures(image),imageSignature(image),robustArtworkFeature(image)]);
+  const [features,robustSig]=await Promise.all([imageMemoryFeatures(image),robustArtworkFeature(image)]);
   const candidates=[];
+
+  // V5 保守模式：舊版記憶保留在 Firestore，但完全不參與自動命名。
+  // 避免 V2/V3/V4 曾經誤記的樣本繼續把相似道具套成錯誤名稱。
   for(const m of (d.itemMemory||[])){
-    let sd=999,cd=999,rd=999,legacy=999;
-    if(Array.isArray(m.shapeSig))sd=shapeDistance(features.shapeSig,m.shapeSig);
-    if(Array.isArray(m.colorSig))cd=colorDistance(features.colorSig,m.colorSig);
-    if(Array.isArray(m.robustSig))rd=robustShiftDistance(robustSig,m.robustSig);
-    if(sd===999&&rd===999&&Array.isArray(m.sig))legacy=signatureDistance(legacySig,m.sig);
-    if(sd<999||rd<999){
-      const shapeScore=Math.min(sd,rd<999?rd*.72:999);
-      candidates.push({...m,shapeDist:shapeScore,rawShapeDist:sd,robustDist:rd,colorDist:cd,score:shapeScore+(cd<999?cd*.24:.30)});
-    }else if(legacy<999)candidates.push({...m,shapeDist:legacy/2,robustDist:999,colorDist:legacy,score:legacy/2});
+    if(Number(m.memoryVersion||0)<5)continue;
+    if(!Array.isArray(m.shapeSig)||!Array.isArray(m.colorSig)||!Array.isArray(m.robustSig))continue;
+    const sd=shapeDistance(features.shapeSig,m.shapeSig);
+    const cd=colorDistance(features.colorSig,m.colorSig);
+    const rd=robustShiftDistance(robustSig,m.robustSig);
+    // 三種特徵分開保留，最後必須同時通過；不再只靠「長得像」猜名稱。
+    const score=sd*.34+rd*.42+cd*.24;
+    candidates.push({...m,shapeDist:sd,robustDist:rd,colorDist:cd,score});
   }
   if(!candidates.length)return null;
-  // V4 rebuilt/confirmed memories take priority. Older memories are preserved for fallback,
-  // but once V4 samples exist they no longer compete with the clean recognition set.
-  const v4=candidates.filter(x=>Number(x.memoryVersion||0)>=4);
-  const ranked=(v4.length?v4:candidates).sort((a,b)=>a.score-b.score);
-  const best=ranked[0],second=ranked[1];
-  const candidatesForDecision=ranked;
-  const margin=second?second.score-best.score:.5;
+  candidates.sort((a,b)=>a.score-b.score);
+  const best=candidates[0];
 
-  // Exact appearance: same shape + same colour. Strict enough not to guess a different item.
-  if(best.shapeDist<=.70&&best.colorDist<=.88&&(margin>=.055||candidatesForDecision.filter(x=>x.name===best.name&&x.score<=best.score+.07).length>=2))
-    return {...best,matchLevel:"exact"};
+  // 先以名稱＋款式分組，避免同一物品的多樣本互相成為第二名造成誤判。
+  const key=x=>`${x.name}\u0000${String(x.variant||"")}`;
+  const bestKey=key(best);
+  const same=candidates.filter(x=>key(x)===bestKey);
+  const other=candidates.find(x=>key(x)!==bestKey);
+  const otherMargin=other?other.score-best.score:999;
+  const closeSamples=same.filter(x=>x.shapeDist<=.40&&x.robustDist<=.34&&x.colorDist<=.46).length;
 
-  // Same model in another colour: shape can identify the item name, but NEVER reuse the old colour.
-  // Require either repeated samples of that name or a clear lead over the runner-up.
-  const shapeOnly=candidatesForDecision.filter(x=>x.shapeDist<=.56).sort((a,b)=>a.shapeDist-b.shapeDist);
-  if(shapeOnly.length){
-    const first=shapeOnly[0],runner=shapeOnly.find(x=>x.name!==first.name);
-    const sameNameCount=shapeOnly.filter(x=>x.name===first.name).length;
-    const nameMargin=runner?runner.shapeDist-first.shapeDist:.5;
-    if(sameNameCount>=2||nameMargin>=.13)return {...first,variant:"",matchLevel:"shape"};
-  }
+  // V5：三項都要很接近，而且若有別的候選，必須明顯拉開差距。
+  // 有兩個以上同名同款的可靠樣本時可容許非常小的截圖差異；仍不接受只靠造型的匹配。
+  const strictSingle=best.shapeDist<=.34&&best.robustDist<=.29&&best.colorDist<=.39&&otherMargin>=.10;
+  const strictMulti=closeSamples>=2&&best.shapeDist<=.40&&best.robustDist<=.34&&best.colorDist<=.46&&otherMargin>=.075;
+  if(strictSingle||strictMulti)return {...best,matchLevel:"v5-exact"};
 
-  // Keep old memory usable, but only at a conservative threshold.
-  const old=v4.length?null:candidates.find(x=>!Array.isArray(x.shapeSig)&&!Array.isArray(x.robustSig)&&x.score<=.82);
-  return old?{...old,matchLevel:"legacy"}:null;
+  // 沒把握就不回傳名稱，交給畫面顯示「待確認」。
+  return null;
 }
 async function rememberItemName(image,name,variant=""){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
   const [sig,features,robustSig]=await Promise.all([imageSignature(image),imageMemoryFeatures(image),robustArtworkFeature(image)]);
-  const rec={sig,shapeSig:features.shapeSig,colorSig:features.colorSig,robustSig,name,variant,memoryVersion:4};
+  const rec={sig,shapeSig:features.shapeSig,colorSig:features.colorSig,robustSig,name,variant,memoryVersion:5};
   // Multi-sample memory: only replace a near-identical sample. Different crops/resolutions
   // of the same item are intentionally kept as additional examples.
   let duplicate=-1;
@@ -1471,7 +1467,7 @@ async function rememberItemName(image,name,variant=""){
   }
   if(duplicate>=0)d.itemMemory[duplicate]=rec;else d.itemMemory.push(rec);
 }
-const INVENTORY_MEMORY_BACKFILL_VERSION=4;
+const INVENTORY_MEMORY_BACKFILL_VERSION=5;
 let inventoryMemoryBackfillRunning=false;
 async function backfillInventoryMemory(){
   if(inventoryMemoryBackfillRunning||!currentUser||!migrationReady)return;
@@ -1492,7 +1488,7 @@ async function backfillInventoryMemory(){
         if(m.name!==x.name||String(m.variant||"")!==x.variant)continue;
         if(Array.isArray(m.robustSig)&&robustShiftDistance(robustSig,m.robustSig)<=.13&&Array.isArray(m.colorSig)&&colorDistance(features.colorSig,m.colorSig)<=.15){dup=true;break}
       }
-      if(!dup)newMem.push({sig,shapeSig:features.shapeSig,colorSig:features.colorSig,robustSig,name:x.name,variant:x.variant,memoryVersion:4});
+      if(!dup)newMem.push({sig,shapeSig:features.shapeSig,colorSig:features.colorSig,robustSig,name:x.name,variant:x.variant,memoryVersion:5});
       if(i%12===11)await new Promise(r=>setTimeout(r,0));
     }
     if(newMem.length){
@@ -1504,7 +1500,7 @@ async function backfillInventoryMemory(){
       }
       d.itemMemory.push(...newMem);
     }
-    await setDoc(metaRef(),{inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,inventoryMemoryBackfilledAt:new Date().toISOString(),recognitionEngineVersion:4},{merge:true});
+    await setDoc(metaRef(),{inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,inventoryMemoryBackfilledAt:new Date().toISOString(),recognitionEngineVersion:5},{merge:true});
   }catch(err){console.error("精準辨識記憶補建失敗",err)}
   finally{inventoryMemoryBackfillRunning=false}
 }
@@ -1566,17 +1562,14 @@ $("#mockRecognize").onclick=async()=>{
           else if(/無限制/.test(rt)) restriction="無限制";
         }catch(_){}
 
-        // Split the common "道具名稱-顏色" format.
-        let itemName=name,variant="";
-        const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
-        if(m){itemName=m[1].trim();variant=m[2].trim()}
-
+        // OCR 只負責輔助定位／讀取，不再有權直接替道具命名。
+        // 沒有通過 V5 高可信記憶比對，就一律待確認，避免小字 OCR 亂猜出看似合理的錯名。
+        let itemName="待確認",variant="";
         const cardImage=cardCrop(sourceImage,col,row,g);
         const learned=await learnedNameFor(cardImage);
         if(learned){
           itemName=learned.name;
-          if(learned.matchLevel!=="shape"&&learned.variant)variant=learned.variant;
-          if(learned.matchLevel==="shape")variant="";
+          variant=String(learned.variant||"");
         }
 
         // 名稱可用記憶，但數量一定以「這一次截圖」重新辨識。
@@ -1830,5 +1823,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
 
