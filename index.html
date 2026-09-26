@@ -1287,140 +1287,84 @@ function gridLineScore(ctx,pos,vertical,W,H){
 }
 
 function inferCardGrid(img){
-  // MSTAR 固定 4 欄商品卡：先找三條「欄間分隔線」，再找「列間分隔線」。
-  // 不把整張截圖平均切割，也不從 y=0 強制開始。
+  // OO 平常的 MSTAR 截圖是固定 4 欄卡片，而且常常只截到商品區本身。
+  // 舊版用「整張圖 42%～78% 寬」猜遊戲區，反而會把這種截圖誤判成較窄區域，造成整排錯切。
+  // 這版直接依 4 欄的週期性分隔線校正：允許左右、上下各有少量被截掉，但每格仍維持完整卡片節距。
   const W=img.naturalWidth,H=img.naturalHeight,cols=4;
   const c=document.createElement("canvas");
-  const scale=Math.min(1,1100/W,900/H);
+  const scale=Math.min(1,900/W,900/H);
   c.width=Math.max(1,Math.round(W*scale));
   c.height=Math.max(1,Math.round(H*scale));
   const ctx=c.getContext("2d",{willReadFrequently:true});
   ctx.drawImage(img,0,0,c.width,c.height);
   const sx=c.width/W,sy=c.height/H;
 
-  function verticalScore(x,y0,y1){
+  function edgeX(x){
     const xx=Math.max(2,Math.min(c.width-3,Math.round(x*sx)));
-    const ya=Math.max(2,Math.round(y0*sy));
-    const yb=Math.min(c.height-3,Math.round(y1*sy));
     let sum=0,n=0;
-    const step=Math.max(1,Math.round((yb-ya)/280));
-    for(let y=ya;y<=yb;y+=step){
-      const a=ctx.getImageData(xx-2,y,1,1).data;
-      const b=ctx.getImageData(xx+2,y,1,1).data;
-      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
-      n++;
+    const step=Math.max(1,Math.round(c.height/220));
+    for(let y=2;y<c.height-2;y+=step){
+      const a=ctx.getImageData(xx-2,y,1,1).data,b=ctx.getImageData(xx+2,y,1,1).data;
+      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;n++;
     }
     return n?sum/n:0;
   }
-  function horizontalScore(y,x0,x1){
+  function edgeY(y,x0=0,x1=W){
     const yy=Math.max(2,Math.min(c.height-3,Math.round(y*sy)));
-    const xa=Math.max(2,Math.round(x0*sx));
-    const xb=Math.min(c.width-3,Math.round(x1*sx));
+    const ax=Math.max(0,Math.round(x0*sx)),bx=Math.min(c.width-1,Math.round(x1*sx));
     let sum=0,n=0;
-    const step=Math.max(1,Math.round((xb-xa)/360));
-    for(let x=xa;x<=xb;x+=step){
-      const a=ctx.getImageData(x,yy-2,1,1).data;
-      const b=ctx.getImageData(x,yy+2,1,1).data;
-      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;
-      n++;
+    const step=Math.max(1,Math.round(Math.max(1,bx-ax)/260));
+    for(let x=ax;x<=bx;x+=step){
+      const a=ctx.getImageData(x,yy-2,1,1).data,b=ctx.getImageData(x,yy+2,1,1).data;
+      sum+=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2]))/3;n++;
     }
     return n?sum/n:0;
   }
-  function localPeaks(values,minGap){
-    const peaks=[];
-    for(let i=2;i<values.length-2;i++){
-      const v=values[i];
-      if(v<values[i-1]||v<values[i+1])continue;
-      peaks.push({p:i+2,v});
-    }
-    peaks.sort((a,b)=>b.v-a.v);
-    const out=[];
-    for(const q of peaks){
-      if(out.every(x=>Math.abs(x.p-q.p)>=minGap))out.push(q);
-      if(out.length>=100)break;
-    }
-    return out.sort((a,b)=>a.p-b.p);
-  }
 
-  // ---------- 先定位 4 欄商品區 ----------
-  // MSTAR 截圖左右兩側通常是網頁背景，中間是一個完整的 4 欄遊戲區。
-  // 直接找這個遊戲區的「左外框」與「右外框」，再四等分。
-  // 這比找商品內部的線穩定，因為商品圖、名稱、NEW 標籤都可能產生假分隔線。
-  const xVals=[];
-  for(let x=2;x<W-2;x++)xVals.push(verticalScore(x,Math.max(0,H*.015),Math.min(H,H*.94)));
-  const leftBand=Math.max(2,Math.round(W*.00)),leftBandEnd=Math.min(W-2,Math.round(W*.35));
-  const rightBand=Math.max(2,Math.round(W*.65)),rightBandEnd=Math.min(W-2,Math.round(W*.995));
-  let leftEdge=null,rightEdge=null;
-  for(let x=leftBand;x<=leftBandEnd;x++){
-    const v=xVals[x-2]??0;
-    if(!leftEdge||v>leftEdge.v)leftEdge={x,v};
-  }
-  for(let x=rightBand;x<=rightBandEnd;x++){
-    const v=xVals[x-2]??0;
-    if(!rightEdge||v>rightEdge.v)rightEdge={x,v};
-  }
-
+  // 4 欄截圖的單格寬約為整張圖的 1/4；搜尋 ±8%，並找出能讓 5 條欄界線同時最強的相位。
   let bestX=null;
-  if(leftEdge&&rightEdge&&rightEdge.x-leftEdge.x>W*.45&&rightEdge.x-leftEdge.x<W*.92){
-    const width=rightEdge.x-leftEdge.x;
-    bestX={left:leftEdge.x,cw:width/cols,right:rightEdge.x,score:leftEdge.v+rightEdge.v};
-  }
-
-  if(!bestX){
-    // MSTAR 4 欄保底；仍只切欄，不碰整張圖片高度。
-    const cw=Math.max(120,Math.min(W/4,W*.16));
-    const left=Math.max(0,(W-cw*4)/2);
-    bestX={left,cw,right:Math.min(W,left+cw*4),score:0};
-  }
-
-  const x0=bestX.left,cw=bestX.cw,x1=Math.min(W,x0+cw*cols);
-
-  // ---------- 再定位商品列 ----------
-  // 商品卡列高約為欄寬的 1.05～1.30 倍；只找這個範圍內的連續水平邊界。
-  const yVals=[];
-  for(let y=2;y<H-2;y++)yVals.push(horizontalScore(y,x0,x1));
-  const yPeaks=localPeaks(yVals,Math.max(7,Math.round(cw*.045)));
-  let bestY=null;
-  const minRowGap=cw*1.02,maxRowGap=cw*1.30;
-  const expectedRowGap=cw*1.16;
-
-  for(let i=0;i<yPeaks.length;i++){
-    const top=yPeaks[i].p;
-    for(let j=i+1;j<yPeaks.length;j++){
-      const gap=yPeaks[j].p-top;
-      if(gap<minRowGap)continue;
-      if(gap>maxRowGap)break;
-      // MSTAR 的完整商品卡高度約為欄寬 1.16 倍。
-      // 強邊緣可能來自截圖最底部或下一排按鈕，所以不能只看邊緣強度。
-      const score=yPeaks[i].v+yPeaks[j].v-Math.abs(gap-expectedRowGap)*6;
-      if(!bestY||score>bestY.score)bestY={top,gap,score};
+  const base=W/4;
+  for(let cw=base*.92;cw<=base*1.08;cw+=Math.max(.5,base*.004)){
+    for(let x0=-cw*.14;x0<=cw*.16;x0+=Math.max(.5,cw*.008)){
+      let score=0,seen=0;
+      for(let k=0;k<=cols;k++){
+        const x=x0+k*cw;
+        if(x>=1&&x<=W-2){score+=edgeX(x);seen++}
+      }
+      // 內部分隔線最重要；同時偏好能覆蓋接近整張截圖的 4 欄網格。
+      const cover=Math.min(W,x0+cols*cw)-Math.max(0,x0);
+      score=(seen?score/seen:0)+(cover/W)*18-Math.abs(cw-base)/base*8;
+      if(!bestX||score>bestX.score)bestX={x:x0,cw,score};
     }
   }
+  const x0=bestX?.x||0,cw=bestX?.cw||base,x1=Math.min(W,x0+cols*cw);
 
-  if(!bestY){
-    // 單列截圖：選擇最可信的水平邊界，列高採 MSTAR 固定比例。
-    const topPeak=yPeaks.filter(p=>p.p<H*.90).sort((a,b)=>b.v-a.v)[0];
-    const top=topPeak?.p??Math.max(0,Math.round(H*.07));
-    bestY={top,gap:Math.min(H-top,Math.max(cw*1.08,cw*1.16)),score:topPeak?.v||0};
+  // 實際範例的卡片高度穩定約為欄寬 1.12～1.24 倍。
+  // 找上下列分隔線的共同週期，不再把「查看詳情」按鈕上緣誤認成下一列邊界。
+  let bestY=null;
+  for(let ratio=1.10;ratio<=1.25;ratio+=.005){
+    const ch=cw*ratio;
+    for(let y0=-ch*.12;y0<=ch*.14;y0+=Math.max(.5,ch*.006)){
+      let score=0,seen=0;
+      for(let k=0;k<=Math.ceil((H-y0)/ch);k++){
+        const y=y0+k*ch;
+        if(y>=1&&y<=H-2){score+=edgeY(y,Math.max(0,x0),x1);seen++}
+      }
+      score=(seen?score/seen:0)-Math.abs(ratio-1.18)*5;
+      if(!bestY||score>bestY.score)bestY={y:y0,ch,score};
+    }
   }
-
-  let firstRow=Math.max(0,Math.round(bestY.top));
-  const ch=Math.max(1,bestY.gap);
-
-  // 若最上方邊界落在上一排按鈕區，往後找一個同樣規格的邊界。
-  // 只有「完整卡片」才建立辨識項目。
-  while(firstRow+ch>H && firstRow>0)firstRow--;
-  const rows=Math.max(1,Math.floor((H-firstRow)/ch));
-
-  return {
-    cols,
-    rows,
-    cw,
-    ch,
-    offset:firstRow,
-    xOffset:x0,
-    xEnd:x1
-  };
+  const y0=bestY?.y||0,ch=bestY?.ch||cw*1.18;
+  // 只收至少露出 55% 的最後一列，避免底部只有一小條也被當成完整商品。
+  let rows=0;
+  while(rows<12){
+    const top=y0+rows*ch,bottom=top+ch;
+    const visible=Math.max(0,Math.min(H,bottom)-Math.max(0,top));
+    if(visible/ch<.55)break;
+    rows++;
+  }
+  rows=Math.max(1,rows);
+  return {cols,rows,cw,ch,offset:y0,xOffset:x0,xEnd:x1};
 }
 
 function cardLayout(){
@@ -1437,7 +1381,7 @@ function cardLayout(){
 function cellLooksEmpty(img,col,row,g){
   // 不再因為「黑色/低亮度商品」而漏掉整個商品格。
   // 只有幾乎全黑且幾乎沒有細節的真正空白格才跳過。
-  const x=col*g.cw+g.cw*.03,y=(g.offset||0)+row*g.ch+g.ch*.03,sw=g.cw*.94,sh=g.ch*.82;
+  const x=(g.xOffset||0)+col*g.cw+g.cw*.03,y=(g.offset||0)+row*g.ch+g.ch*.03,sw=g.cw*.94,sh=g.ch*.82;
   const c=document.createElement("canvas");c.width=28;c.height=28;
   const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,x,y,sw,sh,0,0,28,28);
   const p=ctx.getImageData(0,0,28,28).data;let sum=0,sum2=0,n=0;
@@ -1453,10 +1397,11 @@ function cropRect(img,sx,sy,sw,sh,quality=.9){
 }
 function cardCrop(img,col,row,g){
   // 保留偵測到的完整商品 cell；不從四周再縮邊，也不再假設 x=0。
-  const x=(g.xOffset||0)+col*g.cw;
-  const y=(g.offset||0)+row*g.ch;
-  const w=Math.min(g.cw,img.naturalWidth-x);
-  const h=Math.min(g.ch,img.naturalHeight-y);
+  const rawX=(g.xOffset||0)+col*g.cw;
+  const rawY=(g.offset||0)+row*g.ch;
+  const x=Math.max(0,rawX),y=Math.max(0,rawY);
+  const right=Math.min(img.naturalWidth,rawX+g.cw),bottom=Math.min(img.naturalHeight,rawY+g.ch);
+  const w=right-x,h=bottom-y;
   if(w<=1||h<=1)return "";
   return cropRect(img,x,y,w,h,1);
 }
@@ -2071,5 +2016,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
 
