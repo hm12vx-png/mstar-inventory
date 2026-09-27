@@ -2166,12 +2166,22 @@ function accountDisplayId(a){return String(a.number||a.name||a.gameId||"").trim(
 function buildResourceOverview(mode){
   const accounts=[...(d.accounts||[])].sort(naturalAccountCompare);
   if(mode==="ring"){
-    return accounts.map(a=>{
+    const rows=[];
+    accounts.forEach(a=>{
       const r=a.resources||{};
       const rings=Array.isArray(r.rings)?r.rings.filter(x=>String(x?.name||"").trim()&&(Number(x?.qty)||0)>0):
         (String(r.ring||"").trim()?[{name:String(r.ring).trim(),qty:1}]:[]);
-      return {id:accountDisplayId(a),ring:rings.map(x=>`${String(x.name).trim()} ×${Number(x.qty)||0}`).join("・")};
-    }).filter(x=>x.ring);
+      rings.forEach(x=>{
+        rows.push({
+          id:accountDisplayId(a),
+          ring:`${String(x.name).trim()} ×${Number(x.qty)||0}`,
+          _name:String(x.name).trim()
+        });
+      });
+    });
+    return rows
+      .sort((a,b)=>a._name.localeCompare(b._name,"zh-TW",{numeric:true,sensitivity:"base"})||a.id.localeCompare(b.id,"zh-TW",{numeric:true,sensitivity:"base"}))
+      .map(({_name,...x})=>x);
   }
   if(mode==="candy"){
     return accounts.map(a=>({id:accountDisplayId(a),candy:resourceNumber(a.resources?.candy),eventCandy:resourceNumber(a.resources?.eventCandy)}))
@@ -2311,6 +2321,9 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
 
 
 
