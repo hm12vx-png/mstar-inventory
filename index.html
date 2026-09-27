@@ -390,7 +390,7 @@
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
     <div class="field" style="margin:0"><label>誕生</label><input id="resBirth" type="text" inputmode="numeric"></div>
     <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="text" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="numeric"></div><div class="field"><label>戒指</label><input id="resRing" type="text" placeholder="可自由輸入文字"></div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
     <div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment5" type="text" inputmode="numeric"></div>
@@ -711,6 +711,7 @@ function render(){
     $("#resBirth").value=String(a.resources.birth??"");
     $("#resCard").value=String(a.resources.card??"");
     $("#resLuckyStone").value=String(a.resources.luckyStone??"");
+    $("#resRing").value=String(a.resources.ring??"");
     $("#resFragment5").value=String(a.resources.fragment5??"");
     $("#resFragment10").value=String(a.resources.fragment10??"");
     $("#resFragmentOther").value=String(a.resources.fragmentOther??"");
@@ -922,7 +923,8 @@ function readResourceFields(){
     eventCandy:String($("#resEventCandy").value??""),
     birth:String($("#resBirth").value??""),
     card:String($("#resCard").value??""),
-    luckyStone:String($("#resLuckyStone").value??"")
+    luckyStone:String($("#resLuckyStone").value??""),
+    ring:String($("#resRing").value??"").trim()
   };
   out.fragment5=String($("#resFragment5").value??"");
   out.fragment10=String($("#resFragment10").value??"");
@@ -1943,8 +1945,8 @@ function buildResourceOverview(mode){
     const f5=resourceNumber(r.fragment5);if(f5)fragments.push(`5月 ×${f5}`);
     const f10=resourceNumber(r.fragment10);if(f10)fragments.push(`10月 ×${f10}`);
     const fo=resourceNumber(r.fragmentOther);if(fo)fragments.push(`其他 ×${fo}`);
-    return {id:accountDisplayId(a),birth:resourceNumber(r.birth),card:resourceNumber(r.card),luckyStone:resourceNumber(r.luckyStone),fragments};
-  }).filter(x=>x.birth||x.card||x.luckyStone||x.fragments.length);
+    return {id:accountDisplayId(a),birth:resourceNumber(r.birth),card:resourceNumber(r.card),luckyStone:resourceNumber(r.luckyStone),ring:String(r.ring||"").trim(),fragments};
+  }).filter(x=>x.birth||x.card||x.luckyStone||x.ring||x.fragments.length);
 }
 function renderResourceOverview(){
   const mode=$("#resourceOverviewMode")?.value||"main";
@@ -1956,7 +1958,7 @@ function renderResourceOverview(){
   if(mode==="candy"){
     body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">糖果</th><th style="${th}">活動糖果</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.candy||0}</td><td style="${td}">${x.eventCandy||0}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有糖果資源資料</div>';
   }else{
-    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／碎片資料</div>';
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">戒指</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／碎片資料</div>';
   }
   const label=mode==="candy"?"糖果":"誕生・卡牌・幸運石・碎片";
   $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號資源總覽</div><div class="overviewSub">${e(label)}｜只顯示有數量的編號</div>${body}`;
@@ -2040,7 +2042,7 @@ async function saveResourceOverviewJpg(){
   try{
     const mode=$("#resourceOverviewMode")?.value||"main",rows=buildResourceOverview(mode);
     if(!rows.length)return alert("目前沒有可輸出的資源資料");
-    const cols=mode==="candy"?["編號","糖果","活動糖果"]:["編號","誕生","卡牌","幸運石","碎片"];
+    const cols=mode==="candy"?["編號","糖果","活動糖果"]:["編號","誕生","卡牌","幸運石","戒指","碎片"];
     const widths=mode==="candy"?[300,220,220]:[240,130,130,150,650];
     const W=widths.reduce((a,b)=>a+b,0)+80,rowH=48,pad=40,H=125+rowH*(rows.length+1)+40;
     const c=document.createElement("canvas");c.width=W;c.height=H;const ctx=c.getContext("2d");
