@@ -429,7 +429,7 @@
     <div class="overviewSearch" style="flex-wrap:wrap"><select id="overviewType"><option value="inventory">庫存總覽</option><option value="resource">資源總覽</option></select><select id="resourceOverviewMode" style="display:none"><option value="main">誕生・卡牌・幸運石・碎片</option><option value="candy">糖果</option></select><input id="overviewSearch" type="search" placeholder="搜尋總覽道具名稱／款式…"><button class="btn" id="clearOverviewSearch" type="button">清除</button></div><div id="overviewCapture" class="overviewCapture"></div>
   </div>
 </dialog>
-<dialog id="overviewItemLocationDlg"><div class="box" style="min-width:min(420px,88vw);max-width:520px"><div class="head"><div><h3 id="overviewItemLocationTitle" style="margin:0">道具</h3><div class="meta">持有這個道具的 ID</div></div><button class="btn" id="closeOverviewItemLocation" type="button">關閉</button></div><div id="overviewItemLocationList" style="margin-top:8px"></div></div></dialog>
+<dialog id="overviewItemLocationDlg"><div class="box" style="min-width:min(420px,88vw);max-width:520px"><div class="head"><div><h3 id="overviewItemLocationTitle" style="margin:0">道具</h3><div class="meta">持有這個道具的編號</div></div><button class="btn" id="closeOverviewItemLocation" type="button">關閉</button></div><div id="overviewItemLocationList" style="margin-top:8px"></div></div></dialog>
 <dialog id="tempShotDlg"><div id="tempShotBox" class="box tempShotBox">
   <div class="tempShotHead">
     <div><b>📌 臨時截圖區</b><div class="meta">先丟這裡，之後有空再慢慢整理；不會算進庫存。</div></div>
@@ -481,7 +481,7 @@
 <div class="field" id="genderField"><label>限制</label><select id="ig">
 <option value="限男">限男</option>
 <option value="限女">限女</option>
-</select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="例如：綠"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
+</select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="戒指可自由輸入文字，例如：情侶戒、+10"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
 <div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
 <div class="field"><label>辨識後加入分類</label>
@@ -1891,7 +1891,7 @@ function overviewItemLocations(key){
       if([category,name,variant,gender,candyType].join("||")===key)qty+=Math.max(0,Number(item.qty)||0);
     }
     if(qty>0){
-      const id=String(a.gameId||"").trim()||String(a.number||a.name||"").trim()||"未命名";
+      const id=String(a.number||a.name||"").trim()||"未編號";
       rows.push({id,qty});
     }
   }
@@ -1903,7 +1903,7 @@ function showOverviewItemLocations(key){
   $("#overviewItemLocationTitle").textContent=item.name;
   $("#overviewItemLocationList").innerHTML=rows.length
     ? rows.map(x=>`<div style="display:flex;justify-content:space-between;gap:18px;padding:10px 2px;border-bottom:1px solid var(--line)"><b>${e(x.id)}</b><span>×${x.qty}</span></div>`).join("")
-    : '<div class="meta">目前沒有 ID 持有這個道具。</div>';
+    : '<div class="meta">目前沒有編號持有這個道具。</div>';
   overviewItemLocationDlg.showModal();
 }
 function renderInventoryOverview(){
@@ -2070,7 +2070,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
 
 
