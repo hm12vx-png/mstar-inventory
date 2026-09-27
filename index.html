@@ -382,26 +382,17 @@
 <main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3></div><div class="lastLoginWrap" id="lastLoginWrap" style="display:none"><input id="lastLoginDate" type="text" placeholder="請輸入日期／文字"><small>最後登入日</small></div>
 <div id="resourceBox" class="box" style="display:none;margin-top:12px;padding:14px">
   <div style="font-weight:800;margin-bottom:10px">🍬 資源紀錄</div>
-  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
-    <div class="field" style="margin:0"><label>糖果</label><input id="resCandy" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>活動糖果</label><input id="resEventCandy" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>施法糖果</label><input id="resMagicCandy" type="text" inputmode="text"></div>
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+    <div class="field" style="margin:0"><label>糖果</label><input id="resCandy" type="text" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>活動糖果</label><input id="resEventCandy" type="text" inputmode="numeric"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
+    <div class="field" style="margin:0"><label>誕生</label><input id="resBirth" type="text" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="text" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="numeric"></div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>誕生</label><input id="resBirth" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>其餘碎片</label><input id="resFragment1" type="text" inputmode="text"></div>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment2" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>10月碎片</label><input id="resFragment3" type="text" inputmode="text"></div>
-    <div></div>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>戒指 1</label><input id="resRing1" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>戒指 2</label><input id="resRing2" type="text" inputmode="text"></div>
-    <div class="field" style="margin:0"><label>戒指 3</label><input id="resRing3" type="text" inputmode="text"></div>
+    <div class="field" style="margin:0"><label>1月碎片</label><input id="resFragment1" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>2月碎片</label><input id="resFragment2" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>3月碎片</label><input id="resFragment3" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>4月碎片</label><input id="resFragment4" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment5" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>6月碎片</label><input id="resFragment6" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>7月碎片</label><input id="resFragment7" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>8月碎片</label><input id="resFragment8" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>9月碎片</label><input id="resFragment9" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>10月碎片</label><input id="resFragment10" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>11月碎片</label><input id="resFragment11" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>12月碎片</label><input id="resFragment12" type="text" inputmode="numeric"></div>
   </div>
   <div class="actions" style="margin-top:8px"><button class="btn primary" id="saveResources">儲存資源</button></div>
 </div>
@@ -433,8 +424,12 @@
       </div>
     </div>
     <div class="overviewSearch">
-      <input id="overviewSearch" type="search" placeholder="搜尋總覽道具名稱／款式…">
-      <button class="btn" id="clearOverviewSearch" type="button">清除</button>
+      <select id="resourceOverviewMode" style="flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)">
+        <option value="main">誕生・卡牌・幸運石・碎片</option>
+        <option value="candy">糖果</option>
+      </select>
+      <input id="overviewSearch" type="search" style="display:none">
+      <button class="btn" id="clearOverviewSearch" type="button" style="display:none">清除</button>
     </div>
     <div id="overviewCapture" class="overviewCapture"></div>
   </div>
@@ -665,15 +660,16 @@ async function save(){
 function migrateCategories(){
   (d.accounts||[]).forEach(a=>{
     a.items=Array.isArray(a.items)?a.items:[];
-    a.resources={candy:0,eventCandy:0,magicCandy:0,birth:0,card:0,luckyStone:0,fragment1:0,fragment2:0,fragment3:0,ring1:0,ring2:0,ring3:0,...(a.resources||{})};
+    const oldRes=a.resources||{};
+    a.resources={candy:0,eventCandy:0,birth:0,card:0,luckyStone:0,...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,0])),...oldRes};
+    delete a.resources.magicCandy; delete a.resources.ring1; delete a.resources.ring2; delete a.resources.ring3;
     const keep=[];
     a.items.forEach(x=>{
       if(x.category==="糖果數量")x.category="糖果";
       if(x.category==="糖果"){
         const t=x.candyType||x.name||"糖果", q=Math.max(0,Number(x.qty)||0);
         if(t==="活動糖果") a.resources.eventCandy=Math.max(Number(a.resources.eventCandy)||0,q);
-        else if(t==="施法糖果") a.resources.magicCandy=Math.max(Number(a.resources.magicCandy)||0,q);
-        else a.resources.candy=Math.max(Number(a.resources.candy)||0,q);
+        else if(t!=="施法糖果") a.resources.candy=Math.max(Number(a.resources.candy)||0,q);
       }else keep.push(x);
     });
     a.items=keep;
@@ -713,19 +709,13 @@ function render(){
     renderTempShots(a.id);
     if(!tempShotsCache.has(a.id) && tempShotsLoadingFor!==a.id) loadTempShots(a.id);
 
-    a.resources=a.resources||{candy:0,eventCandy:0,magicCandy:0};
+    a.resources=a.resources||{};
     $("#resCandy").value=String(a.resources.candy??"");
     $("#resEventCandy").value=String(a.resources.eventCandy??"");
-    $("#resMagicCandy").value=String(a.resources.magicCandy??"");
     $("#resBirth").value=String(a.resources.birth??"");
     $("#resCard").value=String(a.resources.card??"");
     $("#resLuckyStone").value=String(a.resources.luckyStone??"");
-    $("#resFragment1").value=String(a.resources.fragment1??"");
-    $("#resFragment2").value=String(a.resources.fragment2??"");
-    $("#resFragment3").value=String(a.resources.fragment3??"");
-    $("#resRing1").value=String(a.resources.ring1??"");
-    $("#resRing2").value=String(a.resources.ring2??"");
-    $("#resRing3").value=String(a.resources.ring3??"");
+    for(let m=1;m<=12;m++) $("#resFragment"+m).value=String(a.resources["fragment"+m]??"");
   }
   const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>
     (!activeCategory || x.category===activeCategory) &&
@@ -910,12 +900,12 @@ $("#batchSave").onclick=async()=>{
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
   const type=$("#baat").value,gender=$("#baag").value;
-  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:"",eventCandy:"",magicCandy:"",birth:"",card:"",luckyStone:"",fragment1:"",fragment2:"",fragment3:"",ring1:"",ring2:"",ring3:""},lastLoginDate:"",items:[]})});
+  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
 $("#newA").onclick=()=>ad.showModal();
-$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:"",eventCandy:"",magicCandy:"",birth:"",card:"",luckyStone:"",fragment1:"",fragment2:"",fragment3:"",ring1:"",ring2:"",ring3:""},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
+$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
 $("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");syncAddItemFields();idg.showModal()};
 $("#is").onclick=async()=>{
   let a=cur(),cat=$("#ic").value||"家具",candyType="";
@@ -929,20 +919,15 @@ $("#is").onclick=async()=>{
   $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
 };
 function readResourceFields(){
-  return {
+  const out={
     candy:String($("#resCandy").value??""),
     eventCandy:String($("#resEventCandy").value??""),
-    magicCandy:String($("#resMagicCandy").value??""),
     birth:String($("#resBirth").value??""),
     card:String($("#resCard").value??""),
-    luckyStone:String($("#resLuckyStone").value??""),
-    fragment1:String($("#resFragment1").value??""),
-    fragment2:String($("#resFragment2").value??""),
-    fragment3:String($("#resFragment3").value??""),
-    ring1:String($("#resRing1").value??""),
-    ring2:String($("#resRing2").value??""),
-    ring3:String($("#resRing3").value??"")
+    luckyStone:String($("#resLuckyStone").value??"")
   };
+  for(let m=1;m<=12;m++) out["fragment"+m]=String($("#resFragment"+m).value??"");
+  return out;
 }
 async function saveAccountFields(accountId){
   if(!currentUser||!migrationReady||!accountId)return;
@@ -1866,51 +1851,42 @@ getRedirectResult(auth).catch(err=>{
 });
 
 const overviewDlg=$("#overviewDlg");
-function buildAllOverview(){
-  const merged=new Map();
-  for(const a of (d.accounts||[])){
-    for(const item of (a.items||[])){
-      const name=String(item.name||"").trim();
-      if(!name)continue;
-      const category=String(item.category||"未分類");
-      const variant=String(item.variant||"").trim();
-      const gender=String(item.gender||item.restriction||"").trim();
-      const candyType=String(item.candyType||"").trim();
-      const key=[category,name,variant,gender,candyType].join("||");
-      const qty=Math.max(0,Number(item.qty)||0);
-      if(!merged.has(key))merged.set(key,{category,name,variant,gender,candyType,qty:0,image:item.image||""});
-      const rec=merged.get(key);
-      rec.qty+=qty;
-      if(!rec.image&&item.image)rec.image=item.image;
-    }
+function resourceNumber(v){
+  const n=Number(String(v??"").replace(/,/g,"").trim());
+  return Number.isFinite(n)&&n>0?n:0;
+}
+function accountDisplayId(a){return String(a.gameId||a.number||a.name||"").trim()||"未命名"}
+function buildResourceOverview(mode){
+  const accounts=[...(d.accounts||[])].sort(naturalAccountCompare);
+  if(mode==="candy"){
+    return accounts.map(a=>({id:accountDisplayId(a),candy:resourceNumber(a.resources?.candy),eventCandy:resourceNumber(a.resources?.eventCandy)}))
+      .filter(x=>x.candy||x.eventCandy);
   }
-  const order=["家具","玩偶","花盆","戒指","作物","材料","寵物","釣魚","糖果"];
-  const rows=[...merged.values()].sort((a,b)=>{
-    const ai=order.indexOf(a.category),bi=order.indexOf(b.category);
-    if(ai!==bi)return (ai<0?999:ai)-(bi<0?999:bi);
-    return a.name.localeCompare(b.name,"zh-TW",{numeric:true});
-  });
-  return {rows,order};
+  return accounts.map(a=>{
+    const r=a.resources||{}, fragments=[];
+    for(let m=1;m<=12;m++){const q=resourceNumber(r["fragment"+m]);if(q)fragments.push(`${m}月 ×${q}`)}
+    return {id:accountDisplayId(a),birth:resourceNumber(r.birth),card:resourceNumber(r.card),luckyStone:resourceNumber(r.luckyStone),fragments};
+  }).filter(x=>x.birth||x.card||x.luckyStone||x.fragments.length);
 }
 function renderAllOverview(){
-  const built=buildAllOverview(),order=built.order;
-  const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
-  const rows=!q?built.rows:built.rows.filter(x=>
-    [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
-  );
-  const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
-  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號總覽</div>
-    <div class="overviewSub">${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}</div>`+
-    (cats.length?cats.map(cat=>{
-      const list=rows.filter(x=>x.category===cat);
-      return `<section class="overviewSection"><h4>${e(cat)}｜${list.length} 種</h4><div class="overviewGrid">${
-        list.map(x=>`<div class="overviewItem">${x.image?`<img src="${x.image}">`:""}<div class="overviewItemText"><div class="overviewItemName">${e(x.name)}</div><div class="overviewItemMeta">${[x.variant,x.gender,x.candyType].filter(Boolean).map(e).join("｜")}</div></div><div class="overviewQty">×${x.qty}</div></div>`).join("")
-      }</div></section>`;
-    }).join(""):'<div class="empty">目前沒有庫存資料</div>');
+  const mode=$("#resourceOverviewMode")?.value||"main";
+  const rows=buildResourceOverview(mode);
+  const tableStyle='width:100%;border-collapse:collapse;background:#fffaf6;border-radius:10px;overflow:hidden';
+  const th='padding:9px 10px;text-align:left;border-bottom:1px solid #d9c4b5;white-space:nowrap';
+  const td='padding:9px 10px;border-bottom:1px solid #ead9cd;vertical-align:top';
+  let body="";
+  if(mode==="candy"){
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">ID</th><th style="${th}">糖果</th><th style="${th}">活動糖果</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.candy||0}</td><td style="${td}">${x.eventCandy||0}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有糖果資源資料</div>';
+  }else{
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">ID</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／碎片資料</div>';
+  }
+  const label=mode==="candy"?"糖果":"誕生・卡牌・幸運石・碎片";
+  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號資源總覽</div><div class="overviewSub">${e(label)}｜只顯示有數量的 ID</div>${body}`;
 }
-$("#allOverview").onclick=()=>{$("#overviewSearch").value="";renderAllOverview();overviewDlg.showModal();setTimeout(()=>$("#overviewSearch").focus(),50)};
+$("#allOverview").onclick=()=>{renderAllOverview();overviewDlg.showModal()};
+$("#resourceOverviewMode").onchange=()=>renderAllOverview();
 $("#overviewSearch").oninput=()=>renderAllOverview();
-$("#clearOverviewSearch").onclick=()=>{$("#overviewSearch").value="";renderAllOverview();$("#overviewSearch").focus()};
+$("#clearOverviewSearch").onclick=()=>renderAllOverview();
 $("#closeOverview").onclick=()=>overviewDlg.close();
 
 async function overviewImageMap(rows){
@@ -1935,48 +1911,22 @@ function wrapCanvasText(ctx,text,maxWidth){
 $("#saveOverviewJpg").onclick=async()=>{
   const btn=$("#saveOverviewJpg");btn.disabled=true;btn.textContent="製作中…";
   try{
-    const built=buildAllOverview(),order=built.order;
-    const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
-    const rows=!q?built.rows:built.rows.filter(x=>
-      [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
-    );
-    if(!rows.length)return alert(q?"目前搜尋不到符合的庫存":"目前沒有庫存資料");
-    const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
-    const W=1400,pad=50,cols=5,gap=12,cardW=(W-pad*2-gap*(cols-1))/cols,cardH=92;
-    let H=125;
-    for(const cat of cats){const n=rows.filter(x=>x.category===cat).length;H+=54+Math.ceil(n/cols)*(cardH+gap)+18}
-    H+=35;
-    const c=document.createElement("canvas");c.width=W;c.height=H;
-    const ctx=c.getContext("2d");
-    ctx.fillStyle="#f5e9df";ctx.fillRect(0,0,W,H);
-    ctx.fillStyle="#4d3c33";ctx.textAlign="center";ctx.font="900 30px sans-serif";
-    ctx.fillText("內內的小倉倉｜全帳號總覽",W/2,48);
-    ctx.font="16px sans-serif";ctx.globalAlpha=.72;
-    ctx.fillText(`${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}`,W/2,78);ctx.globalAlpha=1;
-    ctx.textAlign="left";
-    const images=await overviewImageMap(rows);
-    let y=112;
-    for(const cat of cats){
-      const list=rows.filter(x=>x.category===cat);
-      ctx.fillStyle="#4d3c33";ctx.font="800 21px sans-serif";ctx.fillText(`${cat}｜${list.length} 種`,pad,y+25);
-      ctx.strokeStyle="#cdb6a6";ctx.beginPath();ctx.moveTo(pad,y+37);ctx.lineTo(W-pad,y+37);ctx.stroke();y+=54;
-      for(let i=0;i<list.length;i++){
-        const x0=pad+(i%cols)*(cardW+gap),y0=y+Math.floor(i/cols)*(cardH+gap),it=list[i];
-        ctx.fillStyle="#fffaf6";ctx.strokeStyle="#d9c4b5";
-        ctx.beginPath();ctx.roundRect(x0,y0,cardW,cardH,12);ctx.fill();ctx.stroke();
-        let tx=x0+12;
-        const im=images.get(it.image);
-        if(im){ctx.drawImage(im,x0+9,y0+9,74,74);tx=x0+94}
-        ctx.fillStyle="#4d3c33";ctx.font="800 15px sans-serif";
-        const nameLines=wrapCanvasText(ctx,it.name,cardW-(tx-x0)-55).slice(0,2);
-        nameLines.forEach((line,j)=>ctx.fillText(line,tx,y0+27+j*19));
-        const meta=[it.variant,it.gender,it.candyType].filter(Boolean).join("｜");
-        if(meta){ctx.font="12px sans-serif";ctx.globalAlpha=.7;ctx.fillText(meta,tx,y0+72);ctx.globalAlpha=1}
-        ctx.textAlign="right";ctx.font="900 18px sans-serif";ctx.fillText(`×${it.qty}`,x0+cardW-10,y0+27);ctx.textAlign="left";
-      }
-      y+=Math.ceil(list.length/cols)*(cardH+gap)+18;
+    const mode=$("#resourceOverviewMode")?.value||"main",rows=buildResourceOverview(mode);
+    if(!rows.length)return alert("目前沒有可輸出的資源資料");
+    const cols=mode==="candy"?["ID","糖果","活動糖果"]:["ID","誕生","卡牌","幸運石","碎片"];
+    const widths=mode==="candy"?[300,220,220]:[240,130,130,150,650];
+    const W=widths.reduce((a,b)=>a+b,0)+80,rowH=48,pad=40,H=125+rowH*(rows.length+1)+40;
+    const c=document.createElement("canvas");c.width=W;c.height=H;const ctx=c.getContext("2d");
+    ctx.fillStyle="#f5e9df";ctx.fillRect(0,0,W,H);ctx.fillStyle="#4d3c33";ctx.textAlign="center";ctx.font="900 28px sans-serif";ctx.fillText("MSTAR 庫存管理｜全帳號資源總覽",W/2,42);
+    ctx.font="15px sans-serif";ctx.globalAlpha=.72;ctx.fillText(mode==="candy"?"糖果":"誕生・卡牌・幸運石・碎片",W/2,70);ctx.globalAlpha=1;
+    let y=98,x=pad;ctx.textAlign="left";ctx.font="800 16px sans-serif";ctx.fillStyle="#4d3c33";
+    cols.forEach((h,i)=>{ctx.fillText(h,x+8,y+30);x+=widths[i]});
+    ctx.strokeStyle="#cdb6a6";ctx.beginPath();ctx.moveTo(pad,y+rowH);ctx.lineTo(W-pad,y+rowH);ctx.stroke();y+=rowH;
+    ctx.font="15px sans-serif";
+    for(const r of rows){x=pad;const vals=mode==="candy"?[r.id,r.candy||0,r.eventCandy||0]:[r.id,r.birth||0,r.card||0,r.luckyStone||0,r.fragments.join("・")];
+      vals.forEach((v,i)=>{ctx.fillStyle="#4d3c33";ctx.fillText(String(v),x+8,y+30);x+=widths[i]});ctx.strokeStyle="#ead9cd";ctx.beginPath();ctx.moveTo(pad,y+rowH);ctx.lineTo(W-pad,y+rowH);ctx.stroke();y+=rowH;
     }
-    const a=document.createElement("a");a.download=`全帳號庫存總覽_${new Date().toISOString().slice(0,10)}.jpg`;a.href=c.toDataURL("image/jpeg",.92);a.click();
+    const a=document.createElement("a");a.download=`全帳號資源總覽_${new Date().toISOString().slice(0,10)}.jpg`;a.href=c.toDataURL("image/jpeg",.92);a.click();
   }catch(err){console.error(err);alert("總覽 JPG 製作失敗："+(err?.message||err))}
   finally{btn.disabled=false;btn.textContent="儲存 JPG"}
 };
