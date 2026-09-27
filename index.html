@@ -380,7 +380,7 @@
 <div class="authbar"><span id="userLabel"></span><button class="mini" id="logout">登出</button></div><header><h1>MSTAR 庫存管理</h1><p>庫存管理</p></header>
 <section class="box"><div class="search"><input id="q" placeholder="搜尋物品，例如：珊瑚、藤編、粉色…"><button class="btn primary" id="go">搜尋</button></div><div id="grandTotal" class="stat" style="display:none;margin-top:12px"></div><div id="results"></div></section>
 <div class="stats"><div class="stat"><small>帳號數</small><b id="sa">0</b></div><div class="stat"><small>物品種類</small><b id="sk">0</b></div><div class="stat"><small>庫存總數</small><b id="sq">0</b></div><div class="stat"><small>最近更新</small><b id="su" style="font-size:13px">尚未</b></div></div>
-<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="batchDeleteA">批次刪除</button><button class="btn" id="newA">＋</button></div></div><div class="accountActions"><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除帳號</button></div><div class="batchDeleteBar" id="batchDeleteBar"><span class="batchDeleteCount" id="batchDeleteCount">已選 0 個</span><button class="btn danger" id="batchDeleteConfirm" type="button">確認刪除</button></div><div class="accountTypeTabs"><button class="accountTypeTab active" data-account-type="一次性">一次號</button><button class="accountTypeTab" data-account-type="永久">永久號</button><button class="accountTypeTab" data-account-type="主要培養">培養號</button></div><div class="accountSearch"><input id="accountSearch" placeholder="搜尋帳號，如 A1"><button class="btn" id="accountSearchBtn" type="button">搜尋</button></div><div style="margin:0 0 9px"><div style="display:flex;gap:6px">
+<div class="main"><aside class="panel"><div class="head"><h3>帳號</h3><div style="display:flex;gap:6px"><button class="btn" id="batchA">批次新增</button><button class="btn" id="batchDeleteA">批次刪除</button><button class="btn" id="newA">＋</button></div></div><div class="accountActions"><button class="btn" id="editAccount" style="display:none">✏️ 修改帳號</button><button class="btn danger" id="deleteAccount" style="display:none">🗑 刪除帳號</button></div><div class="batchDeleteBar" id="batchDeleteBar"><span class="batchDeleteCount" id="batchDeleteCount">已選 0 個</span><button class="btn danger" id="batchDeleteConfirm" type="button">確認刪除</button></div><div class="accountTypeTabs"><button class="accountTypeTab active" data-account-type="男號">男號</button><button class="accountTypeTab" data-account-type="女號">女號</button></div><div class="accountSearch"><input id="accountSearch" placeholder="搜尋帳號，如 A1"><button class="btn" id="accountSearchBtn" type="button">搜尋</button></div><div style="margin:0 0 9px"><div style="display:flex;gap:6px">
 <button class="btn" id="backupAllData" type="button" style="flex:1;padding:8px 9px;font-size:12px">💾 完整備份</button>
 <button class="btn" id="restoreAllData" type="button" style="flex:1;padding:8px 9px;font-size:12px">♻️ 還原備份</button>
 <input id="restoreBackupFile" type="file" accept=".json,application/json" style="display:none">
@@ -444,14 +444,14 @@
   <div id="tempShotGrid" class="tempShotGrid"></div><div class="actions"><button class="btn" id="closeTempShots" type="button">關閉</button></div></div></dialog><dialog id="batchAd"><h3>批次新增帳號</h3>
 <div class="field"><label>起始編號</label><input id="ban" inputmode="text" autocapitalize="characters" placeholder="例如：A1、A2、B1 或 457"></div>
 <div class="field"><label>ID 清單</label><textarea id="baids" rows="10" placeholder="一行一個 ID，例如：&#10;ABC123&#10;ABC456&#10;ABC789" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;resize:vertical;font:inherit;color:var(--text)"></textarea><div class="note" style="margin-top:5px">一行一個 ID，會從起始編號自動依序編號。空白行會自動忽略。</div></div>
-<div class="field"><label>帳號類型</label><select id="baat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
+<div class="field"><label>帳號類型</label><select id="baat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
 <div class="field"><label>角色性別</label><select id="baag"><option value="男">男</option><option value="女">女</option></select></div>
 <div id="batchPreview" class="note"></div>
 <div class="actions"><button class="btn" id="batchCancel">取消</button><button class="btn primary" id="batchSave">全部新增</button></div></dialog><dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：A1、A2、B1 或 457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div>
-<div class="field"><label>帳號類型</label><select id="eat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
+<div class="field"><label>帳號類型</label><select id="eat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
 <div class="field"><label>角色性別</label><select id="eag"><option value="男">男</option><option value="女">女</option></select></div>
 <div class="actions"><button class="btn" onclick="editAd.close()">取消</button><button class="btn primary" id="eas">儲存</button></div></div></dialog><dialog id="ad"><h3>新增帳號</h3><div class="field"><label>編號</label><input id="an" placeholder="例如：A1、A2、B1 或 457"></div><div class="field"><label>ID</label><input id="agid" placeholder="遊戲 ID"></div>
-<div class="field"><label>帳號類型</label><select id="aat"><option value="主要培養">主要培養</option><option value="一次性">一次性</option><option value="永久">永久</option></select></div>
+<div class="field"><label>帳號類型</label><select id="aat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
 <div class="field"><label>角色性別</label><select id="aag"><option value="男">男</option><option value="女">女</option></select></div>
 <div class="actions"><button class="btn" onclick="ad.close()">取消</button><button class="btn primary" id="as">新增</button></div></dialog>
 <dialog id="editItemDlg"><div class="modal">
@@ -516,7 +516,7 @@ const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app)
 const provider=new GoogleAuthProvider(), $=s=>document.querySelector(s);
 const ad=$("#ad"), batchAd=$("#batchAd"), idg=$("#idg"), shotDlg=$("#shotDlg"), editItemDlg=$("#editItemDlg");
 let d={accounts:[]}, active=null, currentUser=null, saving=false, activeCategory="家具", activeGender="", activeCandy="";
-let accountTypeFilter="", accountGenderFilter="";
+let accountTypeFilter="男號", accountGenderFilter="";
 let batchDeleteMode=false;
 let batchDeleteSelected=new Set();
 const e=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -680,9 +680,9 @@ function render(){
   migrateCategories();
   sortAccountsNaturally();
   let a=cur();
-  const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||(x.accountType||"主要培養")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
+  const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||((x.accountType==="女號"||x.accountType==="男號")?x.accountType:"男號")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
   document.querySelectorAll(".accountTypeTab").forEach(b=>b.classList.toggle("active",(b.dataset.accountType||"")===accountTypeFilter));
-  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active ":""}${batchDeleteMode?"batchMode ":""}${batchDeleteSelected.has(x.id)?"batchSelected":""}" data-id="${x.id}">${batchDeleteMode?`<input type="checkbox" class="batchAccountCheck" data-id="${x.id}" ${batchDeleteSelected.has(x.id)?"checked":""} aria-label="選取帳號">`:""}<span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e(x.accountType||"主要培養")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).filter(i=>!noQuantityCategories.has(i.category)).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
+  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active ":""}${batchDeleteMode?"batchMode ":""}${batchDeleteSelected.has(x.id)?"batchSelected":""}" data-id="${x.id}">${batchDeleteMode?`<input type="checkbox" class="batchAccountCheck" data-id="${x.id}" ${batchDeleteSelected.has(x.id)?"checked":""} aria-label="選取帳號">`:""}<span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}<br><small>${e((x.accountType==="女號"||x.accountType==="男號")?x.accountType:"男號")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).filter(i=>!noQuantityCategories.has(i.category)).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
   document.querySelectorAll(".batchAccountCheck").forEach(cb=>cb.onclick=ev=>{
     ev.stopPropagation();
     const id=cb.dataset.id;
@@ -787,7 +787,7 @@ $("#genderTabs").onclick=e=>{
 
 document.querySelectorAll(".accountTypeTab").forEach(b=>b.addEventListener("click",()=>{
   accountTypeFilter=b.dataset.accountType||"";
-  const visible=d.accounts.filter(x=>!accountTypeFilter||(x.accountType||"主要培養")===accountTypeFilter);
+  const visible=d.accounts.filter(x=>!accountTypeFilter||((x.accountType==="女號"||x.accountType==="男號")?x.accountType:"男號")===accountTypeFilter);
   if(visible.length && !visible.some(x=>x.id===active)) active=visible[0].id;
   render();
 }));
@@ -802,7 +802,7 @@ function jumpToAccount(){
     || accounts.find(x=>String(x.gameId||"").trim().toLowerCase().startsWith(q))
     || accounts.find(x=>(String(x.number||x.name||"")+" "+String(x.gameId||"")).toLowerCase().includes(q));
   if(!a)return alert(`找不到帳號「${input.value.trim()}」`);
-  accountTypeFilter=a.accountType||"主要培養";
+  accountTypeFilter=(a.accountType==="女號"||a.accountType==="男號")?a.accountType:"男號";
   accountGenderFilter="";
   active=a.id;
   render();
@@ -1082,7 +1082,7 @@ $("#editAccount").onclick=()=>{
   if(!a)return;
   $("#ean").value=a.number||a.name||"";
   $("#eid").value=a.gameId||"";
-  $("#eat").value=a.accountType||"主要培養";
+  $("#eat").value=(a.accountType==="女號"||a.accountType==="男號")?a.accountType:"男號";
   $("#eag").value=a.accountGender||"男";
   editAd.showModal();
 };
@@ -2311,5 +2311,7 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
 
 
