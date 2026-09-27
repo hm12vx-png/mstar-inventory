@@ -391,8 +391,10 @@
     <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="text" inputmode="numeric"></div>
     <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="numeric"></div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px">
-    <div class="field" style="margin:0"><label>1月碎片</label><input id="resFragment1" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>2月碎片</label><input id="resFragment2" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>3月碎片</label><input id="resFragment3" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>4月碎片</label><input id="resFragment4" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment5" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>6月碎片</label><input id="resFragment6" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>7月碎片</label><input id="resFragment7" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>8月碎片</label><input id="resFragment8" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>9月碎片</label><input id="resFragment9" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>10月碎片</label><input id="resFragment10" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>11月碎片</label><input id="resFragment11" type="text" inputmode="numeric"></div><div class="field" style="margin:0"><label>12月碎片</label><input id="resFragment12" type="text" inputmode="numeric"></div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
+    <div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment5" type="text" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>10月碎片</label><input id="resFragment10" type="text" inputmode="numeric"></div>
+    <div class="field" style="margin:0"><label>其他碎片</label><input id="resFragmentOther" type="text" inputmode="numeric"></div>
   </div>
   <div class="actions" style="margin-top:8px"><button class="btn primary" id="saveResources">儲存資源</button></div>
 </div>
@@ -423,15 +425,7 @@
         <button class="btn" id="closeOverview" type="button">關閉</button>
       </div>
     </div>
-    <div class="overviewSearch">
-      <select id="resourceOverviewMode" style="flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)">
-        <option value="main">誕生・卡牌・幸運石・碎片</option>
-        <option value="candy">糖果</option>
-      </select>
-      <input id="overviewSearch" type="search" style="display:none">
-      <button class="btn" id="clearOverviewSearch" type="button" style="display:none">清除</button>
-    </div>
-    <div id="overviewCapture" class="overviewCapture"></div>
+    <div class="overviewSearch" style="flex-wrap:wrap"><select id="overviewType"><option value="inventory">庫存總覽</option><option value="resource">資源總覽</option></select><select id="resourceOverviewMode" style="display:none"><option value="main">誕生・卡牌・幸運石・碎片</option><option value="candy">糖果</option></select><input id="overviewSearch" type="search" placeholder="搜尋總覽道具名稱／款式…"><button class="btn" id="clearOverviewSearch" type="button">清除</button></div><div id="overviewCapture" class="overviewCapture"></div>
   </div>
 </dialog>
 <dialog id="tempShotDlg"><div id="tempShotBox" class="box tempShotBox">
@@ -715,7 +709,9 @@ function render(){
     $("#resBirth").value=String(a.resources.birth??"");
     $("#resCard").value=String(a.resources.card??"");
     $("#resLuckyStone").value=String(a.resources.luckyStone??"");
-    for(let m=1;m<=12;m++) $("#resFragment"+m).value=String(a.resources["fragment"+m]??"");
+    $("#resFragment5").value=String(a.resources.fragment5??"");
+    $("#resFragment10").value=String(a.resources.fragment10??"");
+    $("#resFragmentOther").value=String(a.resources.fragmentOther??"");
   }
   const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>
     (!activeCategory || x.category===activeCategory) &&
@@ -926,7 +922,9 @@ function readResourceFields(){
     card:String($("#resCard").value??""),
     luckyStone:String($("#resLuckyStone").value??"")
   };
-  for(let m=1;m<=12;m++) out["fragment"+m]=String($("#resFragment"+m).value??"");
+  out.fragment5=String($("#resFragment5").value??"");
+  out.fragment10=String($("#resFragment10").value??"");
+  out.fragmentOther=String($("#resFragmentOther").value??"");
   return out;
 }
 async function saveAccountFields(accountId){
@@ -1851,11 +1849,54 @@ getRedirectResult(auth).catch(err=>{
 });
 
 const overviewDlg=$("#overviewDlg");
+function buildAllOverview(){
+  const merged=new Map();
+  for(const a of (d.accounts||[])){
+    for(const item of (a.items||[])){
+      const name=String(item.name||"").trim();
+      if(!name)continue;
+      const category=String(item.category||"未分類");
+      const variant=String(item.variant||"").trim();
+      const gender=String(item.gender||item.restriction||"").trim();
+      const candyType=String(item.candyType||"").trim();
+      const key=[category,name,variant,gender,candyType].join("||");
+      const qty=Math.max(0,Number(item.qty)||0);
+      if(!merged.has(key))merged.set(key,{category,name,variant,gender,candyType,qty:0,image:item.image||""});
+      const rec=merged.get(key);
+      rec.qty+=qty;
+      if(!rec.image&&item.image)rec.image=item.image;
+    }
+  }
+  const order=["家具","玩偶","花盆","戒指","作物","材料","寵物","釣魚","糖果"];
+  const rows=[...merged.values()].sort((a,b)=>{
+    const ai=order.indexOf(a.category),bi=order.indexOf(b.category);
+    if(ai!==bi)return (ai<0?999:ai)-(bi<0?999:bi);
+    return a.name.localeCompare(b.name,"zh-TW",{numeric:true});
+  });
+  return {rows,order};
+}
+function renderInventoryOverview(){
+  const built=buildAllOverview(),order=built.order;
+  const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
+  const rows=!q?built.rows:built.rows.filter(x=>
+    [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
+  );
+  const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
+  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號總覽</div>
+    <div class="overviewSub">${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}</div>`+
+    (cats.length?cats.map(cat=>{
+      const list=rows.filter(x=>x.category===cat);
+      return `<section class="overviewSection"><h4>${e(cat)}｜${list.length} 種</h4><div class="overviewGrid">${
+        list.map(x=>`<div class="overviewItem">${x.image?`<img src="${x.image}">`:""}<div class="overviewItemText"><div class="overviewItemName">${e(x.name)}</div><div class="overviewItemMeta">${[x.variant,x.gender,x.candyType].filter(Boolean).map(e).join("｜")}</div></div><div class="overviewQty">×${x.qty}</div></div>`).join("")
+      }</div></section>`;
+    }).join(""):'<div class="empty">目前沒有庫存資料</div>');
+}
+
 function resourceNumber(v){
   const n=Number(String(v??"").replace(/,/g,"").trim());
   return Number.isFinite(n)&&n>0?n:0;
 }
-function accountDisplayId(a){return String(a.gameId||a.number||a.name||"").trim()||"未命名"}
+function accountDisplayId(a){return String(a.number||a.name||a.gameId||"").trim()||"未編號"}
 function buildResourceOverview(mode){
   const accounts=[...(d.accounts||[])].sort(naturalAccountCompare);
   if(mode==="candy"){
@@ -1864,11 +1905,13 @@ function buildResourceOverview(mode){
   }
   return accounts.map(a=>{
     const r=a.resources||{}, fragments=[];
-    for(let m=1;m<=12;m++){const q=resourceNumber(r["fragment"+m]);if(q)fragments.push(`${m}月 ×${q}`)}
+    const f5=resourceNumber(r.fragment5);if(f5)fragments.push(`5月 ×${f5}`);
+    const f10=resourceNumber(r.fragment10);if(f10)fragments.push(`10月 ×${f10}`);
+    const fo=resourceNumber(r.fragmentOther);if(fo)fragments.push(`其他 ×${fo}`);
     return {id:accountDisplayId(a),birth:resourceNumber(r.birth),card:resourceNumber(r.card),luckyStone:resourceNumber(r.luckyStone),fragments};
   }).filter(x=>x.birth||x.card||x.luckyStone||x.fragments.length);
 }
-function renderAllOverview(){
+function renderResourceOverview(){
   const mode=$("#resourceOverviewMode")?.value||"main";
   const rows=buildResourceOverview(mode);
   const tableStyle='width:100%;border-collapse:collapse;background:#fffaf6;border-radius:10px;overflow:hidden';
@@ -1876,18 +1919,18 @@ function renderAllOverview(){
   const td='padding:9px 10px;border-bottom:1px solid #ead9cd;vertical-align:top';
   let body="";
   if(mode==="candy"){
-    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">ID</th><th style="${th}">糖果</th><th style="${th}">活動糖果</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.candy||0}</td><td style="${td}">${x.eventCandy||0}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有糖果資源資料</div>';
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">糖果</th><th style="${th}">活動糖果</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.candy||0}</td><td style="${td}">${x.eventCandy||0}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有糖果資源資料</div>';
   }else{
-    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">ID</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／碎片資料</div>';
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／碎片資料</div>';
   }
   const label=mode==="candy"?"糖果":"誕生・卡牌・幸運石・碎片";
-  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號資源總覽</div><div class="overviewSub">${e(label)}｜只顯示有數量的 ID</div>${body}`;
+  $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號資源總覽</div><div class="overviewSub">${e(label)}｜只顯示有數量的編號</div>${body}`;
 }
-$("#allOverview").onclick=()=>{renderAllOverview();overviewDlg.showModal()};
-$("#resourceOverviewMode").onchange=()=>renderAllOverview();
-$("#overviewSearch").oninput=()=>renderAllOverview();
-$("#clearOverviewSearch").onclick=()=>renderAllOverview();
-$("#closeOverview").onclick=()=>overviewDlg.close();
+function syncOverviewMode(){const r=$("#overviewType").value==="resource";$("#resourceOverviewMode").style.display=r?"block":"none";$("#overviewSearch").style.display=r?"none":"block";$("#clearOverviewSearch").style.display=r?"none":"inline-block";r?renderResourceOverview():renderInventoryOverview()}
+$("#allOverview").onclick=()=>{$("#overviewType").value="inventory";$("#overviewSearch").value="";syncOverviewMode();overviewDlg.showModal()};
+$("#overviewType").onchange=syncOverviewMode;$("#resourceOverviewMode").onchange=renderResourceOverview;
+$("#overviewSearch").oninput=()=>{if($("#overviewType").value==="inventory")renderInventoryOverview()};
+$("#clearOverviewSearch").onclick=()=>{$("#overviewSearch").value="";renderInventoryOverview()};$("#closeOverview").onclick=()=>overviewDlg.close();
 
 async function overviewImageMap(rows){
   const map=new Map();
@@ -1908,12 +1951,60 @@ function wrapCanvasText(ctx,text,maxWidth){
   if(line)lines.push(line);
   return lines.length?lines:[""];
 }
-$("#saveOverviewJpg").onclick=async()=>{
+async function saveInventoryOverviewJpg(){
+  const btn=$("#saveOverviewJpg");btn.disabled=true;btn.textContent="製作中…";
+  try{
+    const built=buildAllOverview(),order=built.order;
+    const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
+    const rows=!q?built.rows:built.rows.filter(x=>
+      [x.name,x.variant,x.category,x.gender,x.candyType].some(v=>String(v||"").toLocaleLowerCase("zh-TW").includes(q))
+    );
+    if(!rows.length)return alert(q?"目前搜尋不到符合的庫存":"目前沒有庫存資料");
+    const cats=[...new Set([...order,...rows.map(x=>x.category)])].filter(cat=>rows.some(x=>x.category===cat));
+    const W=1400,pad=50,cols=5,gap=12,cardW=(W-pad*2-gap*(cols-1))/cols,cardH=92;
+    let H=125;
+    for(const cat of cats){const n=rows.filter(x=>x.category===cat).length;H+=54+Math.ceil(n/cols)*(cardH+gap)+18}
+    H+=35;
+    const c=document.createElement("canvas");c.width=W;c.height=H;
+    const ctx=c.getContext("2d");
+    ctx.fillStyle="#f5e9df";ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="#4d3c33";ctx.textAlign="center";ctx.font="900 30px sans-serif";
+    ctx.fillText("內內的小倉倉｜全帳號總覽",W/2,48);
+    ctx.font="16px sans-serif";ctx.globalAlpha=.72;
+    ctx.fillText(`${d.accounts.length} 個帳號｜重複物品已合併加總${q?`｜搜尋結果 ${rows.length} 種`:""}`,W/2,78);ctx.globalAlpha=1;
+    ctx.textAlign="left";
+    const images=await overviewImageMap(rows);
+    let y=112;
+    for(const cat of cats){
+      const list=rows.filter(x=>x.category===cat);
+      ctx.fillStyle="#4d3c33";ctx.font="800 21px sans-serif";ctx.fillText(`${cat}｜${list.length} 種`,pad,y+25);
+      ctx.strokeStyle="#cdb6a6";ctx.beginPath();ctx.moveTo(pad,y+37);ctx.lineTo(W-pad,y+37);ctx.stroke();y+=54;
+      for(let i=0;i<list.length;i++){
+        const x0=pad+(i%cols)*(cardW+gap),y0=y+Math.floor(i/cols)*(cardH+gap),it=list[i];
+        ctx.fillStyle="#fffaf6";ctx.strokeStyle="#d9c4b5";
+        ctx.beginPath();ctx.roundRect(x0,y0,cardW,cardH,12);ctx.fill();ctx.stroke();
+        let tx=x0+12;
+        const im=images.get(it.image);
+        if(im){ctx.drawImage(im,x0+9,y0+9,74,74);tx=x0+94}
+        ctx.fillStyle="#4d3c33";ctx.font="800 15px sans-serif";
+        const nameLines=wrapCanvasText(ctx,it.name,cardW-(tx-x0)-55).slice(0,2);
+        nameLines.forEach((line,j)=>ctx.fillText(line,tx,y0+27+j*19));
+        const meta=[it.variant,it.gender,it.candyType].filter(Boolean).join("｜");
+        if(meta){ctx.font="12px sans-serif";ctx.globalAlpha=.7;ctx.fillText(meta,tx,y0+72);ctx.globalAlpha=1}
+        ctx.textAlign="right";ctx.font="900 18px sans-serif";ctx.fillText(`×${it.qty}`,x0+cardW-10,y0+27);ctx.textAlign="left";
+      }
+      y+=Math.ceil(list.length/cols)*(cardH+gap)+18;
+    }
+    const a=document.createElement("a");a.download=`全帳號庫存總覽_${new Date().toISOString().slice(0,10)}.jpg`;a.href=c.toDataURL("image/jpeg",.92);a.click();
+  }catch(err){console.error(err);alert("總覽 JPG 製作失敗："+(err?.message||err))}
+  finally{btn.disabled=false;btn.textContent="儲存 JPG"}
+};
+async function saveResourceOverviewJpg(){
   const btn=$("#saveOverviewJpg");btn.disabled=true;btn.textContent="製作中…";
   try{
     const mode=$("#resourceOverviewMode")?.value||"main",rows=buildResourceOverview(mode);
     if(!rows.length)return alert("目前沒有可輸出的資源資料");
-    const cols=mode==="candy"?["ID","糖果","活動糖果"]:["ID","誕生","卡牌","幸運石","碎片"];
+    const cols=mode==="candy"?["編號","糖果","活動糖果"]:["編號","誕生","卡牌","幸運石","碎片"];
     const widths=mode==="candy"?[300,220,220]:[240,130,130,150,650];
     const W=widths.reduce((a,b)=>a+b,0)+80,rowH=48,pad=40,H=125+rowH*(rows.length+1)+40;
     const c=document.createElement("canvas");c.width=W;c.height=H;const ctx=c.getContext("2d");
@@ -1930,6 +2021,8 @@ $("#saveOverviewJpg").onclick=async()=>{
   }catch(err){console.error(err);alert("總覽 JPG 製作失敗："+(err?.message||err))}
   finally{btn.disabled=false;btn.textContent="儲存 JPG"}
 };
+$("#saveOverviewJpg").onclick=async()=>$("#overviewType").value==="resource"?saveResourceOverviewJpg():saveInventoryOverviewJpg();
+
 onAuthStateChanged(auth,async user=>{
   currentUser=user&&user.uid===ADMIN_UID?user:null;
   if(!currentUser){
@@ -1941,5 +2034,8 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
 
 
