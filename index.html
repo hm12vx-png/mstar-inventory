@@ -372,6 +372,7 @@
 .overviewSearch{display:flex;gap:7px;margin:0 0 10px}
 .overviewSearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
 #shotDlg select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
+.overviewItemClickable{cursor:pointer}.overviewItemClickable:hover{filter:brightness(.985)}
 </style></head><body>
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
@@ -428,6 +429,7 @@
     <div class="overviewSearch" style="flex-wrap:wrap"><select id="overviewType"><option value="inventory">庫存總覽</option><option value="resource">資源總覽</option></select><select id="resourceOverviewMode" style="display:none"><option value="main">誕生・卡牌・幸運石・碎片</option><option value="candy">糖果</option></select><input id="overviewSearch" type="search" placeholder="搜尋總覽道具名稱／款式…"><button class="btn" id="clearOverviewSearch" type="button">清除</button></div><div id="overviewCapture" class="overviewCapture"></div>
   </div>
 </dialog>
+<dialog id="overviewItemLocationDlg"><div class="box" style="min-width:min(420px,88vw);max-width:520px"><div class="head"><div><h3 id="overviewItemLocationTitle" style="margin:0">道具</h3><div class="meta">持有這個道具的 ID</div></div><button class="btn" id="closeOverviewItemLocation" type="button">關閉</button></div><div id="overviewItemLocationList" style="margin-top:8px"></div></div></dialog>
 <dialog id="tempShotDlg"><div id="tempShotBox" class="box tempShotBox">
   <div class="tempShotHead">
     <div><b>📌 臨時截圖區</b><div class="meta">先丟這裡，之後有空再慢慢整理；不會算進庫存。</div></div>
@@ -1849,6 +1851,7 @@ getRedirectResult(auth).catch(err=>{
 });
 
 const overviewDlg=$("#overviewDlg");
+const overviewItemLocationDlg=$("#overviewItemLocationDlg");
 function buildAllOverview(){
   const merged=new Map();
   for(const a of (d.accounts||[])){
@@ -1861,7 +1864,7 @@ function buildAllOverview(){
       const candyType=String(item.candyType||"").trim();
       const key=[category,name,variant,gender,candyType].join("||");
       const qty=Math.max(0,Number(item.qty)||0);
-      if(!merged.has(key))merged.set(key,{category,name,variant,gender,candyType,qty:0,image:item.image||""});
+      if(!merged.has(key))merged.set(key,{key,category,name,variant,gender,candyType,qty:0,image:item.image||""});
       const rec=merged.get(key);
       rec.qty+=qty;
       if(!rec.image&&item.image)rec.image=item.image;
@@ -1875,6 +1878,34 @@ function buildAllOverview(){
   });
   return {rows,order};
 }
+function overviewItemLocations(key){
+  const rows=[];
+  for(const a of (d.accounts||[])){
+    let qty=0;
+    for(const item of (a.items||[])){
+      const name=String(item.name||"").trim();
+      const category=String(item.category||"未分類");
+      const variant=String(item.variant||"").trim();
+      const gender=String(item.gender||item.restriction||"").trim();
+      const candyType=String(item.candyType||"").trim();
+      if([category,name,variant,gender,candyType].join("||")===key)qty+=Math.max(0,Number(item.qty)||0);
+    }
+    if(qty>0){
+      const id=String(a.gameId||"").trim()||String(a.number||a.name||"").trim()||"未命名";
+      rows.push({id,qty});
+    }
+  }
+  return rows.sort((a,b)=>a.id.localeCompare(b.id,"zh-TW",{numeric:true}));
+}
+function showOverviewItemLocations(key){
+  const item=buildAllOverview().rows.find(x=>x.key===key);if(!item)return;
+  const rows=overviewItemLocations(key);
+  $("#overviewItemLocationTitle").textContent=item.name;
+  $("#overviewItemLocationList").innerHTML=rows.length
+    ? rows.map(x=>`<div style="display:flex;justify-content:space-between;gap:18px;padding:10px 2px;border-bottom:1px solid var(--line)"><b>${e(x.id)}</b><span>×${x.qty}</span></div>`).join("")
+    : '<div class="meta">目前沒有 ID 持有這個道具。</div>';
+  overviewItemLocationDlg.showModal();
+}
 function renderInventoryOverview(){
   const built=buildAllOverview(),order=built.order;
   const q=String($("#overviewSearch")?.value||"").trim().toLocaleLowerCase("zh-TW");
@@ -1887,9 +1918,13 @@ function renderInventoryOverview(){
     (cats.length?cats.map(cat=>{
       const list=rows.filter(x=>x.category===cat);
       return `<section class="overviewSection"><h4>${e(cat)}｜${list.length} 種</h4><div class="overviewGrid">${
-        list.map(x=>`<div class="overviewItem">${x.image?`<img src="${x.image}">`:""}<div class="overviewItemText"><div class="overviewItemName">${e(x.name)}</div><div class="overviewItemMeta">${[x.variant,x.gender,x.candyType].filter(Boolean).map(e).join("｜")}</div></div><div class="overviewQty">×${x.qty}</div></div>`).join("")
+        list.map(x=>`<div class="overviewItem overviewItemClickable" data-overview-key="${e(x.key)}" title="點一下查看哪些 ID 有">${x.image?`<img src="${x.image}">`:""}<div class="overviewItemText"><div class="overviewItemName">${e(x.name)}</div><div class="overviewItemMeta">${[x.variant,x.gender,x.candyType].filter(Boolean).map(e).join("｜")}</div></div><div class="overviewQty">×${x.qty}</div></div>`).join("")
       }</div></section>`;
     }).join(""):'<div class="empty">目前沒有庫存資料</div>');
+  $("#overviewCapture").onclick=ev=>{
+    const card=ev.target.closest(".overviewItemClickable");
+    if(card)showOverviewItemLocations(card.dataset.overviewKey||"");
+  };
 }
 
 function resourceNumber(v){
@@ -1931,6 +1966,7 @@ $("#allOverview").onclick=()=>{$("#overviewType").value="inventory";$("#overview
 $("#overviewType").onchange=syncOverviewMode;$("#resourceOverviewMode").onchange=renderResourceOverview;
 $("#overviewSearch").oninput=()=>{if($("#overviewType").value==="inventory")renderInventoryOverview()};
 $("#clearOverviewSearch").onclick=()=>{$("#overviewSearch").value="";renderInventoryOverview()};$("#closeOverview").onclick=()=>overviewDlg.close();
+$("#closeOverviewItemLocation").onclick=()=>overviewItemLocationDlg.close();
 
 async function overviewImageMap(rows){
   const map=new Map();
@@ -2034,7 +2070,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
 
 
