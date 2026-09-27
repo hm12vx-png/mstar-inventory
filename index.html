@@ -373,6 +373,7 @@
 .overviewSearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
 #shotDlg select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
 .overviewItemClickable{cursor:pointer}.overviewItemClickable:hover{filter:brightness(.985)}
+@media(max-width:560px){.resourceRingRow{grid-template-columns:minmax(0,1fr) 76px auto!important}}
 </style></head><body>
 <div id="authGate"><div class="loginCard"><h2>MSTAR 庫存管理</h2><p>請先使用你的 Google 帳號登入</p><button class="btn primary" id="googleLogin">使用 Google 登入</button><div id="loginMsg" class="note"></div></div></div>
 <div id="app"><div class="wrap">
@@ -390,7 +391,7 @@
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
     <div class="field" style="margin:0"><label>誕生</label><input id="resBirth" type="text" inputmode="numeric"></div>
     <div class="field" style="margin:0"><label>卡牌</label><input id="resCard" type="text" inputmode="numeric"></div>
-    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="numeric"></div><div class="field"><label>戒指</label><input id="resRing" type="text" placeholder=""></div>
+    <div class="field" style="margin:0"><label>幸運石</label><input id="resLuckyStone" type="text" inputmode="numeric"></div><div class="field" style="grid-column:1/-1"><label>戒指</label><div id="resRingList"></div><button class="btn" id="addResourceRing" type="button" style="margin-top:6px">＋ 新增戒指</button></div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px">
     <div class="field" style="margin:0"><label>5月碎片</label><input id="resFragment5" type="text" inputmode="numeric"></div>
@@ -426,7 +427,7 @@
         <button class="btn" id="closeOverview" type="button">關閉</button>
       </div>
     </div>
-    <div class="overviewSearch" style="flex-wrap:wrap"><select id="overviewType"><option value="inventory">庫存總覽</option><option value="resource">資源總覽</option></select><select id="resourceOverviewMode" style="display:none"><option value="main">誕生・卡牌・幸運石・碎片</option><option value="candy">糖果</option></select><input id="overviewSearch" type="search" placeholder="搜尋總覽道具名稱／款式…"><button class="btn" id="clearOverviewSearch" type="button">清除</button></div><div id="overviewCapture" class="overviewCapture"></div>
+    <div class="overviewSearch" style="flex-wrap:wrap"><select id="overviewType"><option value="inventory">庫存總覽</option><option value="resource">資源總覽</option></select><select id="resourceOverviewMode" style="display:none"><option value="main">誕生・卡牌・幸運石・碎片</option><option value="ring">戒指</option><option value="candy">糖果</option></select><input id="overviewSearch" type="search" placeholder="搜尋總覽道具名稱／款式…"><button class="btn" id="clearOverviewSearch" type="button">清除</button></div><div id="overviewCapture" class="overviewCapture"></div>
   </div>
 </dialog>
 <dialog id="overviewItemLocationDlg"><div class="box" style="min-width:min(420px,88vw);max-width:520px"><div class="head"><div><h3 id="overviewItemLocationTitle" style="margin:0">道具</h3><div class="meta">持有這個道具的編號</div></div><button class="btn" id="closeOverviewItemLocation" type="button">關閉</button></div><div id="overviewItemLocationList" style="margin-top:8px"></div></div></dialog>
@@ -706,15 +707,15 @@ function render(){
     if(!tempShotsCache.has(a.id) && tempShotsLoadingFor!==a.id) loadTempShots(a.id);
 
     a.resources=a.resources||{};
-    $("#resCandy").value=String(a.resources.candy??"");
-    $("#resEventCandy").value=String(a.resources.eventCandy??"");
-    $("#resBirth").value=String(a.resources.birth??"");
-    $("#resCard").value=String(a.resources.card??"");
-    $("#resLuckyStone").value=String(a.resources.luckyStone??"");
-    $("#resRing").value=String(a.resources.ring??"");
-    $("#resFragment5").value=String(a.resources.fragment5??"");
-    $("#resFragment10").value=String(a.resources.fragment10??"");
-    $("#resFragmentOther").value=String(a.resources.fragmentOther??"");
+    $("#resCandy").value=resourceNumber(a.resources.candy)?String(resourceNumber(a.resources.candy)):"";
+    $("#resEventCandy").value=resourceNumber(a.resources.eventCandy)?String(resourceNumber(a.resources.eventCandy)):"";
+    $("#resBirth").value=resourceNumber(a.resources.birth)?String(resourceNumber(a.resources.birth)):"";
+    $("#resCard").value=resourceNumber(a.resources.card)?String(resourceNumber(a.resources.card)):"";
+    $("#resLuckyStone").value=resourceNumber(a.resources.luckyStone)?String(resourceNumber(a.resources.luckyStone)):"";
+    renderResourceRings(Array.isArray(a.resources.rings)?a.resources.rings:(String(a.resources.ring||"").trim()?[{name:String(a.resources.ring).trim(),qty:1}]:[]));
+    $("#resFragment5").value=resourceNumber(a.resources.fragment5)?String(resourceNumber(a.resources.fragment5)):"";
+    $("#resFragment10").value=resourceNumber(a.resources.fragment10)?String(resourceNumber(a.resources.fragment10)):"";
+    $("#resFragmentOther").value=resourceNumber(a.resources.fragmentOther)?String(resourceNumber(a.resources.fragmentOther)):"";
   }
   const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>
     (!activeCategory || x.category===activeCategory) &&
@@ -917,6 +918,23 @@ $("#is").onclick=async()=>{
   else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
   $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
 };
+function renderResourceRings(rings=[]){
+  const box=$("#resRingList"); if(!box)return;
+  box.innerHTML=(rings||[]).map((r,i)=>`<div class="resourceRingRow" style="display:grid;grid-template-columns:minmax(0,1fr) 90px auto;gap:6px;align-items:center;margin-top:${i?6:0}px">
+    <input class="resourceRingName" type="text" value="${e(r.name||"")}" placeholder="戒指名稱">
+    <input class="resourceRingQty" type="number" min="1" inputmode="numeric" value="${Math.max(1,Number(r.qty)||1)}" placeholder="數量">
+    <button class="btn deleteResourceRing" type="button">刪除</button>
+  </div>`).join("");
+}
+function addResourceRingRow(){
+  const box=$("#resRingList");
+  box.insertAdjacentHTML("beforeend",`<div class="resourceRingRow" style="display:grid;grid-template-columns:minmax(0,1fr) 90px auto;gap:6px;align-items:center;margin-top:${box.children.length?6:0}px">
+    <input class="resourceRingName" type="text" placeholder="戒指名稱">
+    <input class="resourceRingQty" type="number" min="1" inputmode="numeric" value="1" placeholder="數量">
+    <button class="btn deleteResourceRing" type="button">刪除</button>
+  </div>`);
+  box.lastElementChild?.querySelector(".resourceRingName")?.focus();
+}
 function readResourceFields(){
   const out={
     candy:String($("#resCandy").value??""),
@@ -924,7 +942,10 @@ function readResourceFields(){
     birth:String($("#resBirth").value??""),
     card:String($("#resCard").value??""),
     luckyStone:String($("#resLuckyStone").value??""),
-    ring:String($("#resRing").value??"").trim()
+    rings:[...document.querySelectorAll("#resRingList .resourceRingRow")].map(row=>({
+      name:String(row.querySelector(".resourceRingName")?.value||"").trim(),
+      qty:Math.max(0,Number(row.querySelector(".resourceRingQty")?.value)||0)
+    })).filter(x=>x.name&&x.qty>0)
   };
   out.fragment5=String($("#resFragment5").value??"");
   out.fragment10=String($("#resFragment10").value??"");
@@ -950,6 +971,7 @@ function applyResourceFields(accountId){
   const a=d.accounts.find(x=>x.id===accountId);
   if(!a)return;
   a.resources={...(a.resources||{}),...readResourceFields()};
+  delete a.resources.ring;
 }
 function scheduleResourceAutoSave(){
   const accountId=active;
@@ -966,6 +988,13 @@ $("#saveResources").onclick=async()=>{
 };
 document.querySelectorAll("#resourceBox input").forEach(input=>{
   input.addEventListener("input",scheduleResourceAutoSave);
+});
+$("#addResourceRing").onclick=()=>addResourceRingRow();
+$("#resRingList").addEventListener("input",scheduleResourceAutoSave);
+$("#resRingList").addEventListener("click",e=>{
+  const btn=e.target.closest(".deleteResourceRing"); if(!btn)return;
+  btn.closest(".resourceRingRow")?.remove();
+  scheduleResourceAutoSave();
 });
 $("#lastLoginDate").addEventListener("input",()=>{
   const accountId=active;
@@ -1936,6 +1965,14 @@ function resourceNumber(v){
 function accountDisplayId(a){return String(a.number||a.name||a.gameId||"").trim()||"未編號"}
 function buildResourceOverview(mode){
   const accounts=[...(d.accounts||[])].sort(naturalAccountCompare);
+  if(mode==="ring"){
+    return accounts.map(a=>{
+      const r=a.resources||{};
+      const rings=Array.isArray(r.rings)?r.rings.filter(x=>String(x?.name||"").trim()&&(Number(x?.qty)||0)>0):
+        (String(r.ring||"").trim()?[{name:String(r.ring).trim(),qty:1}]:[]);
+      return {id:accountDisplayId(a),ring:rings.map(x=>`${String(x.name).trim()} ×${Number(x.qty)||0}`).join("・")};
+    }).filter(x=>x.ring);
+  }
   if(mode==="candy"){
     return accounts.map(a=>({id:accountDisplayId(a),candy:resourceNumber(a.resources?.candy),eventCandy:resourceNumber(a.resources?.eventCandy)}))
       .filter(x=>x.candy||x.eventCandy);
@@ -1945,8 +1982,8 @@ function buildResourceOverview(mode){
     const f5=resourceNumber(r.fragment5);if(f5)fragments.push(`5月 ×${f5}`);
     const f10=resourceNumber(r.fragment10);if(f10)fragments.push(`10月 ×${f10}`);
     const fo=resourceNumber(r.fragmentOther);if(fo)fragments.push(`其他 ×${fo}`);
-    return {id:accountDisplayId(a),birth:resourceNumber(r.birth),card:resourceNumber(r.card),luckyStone:resourceNumber(r.luckyStone),ring:String(r.ring||"").trim(),fragments};
-  }).filter(x=>x.birth||x.card||x.luckyStone||x.ring||x.fragments.length);
+    return {id:accountDisplayId(a),birth:resourceNumber(r.birth),card:resourceNumber(r.card),luckyStone:resourceNumber(r.luckyStone),fragments};
+  }).filter(x=>x.birth||x.card||x.luckyStone||x.fragments.length);
 }
 function renderResourceOverview(){
   const mode=$("#resourceOverviewMode")?.value||"main";
@@ -1955,12 +1992,14 @@ function renderResourceOverview(){
   const th='padding:9px 10px;text-align:left;border-bottom:1px solid #d9c4b5;white-space:nowrap';
   const td='padding:9px 10px;border-bottom:1px solid #ead9cd;vertical-align:top';
   let body="";
-  if(mode==="candy"){
+  if(mode==="ring"){
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">戒指</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${e(x.ring||"")}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有戒指資源資料</div>';
+  }else if(mode==="candy"){
     body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">糖果</th><th style="${th}">活動糖果</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.candy||0}</td><td style="${td}">${x.eventCandy||0}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有糖果資源資料</div>';
   }else{
-    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">戒指</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${e(x.ring||"")}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／戒指／碎片資料</div>';
+    body=rows.length?`<table style="${tableStyle}"><thead><tr><th style="${th}">編號</th><th style="${th}">誕生</th><th style="${th}">卡牌</th><th style="${th}">幸運石</th><th style="${th}">碎片</th></tr></thead><tbody>${rows.map(x=>`<tr><td style="${td};font-weight:800">${e(x.id)}</td><td style="${td}">${x.birth||0}</td><td style="${td}">${x.card||0}</td><td style="${td}">${x.luckyStone||0}</td><td style="${td}">${x.fragments.length?e(x.fragments.join("・")):""}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">目前沒有誕生／卡牌／幸運石／碎片資料</div>';
   }
-  const label=mode==="candy"?"糖果":"誕生・卡牌・幸運石・戒指・碎片";
+  const label=mode==="candy"?"糖果":mode==="ring"?"戒指":"誕生・卡牌・幸運石・碎片";
   $("#overviewCapture").innerHTML=`<div class="overviewTitle">MSTAR 庫存管理｜全帳號資源總覽</div><div class="overviewSub">${e(label)}｜只顯示有數量的編號</div>${body}`;
 }
 function syncOverviewMode(){const r=$("#overviewType").value==="resource";$("#resourceOverviewMode").style.display=r?"block":"none";$("#overviewSearch").style.display=r?"none":"block";$("#clearOverviewSearch").style.display=r?"none":"inline-block";r?renderResourceOverview():renderInventoryOverview()}
@@ -2042,7 +2081,7 @@ async function saveResourceOverviewJpg(){
   try{
     const mode=$("#resourceOverviewMode")?.value||"main",rows=buildResourceOverview(mode);
     if(!rows.length)return alert("目前沒有可輸出的資源資料");
-    const cols=mode==="candy"?["編號","糖果","活動糖果"]:["編號","誕生","卡牌","幸運石","戒指","碎片"];
+    const cols=mode==="candy"?["編號","糖果","活動糖果"]:mode==="ring"?["編號","戒指"]:["編號","誕生","卡牌","幸運石","碎片"];
     const widths=mode==="candy"?[300,220,220]:[240,130,130,150,650];
     const W=widths.reduce((a,b)=>a+b,0)+80,rowH=48,pad=40,H=125+rowH*(rows.length+1)+40;
     const c=document.createElement("canvas");c.width=W;c.height=H;const ctx=c.getContext("2d");
@@ -2072,6 +2111,7 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
 
 
 
