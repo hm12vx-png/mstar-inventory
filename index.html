@@ -970,7 +970,7 @@ function readResourceCustomFields(){
     id:String(row.dataset.id||("rf_"+Date.now()+"_"+Math.random().toString(36).slice(2,7))),
     label:String(row.querySelector(".customFieldLabel")?.value||"").trim(),
     value:String(row.querySelector(".customFieldValue")?.value||"")
-  })).filter(x=>x.label);
+  })).filter(x=>x.label || x.value);
 }
 function renderResourceRings(rings=[]){
   const box=$("#resRingList"); if(!box)return;
@@ -1047,6 +1047,10 @@ document.querySelectorAll("#resourceBox input").forEach(input=>{
 $("#addResourceRing").onclick=()=>addResourceRingRow();
 $("#addResourceField").onclick=()=>addResourceCustomField();
 $("#resCustomFields").addEventListener("input",scheduleResourceAutoSave);
+$("#resCustomFields").addEventListener("change",scheduleResourceAutoSave);
+$("#resCustomFields").addEventListener("blur",e=>{
+  if(e.target.matches(".customFieldLabel,.customFieldValue")) scheduleResourceAutoSave();
+},true);
 $("#resCustomFields").addEventListener("click",e=>{
   const btn=e.target.closest(".resourceCustomDelete"); if(!btn)return;
   btn.closest(".resourceCustomRow")?.remove();
