@@ -444,9 +444,9 @@
   <div id="tempShotGrid" class="tempShotGrid"></div><div class="actions"><button class="btn" id="closeTempShots" type="button">關閉</button></div></div></dialog><dialog id="batchAd"><h3>批次新增帳號</h3>
 <div class="field"><label>起始編號</label><input id="ban" inputmode="text" autocapitalize="characters" placeholder="例如：A1、A2、B1 或 457"></div>
 <div class="field"><label>ID 清單</label><textarea id="baids" rows="10" placeholder="一行一個 ID，例如：&#10;ABC123&#10;ABC456&#10;ABC789" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;resize:vertical;font:inherit;color:var(--text)"></textarea><div class="note" style="margin-top:5px">一行一個 ID，會從起始編號自動依序編號。空白行會自動忽略。</div></div>
-<div class="field"><label>帳號</label><input id="baaccount" placeholder="請輸入帳號"></div>
-<div class="field"><label>帳號類型</label><select id="baat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
+<div class="field"><label>帳號清單</label><textarea id="baaccounts" rows="5" placeholder="一行一個帳號，例如：&#10;account001&#10;account002&#10;account003" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;resize:vertical;font:inherit;color:var(--text)"></textarea><div class="note" style="margin-top:5px">一行一個帳號，依照順序與上方 ID 清單配對；空白行會自動忽略。</div></div>
 <div id="batchPreview" class="note"></div>
+<div class="field"><label>帳號類型</label><select id="baat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
 <div class="actions"><button class="btn" id="batchCancel">取消</button><button class="btn primary" id="batchSave">全部新增</button></div></dialog><dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：A1、A2、B1 或 457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div>
 <div class="field"><label>帳號</label><input id="eaccount" placeholder="請輸入帳號"></div>
 <div class="field"><label>帳號類型</label><select id="eat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
@@ -868,6 +868,7 @@ $("#batchDeleteConfirm").onclick=async()=>{
 };
 
 function batchIds(){return $("#baids").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)}
+function batchAccounts(){return $("#baaccounts").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)}
 function parseAccountNumber(value){
   const raw=String(value||"").trim();
   const m=raw.match(/^([^0-9]*)([0-9]+)$/);
@@ -880,21 +881,23 @@ function accountNumberAt(startValue,offset=0){
   return p.prefix+(p.width>1?String(n).padStart(p.width,"0"):String(n));
 }
 function updateBatchPreview(){
-  const raw=$("#ban").value.trim(),ids=batchIds(),start=accountNumberAt(raw,0);
+  const raw=$("#ban").value.trim(),ids=batchIds(),accounts=batchAccounts(),start=accountNumberAt(raw,0);
   if(!start||!ids.length){$("#batchPreview").textContent="";return}
   const end=accountNumberAt(raw,ids.length-1);
-  $("#batchPreview").textContent=`將新增 ${ids.length} 個帳號：${start}${ids.length>1?` ～ ${end}`:""}`;
+  const matchText=accounts.length===ids.length?"帳號與 ID 數量一致":"帳號與 ID 數量不一致";
+  $("#batchPreview").textContent=`將新增 ${ids.length} 個帳號：${start}${ids.length>1?` ～ ${end}`:""}｜${matchText}（ID：${ids.length}／帳號：${accounts.length}）`;
 }
 $("#batchA").onclick=()=>{
   $("#ban").value="";
-  $("#baids").value="";$("#baaccount").value="";$("#batchPreview").textContent="";batchAd.showModal();
+  $("#baids").value="";$("#baaccounts").value="";$("#batchPreview").textContent="";batchAd.showModal();
 };
-$("#ban").oninput=updateBatchPreview;$("#baids").oninput=updateBatchPreview;
+$("#ban").oninput=updateBatchPreview;$("#baids").oninput=updateBatchPreview;$("#baaccounts").oninput=updateBatchPreview;
 $("#batchCancel").onclick=()=>batchAd.close();
 $("#batchSave").onclick=async()=>{
-  const rawStart=$("#ban").value.trim(),ids=batchIds();
+  const rawStart=$("#ban").value.trim(),ids=batchIds(),accounts=batchAccounts();
   if(!parseAccountNumber(rawStart))return alert("請輸入起始編號，例如 A1、B1 或 457");
   if(!ids.length)return alert("請貼上至少一個 ID");
+  if(accounts.length!==ids.length)return alert(`帳號清單與 ID 清單數量不一致。\nID：${ids.length} 個\n帳號：${accounts.length} 個\n請確認每個 ID 都有對應的帳號。`);
   const newNumbers=ids.map((_,i)=>accountNumberAt(rawStart,i));
   const existingNumbers=new Set((d.accounts||[]).map(a=>String(a.number||a.name||"")));
   const existingIds=new Set((d.accounts||[]).map(a=>String(a.gameId||"").trim()).filter(Boolean));
@@ -904,8 +907,8 @@ $("#batchSave").onclick=async()=>{
   if(dupInput)return alert(`ID「${dupInput}」在這次貼上的清單中重複了。`);
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
-  const type=$("#baat").value,account=$("#baaccount").value.trim();
-  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
+  const type=$("#baat").value;
+  ids.forEach((gid,i)=>{const n=newNumbers[i],account=accounts[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
@@ -2324,13 +2327,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
-
-
-
-
-
 
 
 
