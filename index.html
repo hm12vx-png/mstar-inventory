@@ -444,8 +444,8 @@
   <div id="tempShotGrid" class="tempShotGrid"></div><div class="actions"><button class="btn" id="closeTempShots" type="button">關閉</button></div></div></dialog><dialog id="batchAd"><h3>批次新增帳號</h3>
 <div class="field"><label>起始編號</label><input id="ban" inputmode="text" autocapitalize="characters" placeholder="例如：A1、A2、B1 或 457"></div>
 <div class="field"><label>ID 清單</label><textarea id="baids" rows="10" placeholder="一行一個 ID，例如：&#10;ABC123&#10;ABC456&#10;ABC789" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;resize:vertical;font:inherit;color:var(--text)"></textarea><div class="note" style="margin-top:5px">一行一個 ID，會從起始編號自動依序編號。空白行會自動忽略。</div></div>
+<div class="field"><label>帳號</label><input id="baaccount" placeholder="請輸入帳號"></div>
 <div class="field"><label>帳號類型</label><select id="baat"><option value="男號">男號</option><option value="女號">女號</option></select></div>
-<div class="field"><label>角色性別</label><select id="baag"><option value="男">男</option><option value="女">女</option></select></div>
 <div id="batchPreview" class="note"></div>
 <div class="actions"><button class="btn" id="batchCancel">取消</button><button class="btn primary" id="batchSave">全部新增</button></div></dialog><dialog id="editAd"><div class="modal"><h3>修改帳號</h3><div class="field"><label>編號</label><input id="ean" placeholder="例如：A1、A2、B1 或 457"></div><div class="field"><label>ID</label><input id="eid" placeholder="遊戲 ID"></div>
 <div class="field"><label>帳號</label><input id="eaccount" placeholder="請輸入帳號"></div>
@@ -887,7 +887,7 @@ function updateBatchPreview(){
 }
 $("#batchA").onclick=()=>{
   $("#ban").value="";
-  $("#baids").value="";$("#batchPreview").textContent="";batchAd.showModal();
+  $("#baids").value="";$("#baaccount").value="";$("#batchPreview").textContent="";batchAd.showModal();
 };
 $("#ban").oninput=updateBatchPreview;$("#baids").oninput=updateBatchPreview;
 $("#batchCancel").onclick=()=>batchAd.close();
@@ -904,8 +904,8 @@ $("#batchSave").onclick=async()=>{
   if(dupInput)return alert(`ID「${dupInput}」在這次貼上的清單中重複了。`);
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
-  const type=$("#baat").value,gender=$("#baag").value;
-  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,accountType:type,accountGender:gender,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
+  const type=$("#baat").value,account=$("#baaccount").value.trim();
+  ids.forEach((gid,i)=>{const n=newNumbers[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
@@ -2324,6 +2324,13 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
+
+
+
+
 
 
 
