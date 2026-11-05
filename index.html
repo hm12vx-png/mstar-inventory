@@ -62,6 +62,14 @@
 #resourceBox .actions .btn{padding:7px 11px;font-size:12px}
 .lastLoginWrap{display:flex;align-items:center;gap:6px;margin-left:0;margin-top:6px}
 .lastLoginWrap input{width:150px;max-width:22vw;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
+.resourceCustomBox{margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)}
+.resourceCustomHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
+.resourceCustomHead>label{font-size:12px;color:var(--muted);font-weight:800}
+.resourceCustomRow{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:6px;align-items:center;margin-top:6px}
+.resourceCustomRow input{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
+.resourceCustomRow .customFieldLabel{font-weight:700}
+.resourceCustomDelete{padding:7px 9px!important}
+@media(max-width:620px){.resourceCustomRow{grid-template-columns:1fr}.resourceCustomDelete{justify-self:end}.resourceCustomHead{align-items:flex-start}}
 .lastLoginWrap small{color:var(--muted);font-size:12px;white-space:nowrap}
 @media(max-width:620px){
   .lastLoginWrap{width:100%;margin-left:0;margin-top:6px}
@@ -402,6 +410,14 @@
     <div class="field" style="margin:0"><label>10月碎片</label><input id="resFragment10" type="text" inputmode="numeric"></div>
     <div class="field" style="margin:0"><label>其他碎片</label><input id="resFragmentOther" type="text" inputmode="numeric"></div>
   </div>
+  <div class="resourceCustomBox">
+    <div class="resourceCustomHead">
+      <label>📝 備註／自訂欄位</label>
+      <button class="btn" id="addResourceField" type="button">＋ 新增欄位</button>
+    </div>
+    <div id="resCustomFields"></div>
+    <div class="note" style="margin-top:5px">可自行增加「備註、日期、目標、提醒」等欄位；內容會自動儲存。</div>
+  </div>
   <div class="actions" style="margin-top:8px"><button class="btn primary" id="saveResources">儲存資源</button></div>
 </div>
 
@@ -724,6 +740,7 @@ function render(){
     $("#resFragment5").value=resourceNumber(a.resources.fragment5)?String(resourceNumber(a.resources.fragment5)):"";
     $("#resFragment10").value=resourceNumber(a.resources.fragment10)?String(resourceNumber(a.resources.fragment10)):"";
     $("#resFragmentOther").value=resourceNumber(a.resources.fragmentOther)?String(resourceNumber(a.resources.fragmentOther)):"";
+    renderResourceCustomFields(Array.isArray(a.resources.customFields)?a.resources.customFields:[]);
   }
   const visibleItems=a ? a.items.map((x,i)=>({...x,_index:i})).filter(x=>
     (!activeCategory || x.category===activeCategory) &&
@@ -929,6 +946,32 @@ $("#is").onclick=async()=>{
   else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
   $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
 };
+function renderResourceCustomFields(fields=[]){
+  const box=$("#resCustomFields"); if(!box)return;
+  const list=Array.isArray(fields)?fields:[];
+  box.innerHTML=list.map((f,i)=>`<div class="resourceCustomRow" data-id="${e(f.id||"")}">
+    <input class="customFieldLabel" type="text" value="${e(f.label||"")}" placeholder="欄位名稱，例如：備註">
+    <input class="customFieldValue" type="text" value="${e(f.value||"")}" placeholder="輸入內容">
+    <button class="btn danger resourceCustomDelete" type="button">刪除</button>
+  </div>`).join("");
+}
+function addResourceCustomField(){
+  const box=$("#resCustomFields"); if(!box)return;
+  const id="rf_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
+  box.insertAdjacentHTML("beforeend",`<div class="resourceCustomRow" data-id="${id}">
+    <input class="customFieldLabel" type="text" placeholder="欄位名稱，例如：備註" value="">
+    <input class="customFieldValue" type="text" placeholder="輸入內容" value="">
+    <button class="btn danger resourceCustomDelete" type="button">刪除</button>
+  </div>`);
+  box.lastElementChild?.querySelector(".customFieldLabel")?.focus();
+}
+function readResourceCustomFields(){
+  return [...document.querySelectorAll("#resCustomFields .resourceCustomRow")].map(row=>({
+    id:String(row.dataset.id||("rf_"+Date.now()+"_"+Math.random().toString(36).slice(2,7))),
+    label:String(row.querySelector(".customFieldLabel")?.value||"").trim(),
+    value:String(row.querySelector(".customFieldValue")?.value||"")
+  })).filter(x=>x.label);
+}
 function renderResourceRings(rings=[]){
   const box=$("#resRingList"); if(!box)return;
   box.innerHTML=(rings||[]).map((r,i)=>`<div class="resourceRingRow" style="display:grid;grid-template-columns:minmax(0,1fr) 90px auto;gap:6px;align-items:center;margin-top:${i?6:0}px">
@@ -953,6 +996,7 @@ function readResourceFields(){
     birth:String($("#resBirth").value??""),
     card:String($("#resCard").value??""),
     luckyStone:String($("#resLuckyStone").value??""),
+    customFields:readResourceCustomFields(),
     rings:[...document.querySelectorAll("#resRingList .resourceRingRow")].map(row=>({
       name:String(row.querySelector(".resourceRingName")?.value||"").trim(),
       qty:Math.max(0,Number(row.querySelector(".resourceRingQty")?.value)||0)
@@ -1001,6 +1045,13 @@ document.querySelectorAll("#resourceBox input").forEach(input=>{
   input.addEventListener("input",scheduleResourceAutoSave);
 });
 $("#addResourceRing").onclick=()=>addResourceRingRow();
+$("#addResourceField").onclick=()=>addResourceCustomField();
+$("#resCustomFields").addEventListener("input",scheduleResourceAutoSave);
+$("#resCustomFields").addEventListener("click",e=>{
+  const btn=e.target.closest(".resourceCustomDelete"); if(!btn)return;
+  btn.closest(".resourceCustomRow")?.remove();
+  scheduleResourceAutoSave();
+});
 $("#resRingList").addEventListener("input",scheduleResourceAutoSave);
 $("#resRingList").addEventListener("click",e=>{
   const btn=e.target.closest(".deleteResourceRing"); if(!btn)return;
@@ -2330,6 +2381,9 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
 
 
 
