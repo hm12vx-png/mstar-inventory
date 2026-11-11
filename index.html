@@ -521,10 +521,10 @@
   <div id="imageLibraryList" class="imageLibraryList"></div>
   <div class="divider" style="border-top:1px dashed var(--line);margin:16px 0"></div>
   <b>新增圖片庫項目</b>
-  <div class="field"><label>圖片</label><input id="imageLibraryFile" type="file" accept="image/*"></div>
+  <div class="field"><label>圖片（可一次多選）</label><input id="imageLibraryFile" type="file" accept="image/*" multiple><small class="meta">可按住 Ctrl 或 Shift 一次選擇多張圖片，名稱會自動使用各圖片檔名。</small></div>
   <div class="imageLibraryFields">
-    <div class="field"><label>名稱</label><input id="imageLibraryName" placeholder="輸入名稱"></div>
-    <div class="field"><label>顏色</label><input id="imageLibraryColor" placeholder="輸入顏色"></div>
+    <div class="field"><label>名稱</label><input id="imageLibraryName" placeholder="選擇圖片後自動帶入檔名"></div>
+    <div class="field"><label>顏色（本次批次共用）</label><input id="imageLibraryColor" placeholder="輸入顏色；可留空"></div>
   </div>
   <div class="actions"><button class="btn primary" id="saveImageLibraryItem" type="button">加入圖片庫</button></div>
 </dialog>
@@ -2236,12 +2236,13 @@ function renderImageLibrary(){
 }
 $("#openImageLibrary").onclick=()=>{renderImageLibrary();imageLibraryDlg.showModal()};
 $("#closeImageLibrary").onclick=()=>imageLibraryDlg.close();
-// 選取圖片後，自動將原始檔名（不含副檔名）帶入名稱欄位，避免重複輸入。
+// 可批次選取圖片；每張圖片自動以原始檔名（不含副檔名）作為名稱。
 $("#imageLibraryFile").onchange=e=>{
-  const file=e.target.files?.[0];
-  if(!file)return;
-  const filename=file.name.replace(/\.[^.]+$/,"").trim();
-  $("#imageLibraryName").value=filename;
+  const files=Array.from(e.target.files||[]);
+  const nameInput=$("#imageLibraryName");
+  if(!files.length){nameInput.value="";nameInput.disabled=false;return;}
+  if(files.length===1){nameInput.value=files[0].name.replace(/\.[^.]+$/ ,"").trim();nameInput.disabled=false;}
+  else{nameInput.value=`已選擇 ${files.length} 張圖片，將自動使用各自檔名`;nameInput.disabled=true;}
 };
 async function compressLibraryImage(file){
   const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
@@ -2251,17 +2252,27 @@ async function compressLibraryImage(file){
   return c.toDataURL("image/jpeg",.78);
 }
 $("#saveImageLibraryItem").onclick=async()=>{
-  const file=$("#imageLibraryFile").files?.[0],name=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim();
-  if(!file)return alert("請先選擇圖片");
-  if(!name)return alert("請輸入名稱");
+  const files=Array.from($("#imageLibraryFile").files||[]),singleName=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim();
+  if(!files.length)return alert("請先選擇圖片");
+  if(files.length===1&&!singleName)return alert("請輸入名稱");
+  const button=$("#saveImageLibraryItem");
+  button.disabled=true;
+  const originalText=button.textContent;
   try{
-    const image=await compressLibraryImage(file);
     d.imageLibrary=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-    d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),image,name,color,qty:1});
+    for(let i=0;i<files.length;i++){
+      const file=files[i];
+      const name=files.length===1?singleName:file.name.replace(/\.[^.]+$/ ,"").trim();
+      const image=await compressLibraryImage(file);
+      d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),image,name:name||"未命名",color,qty:1});
+      button.textContent=`處理中 ${i+1}/${files.length}`;
+    }
     await save();
-    $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryColor").value="";
+    $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryName").disabled=false;$("#imageLibraryColor").value="";
     renderImageLibrary();
+    alert(`已成功加入 ${files.length} 張圖片！`);
   }catch(err){console.error(err);alert("圖片加入失敗："+(err?.message||String(err)))}
+  finally{button.disabled=false;button.textContent=originalText;}
 };
 
 
@@ -2524,7 +2535,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
 
 
