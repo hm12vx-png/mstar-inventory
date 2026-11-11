@@ -533,7 +533,7 @@
 <div class="field" id="shotGenderWrap" style="display:none"><label>限制</label><select id="shotGender"><option value="限男">限男</option><option value="限女">限女</option></select></div>
 <div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把一張或多張庫存截圖拖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
-<div style="margin-top:10px;font-weight:800">辨識確認</div><div class="meta">優先比對圖片庫；命中時使用圖片庫的名稱、顏色與數量。名稱、顏色與數量都可在加入前手動修正。</div><div id="recognized" style="margin-top:8px"></div></div>
+<div style="margin-top:10px;font-weight:800">辨識確認</div><div class="meta">第一優先比對圖片庫；命中時使用圖片庫的名稱與顏色，數量則讀取截圖上的實際數字。未命中才以 OCR 與辨識記憶補足名稱。辨識結果都可在加入前手動修正。</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
@@ -1905,28 +1905,34 @@ async function learnedNameFor(image){
   return old?{...old,matchLevel:"legacy"}:null;
 }
 async function buildImageLibraryIndex(){
+  // 圖片庫是辨識的第一資料來源：登入後先為整個圖片庫建立索引，後續每張道具卡先查此索引。
   const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
   const index=[];
   for(const item of rows){
     if(!item?.image||!String(item.name||"").trim())continue;
     try{
-      const features=await imageMemoryFeatures(item.image);
-      index.push({item,shapeSig:features.shapeSig,colorSig:features.colorSig});
+      const [features,sig]=await Promise.all([imageMemoryFeatures(item.image),imageSignature(item.image)]);
+      index.push({item,shapeSig:features.shapeSig,colorSig:features.colorSig,sig});
     }catch(err){console.warn("圖片庫圖片特徵建立失敗",item?.name,err)}
   }
   return index;
 }
 async function matchImageLibraryFirst(image,index){
   if(!Array.isArray(index)||!index.length)return null;
-  const features=await imageMemoryFeatures(image);
-  const candidates=index.map(entry=>({
-    ...entry,
-    shapeDist:shapeDistance(features.shapeSig,entry.shapeSig),
-    colorDist:colorDistance(features.colorSig,entry.colorSig)
-  })).sort((a,b)=>(a.shapeDist+a.colorDist*.38)-(b.shapeDist+b.colorDist*.38));
-  const best=candidates[0];
-  // 必須同時符合外觀與顏色，避免只因輪廓相似就套用錯誤名稱或庫存數量。
-  if(best&&best.shapeDist<=.72&&best.colorDist<=.82)return best.item;
+  const [features,sig]=await Promise.all([imageMemoryFeatures(image),imageSignature(image)]);
+  const candidates=index.map(entry=>{
+    const shapeDist=shapeDistance(features.shapeSig,entry.shapeSig);
+    const colorDist=colorDistance(features.colorSig,entry.colorSig);
+    const pixelDist=signatureDistance(sig,entry.sig);
+    // 以外觀輪廓為主、顏色為輔；同一物品可能因遊戲特效、縮放或截圖色偏而有色差。
+    return {...entry,shapeDist,colorDist,pixelDist,score:shapeDist+colorDist*.12+pixelDist*.08};
+  }).sort((a,b)=>a.score-b.score);
+  const best=candidates[0],second=candidates[1];
+  if(!best)return null;
+  // 圖片庫命中需有足夠外觀相似度；若前兩名太接近，避免錯套名稱與數量，交由 OCR 備援。
+  const sameLibraryIdentity=second&&String(second.item?.name||"")===String(best.item?.name||"")&&String(second.item?.color||"")===String(best.item?.color||"");
+  const clearWinner=!second||second.score-best.score>=.035||sameLibraryIdentity;
+  if(best.shapeDist<=.78&&best.score<=1.05&&clearWinner)return best.item;
   return null;
 }
 async function rememberItemName(image,name,variant=""){
@@ -2035,13 +2041,14 @@ $("#mockRecognize").onclick=async()=>{
         for(let col=0;col<g.cols;col++){
           if(cellLooksEmpty(img,col,row,g)) continue;
           const cardImage=cardCrop(img,col,row,g);
-          // 圖片庫優先：先以道具圖片比對，命中後直接採用圖片庫名稱、顏色及數量。
+          // 第一優先：圖片庫影像比對。命中後採用圖片庫名稱與顏色；數量仍讀取截圖實際數字，避免把圖片庫預設 qty=1 當成庫存數量。
           const libraryMatch=await matchImageLibraryFirst(cardImage,imageLibraryIndex);
           let name="",variant="",itemName="",detectedQty=1;
           if(libraryMatch){
             itemName=String(libraryMatch.name||"").trim();
             variant=String(libraryMatch.color||"").trim();
-            detectedQty=Math.max(1,Math.floor(Number(libraryMatch.qty)||1));
+            // 圖片庫只提供道具身分與顏色；堆疊數量必須以目前截圖 OCR 為準。
+            detectedQty=await recognizeQuantity(worker,img,col,row,g);
           }else{
             const bestName=await recognizeBestName(worker,img,col,row,g);
             name=bestName.text;
