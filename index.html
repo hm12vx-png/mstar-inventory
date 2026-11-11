@@ -382,6 +382,10 @@
 .imageLibraryPreview img{width:100px;height:100px;object-fit:contain;border-radius:9px;background:#eee4dc}
 .imageLibraryFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .imageLibraryFields .field{margin:0}
+.imageLibraryList{display:grid;gap:8px;margin:10px 0}
+.imageLibraryEntry{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.imageLibraryEntry img{width:56px;height:56px;object-fit:contain;border-radius:7px;background:#eee4dc}
+.imageLibraryEntry .entryInfo{flex:1;min-width:0}
 .imageLibraryFields input{width:100%;padding:9px;border:1px solid var(--line);border-radius:9px}
 @media(max-width:560px){.imageLibraryPreview{grid-template-columns:76px 1fr}.imageLibraryPreview img{width:76px;height:76px}.imageLibraryFields{grid-template-columns:1fr}}
 .overviewSearch{display:flex;gap:7px;margin:0 0 10px}
@@ -498,7 +502,7 @@
 <div class="field"><label>款式／顏色</label><input id="editItemVariant"></div>
 <div class="field"><label>數量</label><input id="editItemQty" type="number" min="1"></div>
 <div class="actions"><button class="btn" id="editItemCancel">取消</button><button class="btn primary" id="editItemSave">儲存修改</button></div>
-</div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>物品名稱</label><input id="in" placeholder="例如：海底珊瑚拍照區"></div><div class="field"><label>分類</label><select id="ic">
+</div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>物品名稱</label><select id="in"><option value="">請選擇圖片庫物品</option></select></div><div class="field" id="addItemCategoryField" style="display:none"><label>分類</label><select id="ic">
 <option value="家具">家具</option>
 <option value="玩偶">玩偶</option>
 <option value="花盆">花盆</option>
@@ -514,18 +518,13 @@
 </select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="戒指可自由輸入文字，例如：情侶戒、+10"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
 <dialog id="imageLibraryDlg">
   <div class="head"><h3 style="margin:0">🖼️ 圖片庫</h3><button class="btn" id="closeImageLibrary" type="button">關閉</button></div>
-  <div class="field"><label>選擇圖片庫項目（下拉選單）</label><select id="imageLibrarySelect"><option value="">請選擇圖片</option></select></div>
-  <div id="imageLibraryPreview" class="imageLibraryPreview" style="display:none">
-    <img id="imageLibraryView" alt="圖片預覽">
-    <div><div id="imageLibraryViewName" style="font-weight:900"></div><div class="meta" id="imageLibraryViewMeta"></div><div class="qty" id="imageLibraryViewQty"></div><div class="actions" style="justify-content:flex-start"><button class="mini del" id="deleteImageLibraryItem" type="button">刪除此項目</button></div></div>
-  </div>
+  <div id="imageLibraryList" class="imageLibraryList"></div>
   <div class="divider" style="border-top:1px dashed var(--line);margin:16px 0"></div>
   <b>新增圖片庫項目</b>
   <div class="field"><label>圖片</label><input id="imageLibraryFile" type="file" accept="image/*"></div>
   <div class="imageLibraryFields">
     <div class="field"><label>名稱</label><input id="imageLibraryName" placeholder="輸入名稱"></div>
     <div class="field"><label>顏色</label><input id="imageLibraryColor" placeholder="輸入顏色"></div>
-    <div class="field"><label>數量</label><input id="imageLibraryQty" type="number" min="0" value="1"></div>
   </div>
   <div class="actions"><button class="btn primary" id="saveImageLibraryItem" type="button">加入圖片庫</button></div>
 </dialog>
@@ -959,16 +958,30 @@ $("#batchSave").onclick=async()=>{
 };
 $("#newA").onclick=()=>ad.showModal();
 $("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
-$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");syncAddItemFields();idg.showModal()};
+function populateAddItemLibraryOptions(){
+  const select=$("#in"),rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+  select.innerHTML='<option value="">請選擇圖片庫物品</option>'+rows.map((x,i)=>`<option value="${i}">${e(x.name||"未命名")}${x.color?`（${e(x.color)}）`:""}</option>`).join("");
+  $("#iv").value="";
+}
+$("#in").onchange=()=>{
+  const item=(Array.isArray(d.imageLibrary)?d.imageLibrary:[])[Number($("#in").value)];
+  $("#iv").value=item?.color||"";
+};
+$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");populateAddItemLibraryOptions();syncAddItemFields();idg.showModal()};
 $("#is").onclick=async()=>{
   let a=cur(),cat=$("#ic").value||"家具",candyType="";
-  let n=$("#in").value.trim(),v=$("#iv").value.trim();
+  const selectedLibraryValue=$("#in").value;
+  if(selectedLibraryValue==="")return alert("請先從圖片庫選擇物品名稱");
+  const libraryItem=(Array.isArray(d.imageLibrary)?d.imageLibrary:[])[Number(selectedLibraryValue)];
+  if(!libraryItem)return alert("找不到所選圖片庫項目，請重新選擇");
+  let n=String(libraryItem.name||"").trim(),v=String(libraryItem.color||$("#iv").value||"").trim();
   let gender=(cat==="作物"||cat==="戒指")?($("#ig").value||"限男"):"",q=Math.max(1,+$("#iq").value||1);
   if(!n)return;
   let same=a.items.find(x=>x.name===n&&x.variant===v&&x.category===cat&&(x.gender||"")===gender&&(x.candyType||"")===candyType);
   if(same && cat==="糖果") same.qty=q;
   else if(same) same.qty+=q;
-  else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q});
+  else a.items.push({name:n,category:cat,gender,candyType,variant:v,qty:q,image:libraryItem.image||""});
+  if(same && !same.image) same.image=libraryItem.image||"";
   $("#in").value="";$("#iv").value="";$("#iq").value=1;idg.close();await save()
 };
 function renderResourceCustomFields(fields=[]){
@@ -2213,23 +2226,23 @@ $("#restoreBackupFile").onchange=e=>restorePortableBackup(e.target.files?.[0]);
 const imageLibraryDlg=$("#imageLibraryDlg");
 function renderImageLibrary(){
   const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-  const select=$("#imageLibrarySelect"),old=select.value;
-  select.innerHTML='<option value="">請選擇圖片</option>'+rows.map((x,i)=>`<option value="${i}">${e(x.name||"未命名")}｜${e(x.color||"未填顏色")}｜×${Number(x.qty)||0}</option>`).join("");
-  if(old!==""&&rows[Number(old)])select.value=old;
-  showImageLibraryItem();
-}
-function showImageLibraryItem(){
-  const i=$("#imageLibrarySelect").value, x=i===""?null:(d.imageLibrary||[])[Number(i)];
-  $("#imageLibraryPreview").style.display=x?"grid":"none";
-  if(!x)return;
-  $("#imageLibraryView").src=x.image||"";
-  $("#imageLibraryViewName").textContent=x.name||"未命名";
-  $("#imageLibraryViewMeta").textContent="顏色："+(x.color||"未填寫");
-  $("#imageLibraryViewQty").textContent="數量：×"+(Number(x.qty)||0);
+  const list=$("#imageLibraryList");
+  list.innerHTML=rows.length?rows.map((x,i)=>`<div class="imageLibraryEntry"><img src="${e(x.image||"")}" alt=""><div class="entryInfo"><b>${e(x.name||"未命名")}</b><div class="meta">顏色：${e(x.color||"未填寫")}</div></div><button class="mini del" type="button" data-delete-library="${i}">刪除</button></div>`).join(""):'<div class="meta">目前尚無圖片庫項目</div>';
+  list.querySelectorAll('[data-delete-library]').forEach(btn=>btn.onclick=async()=>{
+    const i=Number(btn.dataset.deleteLibrary),x=d.imageLibrary[i];
+    if(!x||!confirm(`確定刪除「${x.name||"未命名"}」？`))return;
+    d.imageLibrary.splice(i,1);await save();renderImageLibrary();
+  });
 }
 $("#openImageLibrary").onclick=()=>{renderImageLibrary();imageLibraryDlg.showModal()};
 $("#closeImageLibrary").onclick=()=>imageLibraryDlg.close();
-$("#imageLibrarySelect").onchange=showImageLibraryItem;
+// 選取圖片後，自動將原始檔名（不含副檔名）帶入名稱欄位，避免重複輸入。
+$("#imageLibraryFile").onchange=e=>{
+  const file=e.target.files?.[0];
+  if(!file)return;
+  const filename=file.name.replace(/\.[^.]+$/,"").trim();
+  $("#imageLibraryName").value=filename;
+};
 async function compressLibraryImage(file){
   const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
   const img=await imageFromUrl(data),max=500,scale=Math.min(1,max/Math.max(img.width,img.height));
@@ -2238,23 +2251,17 @@ async function compressLibraryImage(file){
   return c.toDataURL("image/jpeg",.78);
 }
 $("#saveImageLibraryItem").onclick=async()=>{
-  const file=$("#imageLibraryFile").files?.[0],name=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim(),qty=Math.max(0,Number($("#imageLibraryQty").value)||0);
+  const file=$("#imageLibraryFile").files?.[0],name=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim();
   if(!file)return alert("請先選擇圖片");
   if(!name)return alert("請輸入名稱");
   try{
     const image=await compressLibraryImage(file);
     d.imageLibrary=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-    d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),image,name,color,qty});
+    d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),image,name,color,qty:1});
     await save();
-    $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryColor").value="";$("#imageLibraryQty").value="1";
+    $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryColor").value="";
     renderImageLibrary();
   }catch(err){console.error(err);alert("圖片加入失敗："+(err?.message||String(err)))}
-};
-$("#deleteImageLibraryItem").onclick=async()=>{
-  const i=$("#imageLibrarySelect").value;if(i==="")return;
-  const x=d.imageLibrary[Number(i)];
-  if(!confirm(`確定刪除「${x.name||"未命名"}」？`))return;
-  d.imageLibrary.splice(Number(i),1);await save();renderImageLibrary();
 };
 
 
@@ -2517,6 +2524,10 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
+
 
 
 
