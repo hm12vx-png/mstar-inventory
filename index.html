@@ -579,10 +579,22 @@ function legacyGallerySourceId(item){
 }
 async function deleteLegacyGallerySources(items){
   const ids=[...new Set((Array.isArray(items)?items:[]).map(legacyGallerySourceId).filter(Boolean))];
+  if(!ids.length)return 0;
+  // 舊版 productGallery 可能只允許讀取、不允許刪除。
+  // 圖片庫已完成搬移且 productGalleryMigrated=true 後，F5 不會再從舊集合補回，
+  // 因此舊來源刪除失敗不能阻止「新圖片庫」本身永久刪除。
   for(let i=0;i<ids.length;i+=400){
-    const batch=writeBatch(db);
-    ids.slice(i,i+400).forEach(id=>batch.delete(productGalleryRef(id)));
-    await batch.commit();
+    try{
+      const batch=writeBatch(db);
+      ids.slice(i,i+400).forEach(id=>batch.delete(productGalleryRef(id)));
+      await batch.commit();
+    }catch(err){
+      if(err?.code==="permission-denied"){
+        console.warn("舊版 productGallery 無刪除權限，略過舊來源刪除；新圖片庫仍會正常永久刪除。",err);
+        continue;
+      }
+      throw err;
+    }
   }
   return ids.length;
 }
@@ -2416,7 +2428,7 @@ function renderImageLibrary(){
       renderImageLibrary();
     }catch(err){
       console.error(err);
-      alert("刪除失敗，圖片尚未從新圖庫移除。請確認 Firebase Firestore Rules 允許管理員刪除 productGallery 文件。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
+      alert("刪除失敗，圖片尚未從新圖庫移除。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
       btn.disabled=false;
     }
   });
@@ -2435,7 +2447,7 @@ $("#deleteSelectedImageLibrary").onclick=async()=>{
     await save();renderImageLibrary();
   }catch(err){
     console.error(err);
-    alert("批次刪除失敗，選取的圖片尚未從新圖庫移除。請確認 Firebase Firestore Rules 允許管理員刪除 productGallery 文件。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
+    alert("批次刪除失敗，選取的圖片尚未從新圖庫移除。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
     renderImageLibrary();
   }
 };
