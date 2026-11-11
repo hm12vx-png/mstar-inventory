@@ -770,12 +770,19 @@ async function loadCloud(){
   }
   if(!Array.isArray(d.accounts))d.accounts=[];
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
-  // 不論是否已完成舊版帳號搬移，都補做 productGallery 圖片庫搬移。
-  const galleryMigration=await migrateProductGallery(d.imageLibrary||[]);
-  if(galleryMigration.count){
-    const byId=new Map((Array.isArray(d.imageLibrary)?d.imageLibrary:[]).map(x=>[String(x.id),x]));
-    galleryMigration.items.forEach(item=>byId.set(String(item.id),item));
-    d.imageLibrary=[...byId.values()];
+  // productGallery 只允許自動搬移一次。完成後即使使用者刪除圖片，
+  // 重新整理也不會再從舊集合自動補回已刪除的項目。
+  const galleryMetaSnap=await getDoc(metaRef());
+  const galleryAlreadyMigrated=galleryMetaSnap.exists()
+    && galleryMetaSnap.data()?.productGalleryMigrated===true;
+  if(!galleryAlreadyMigrated){
+    const galleryMigration=await migrateProductGallery(d.imageLibrary||[]);
+    if(galleryMigration.count){
+      const byId=new Map((Array.isArray(d.imageLibrary)?d.imageLibrary:[]).map(x=>[String(x.id),x]));
+      galleryMigration.items.forEach(item=>byId.set(String(item.id),item));
+      d.imageLibrary=[...byId.values()];
+    }
+    // 即使舊集合目前為空，也記錄已檢查，避免每次 F5 都重跑搬移。
     await setDoc(metaRef(),{
       schemaVersion:MIGRATION_VERSION,
       productGalleryMigrated:true,
