@@ -623,9 +623,13 @@ async function readSplitCloud(){
     updated:meta.updated||""
   };
 }
-// Firestore 單筆文件上限為 1 MiB。保留可直接使用的原圖；過大的 Base64 圖片才縮小轉 JPEG。
+// Firestore 單筆文件上限為 1 MiB。圖片過大時才壓縮，並設逾時避免畫面永久停在處理中。
 function firestoreDocBytes(data){
   return new TextEncoder().encode(JSON.stringify(data)).length;
+}
+function setGalleryProgress(message){
+  const label=$("#userLabel");
+  if(label)label.textContent=message;
 }
 async function fitLibraryDocument(data){
   if(firestoreDocBytes(data)<850*1024)return data;
@@ -635,12 +639,14 @@ async function fitLibraryDocument(data){
   }
   const img=new Image();
   await new Promise((resolve,reject)=>{
-    img.onload=resolve;
-    img.onerror=()=>reject(new Error(`無法解碼圖片：${data.name||data.id||"未命名"}`));
+    const timer=setTimeout(()=>reject(new Error(`圖片「${data.name||data.id||"未命名"}」解碼逾時，請檢查原始圖片。`)),15000);
+    img.onload=()=>{clearTimeout(timer);resolve()};
+    img.onerror=()=>{clearTimeout(timer);reject(new Error(`無法解碼圖片：${data.name||data.id||"未命名"}`))};
     img.src=source;
   });
   const canvas=document.createElement("canvas");
   const ctx=canvas.getContext("2d");
+  if(!ctx)throw new Error("瀏覽器無法建立圖片壓縮畫布。");
   for(const maxSide of [1800,1500,1200,1000,800,640]){
     const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
     canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
@@ -655,17 +661,23 @@ async function fitLibraryDocument(data){
   throw new Error(`圖片「${data.name||data.id||"未命名"}」壓縮後仍超過 Firestore 文件安全大小。`);
 }
 
-// 將根目錄 productGallery 搬入目前網頁使用的 users/{uid}/imageLibrary。
-// 以 pg_ + 原文件 ID 作為目的 ID，重跑時不會重複新增；來源集合只讀不刪。
-async function migrateProductGallery(){
+// 將根目錄 productGallery 搬入 users/{管理員 UID}/imageLibrary。
+// 保留來源集合不刪除；使用固定目的 ID，允許中斷後安全重跑。
+async function migrateProductGallery(existingLibrary=[]){
+  setGalleryProgress("正在讀取舊圖片庫…");
   const sourceSnap=await getDocs(productGalleryCol());
-  if(sourceSnap.empty)return {count:0,items:[]};
-  const destinationSnap=await getDocs(imageLibraryCol());
-  const existingIds=new Set(destinationSnap.docs.map(x=>x.id));
+  const total=sourceSnap.size;
+  if(!total){
+    setGalleryProgress(currentUser?.email||"已登入");
+    return {count:0,items:[]};
+  }
+
+  const existingIds=new Set((Array.isArray(existingLibrary)?existingLibrary:[]).map(x=>String(x.id)));
   const pending=[];
+  let processed=0;
   for(const sourceDoc of sourceSnap.docs){
     const targetId="pg_"+sourceDoc.id;
-    if(existingIds.has(targetId))continue;
+    if(existingIds.has(targetId)){processed++;continue;}
     const original=sourceDoc.data()||{};
     const normalized={
       ...original,
@@ -678,20 +690,35 @@ async function migrateProductGallery(){
       sourceCollection:"productGallery",
       sourceDocumentId:sourceDoc.id
     };
+    setGalleryProgress(`圖片庫處理中 ${processed+1}/${total}…`);
     pending.push({id:targetId,data:await fitLibraryDocument(normalized)});
+    processed++;
   }
-  for(let i=0;i<pending.length;i+=200){
+
+  // 每批最多 5 張，避免多張 Base64 圖片合併後超過 Firestore 單次提交大小限制。
+  for(let i=0;i<pending.length;i+=5){
+    setGalleryProgress(`圖片庫寫入中 ${Math.min(i+5,pending.length)}/${pending.length}…`);
     const batch=writeBatch(db);
-    pending.slice(i,i+200).forEach(row=>batch.set(imageLibraryRef(row.id),row.data,{merge:true}));
+    pending.slice(i,i+5).forEach(row=>batch.set(imageLibraryRef(row.id),row.data,{merge:true}));
     await batch.commit();
   }
-  const verifySnap=await getDocs(imageLibraryCol());
-  const verifiedIds=new Set(verifySnap.docs.map(x=>x.id));
-  const missing=sourceSnap.docs.filter(x=>!verifiedIds.has("pg_"+x.id));
-  if(missing.length){
-    throw new Error(`圖片庫搬移驗證失敗：來源 ${sourceSnap.size} 張，仍有 ${missing.length} 張未確認寫入。原始 productGallery 未刪除。`);
+
+  // 只驗證本次來源文件的目的文件是否存在，不重新下載整個目的圖片庫。
+  const targetIds=sourceSnap.docs.map(x=>"pg_"+x.id);
+  let verified=0;
+  for(let i=0;i<targetIds.length;i+=10){
+    const refs=targetIds.slice(i,i+10);
+    const snaps=await Promise.all(refs.map(id=>getDoc(imageLibraryRef(id))));
+    verified+=snaps.filter(x=>x.exists()).length;
+    setGalleryProgress(`圖片庫驗證中 ${verified}/${total}…`);
   }
-  return {count:sourceSnap.size,items:verifySnap.docs.map(x=>({id:x.id,...x.data()}))};
+  if(verified!==total){
+    throw new Error(`圖片庫搬移驗證失敗：來源 ${total} 張，目的地確認 ${verified} 張。原始 productGallery 未刪除。`);
+  }
+
+  const newlyMigrated=pending.map(x=>x.data);
+  setGalleryProgress(currentUser?.email||"已登入");
+  return {count:total,items:newlyMigrated};
 }
 
 async function migrateLegacyCloud(legacy){
@@ -744,7 +771,7 @@ async function loadCloud(){
   if(!Array.isArray(d.accounts))d.accounts=[];
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
   // 不論是否已完成舊版帳號搬移，都補做 productGallery 圖片庫搬移。
-  const galleryMigration=await migrateProductGallery();
+  const galleryMigration=await migrateProductGallery(d.imageLibrary||[]);
   if(galleryMigration.count){
     const byId=new Map((Array.isArray(d.imageLibrary)?d.imageLibrary:[]).map(x=>[String(x.id),x]));
     galleryMigration.items.forEach(item=>byId.set(String(item.id),item));
@@ -756,6 +783,7 @@ async function loadCloud(){
       productGalleryMigratedCount:galleryMigration.count
     },{merge:true});
   }
+  setGalleryProgress(currentUser?.email||"已登入");
   active=d.accounts[0]?.id||null;
   render();
   setTimeout(()=>backfillInventoryMemory(),300);
@@ -788,7 +816,7 @@ async function save(){
     const libraryOps=[];
     remoteLibrary.docs.forEach(x=>{if(!libraryIds.has(x.id))libraryOps.push({type:"delete",ref:x.ref});});
     libraryRows.forEach((item,i)=>{item.id=String(item.id||("img_"+i+"_"+Math.random().toString(36).slice(2,7)));libraryOps.push({type:"set",ref:imageLibraryRef(item.id),data:item});});
-    for(let i=0;i<libraryOps.length;i+=350){const batch=writeBatch(db);libraryOps.slice(i,i+350).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));await batch.commit();}
+    for(let i=0;i<libraryOps.length;i+=5){const batch=writeBatch(db);libraryOps.slice(i,i+5).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));await batch.commit();}
     await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:deleteField()},{merge:true});
     render();
   }catch(err){
@@ -2664,14 +2692,10 @@ onAuthStateChanged(auth,async user=>{
   }
   $("#userLabel").textContent=currentUser.email||"已登入";
   $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
-  try{await loadCloud()}catch(err){console.error(err);alert("讀取／搬移雲端庫存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err))+"\n\n舊 main 資料沒有刪除。")}
+  try{await loadCloud()}catch(err){console.error(err);$("#userLabel").textContent="圖片庫處理失敗";alert("讀取／搬移雲端庫存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err))+"\n\n舊 main 與 productGallery 原始資料沒有刪除。")}
 });
 
 </script></body></html>
-
-
-
-
 
 
 
