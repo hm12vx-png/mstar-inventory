@@ -538,7 +538,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, deleteField, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyCPcOUY5K5mc-uil7c4k2abU8uu74uQRyk",
@@ -563,6 +563,9 @@ const accountCol=()=>collection(db,"users",ADMIN_UID,"accounts");
 const accountRef=id=>doc(db,"users",ADMIN_UID,"accounts",id);
 const memoryCol=()=>collection(db,"users",ADMIN_UID,"itemMemory");
 const memoryRef=id=>doc(db,"users",ADMIN_UID,"itemMemory",id);
+// 圖片庫每張圖片獨立存放，避免 base64 圖片塞進單筆 meta 文件超過 1 MiB。
+const imageLibraryCol=()=>collection(db,"users",ADMIN_UID,"imageLibrary");
+const imageLibraryRef=id=>doc(db,"users",ADMIN_UID,"imageLibrary",id);
 const tempShotCol=accountId=>collection(db,"users",ADMIN_UID,"accounts",accountId,"tempShots");
 const tempShotRef=(accountId,shotId)=>doc(db,"users",ADMIN_UID,"accounts",accountId,"tempShots",shotId);
 const tempShotsCache=new Map();
@@ -606,19 +609,22 @@ function stableMemoryId(m,index=0){
   return "m"+(h>>>0).toString(36)+"_"+index;
 }
 async function readSplitCloud(){
-  const [metaSnap,accountSnap,memorySnap]=await Promise.all([
-    getDoc(metaRef()), getDocs(accountCol()), getDocs(memoryCol())
+  const [metaSnap,accountSnap,memorySnap,librarySnap]=await Promise.all([
+    getDoc(metaRef()), getDocs(accountCol()), getDocs(memoryCol()), getDocs(imageLibraryCol())
   ]);
   const meta=metaSnap.exists()?metaSnap.data():{};
+  const cloudLibrary=librarySnap.docs.map(x=>({id:x.id,...x.data()}));
   return {
     accounts:accountSnap.docs.map(x=>x.data()),
     itemMemory:memorySnap.docs.map(x=>x.data()),
+    imageLibrary:cloudLibrary.length?cloudLibrary:(Array.isArray(meta.imageLibrary)?meta.imageLibrary:[]),
     updated:meta.updated||""
   };
 }
 async function migrateLegacyCloud(legacy){
   const accounts=Array.isArray(legacy.accounts)?legacy.accounts:[];
   const memories=Array.isArray(legacy.itemMemory)?legacy.itemMemory:[];
+  const library=Array.isArray(legacy.imageLibrary)?legacy.imageLibrary:[];
   // Firestore batches are limited to 500 writes; use conservative chunks.
   const writes=[];
   accounts.forEach((a,i)=>{
@@ -627,6 +633,7 @@ async function migrateLegacyCloud(legacy){
     writes.push({ref:accountRef(id),data:a});
   });
   memories.forEach((m,i)=>writes.push({ref:memoryRef(stableMemoryId(m,i)),data:m}));
+  library.forEach((item,i)=>{const id=String(item.id||("img_"+i+"_"+Math.random().toString(36).slice(2,7)));item.id=id;writes.push({ref:imageLibraryRef(id),data:item});});
   writes.push({ref:metaRef(),data:{
     schemaVersion:MIGRATION_VERSION,
     migratedFromLegacy:true,
@@ -688,7 +695,15 @@ async function save(){
       ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
       await batch.commit();
     }
-    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:Array.isArray(d.imageLibrary)?d.imageLibrary:[]},{merge:true});
+    // 圖片庫逐張存成獨立文件，meta 只保存輕量設定與時間。
+    const remoteLibrary=await getDocs(imageLibraryCol());
+    const libraryRows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+    const libraryIds=new Set(libraryRows.map((x,i)=>String(x.id||(x.id="img_"+i+"_"+Math.random().toString(36).slice(2,7)))));
+    const libraryOps=[];
+    remoteLibrary.docs.forEach(x=>{if(!libraryIds.has(x.id))libraryOps.push({type:"delete",ref:x.ref});});
+    libraryRows.forEach((item,i)=>{item.id=String(item.id||("img_"+i+"_"+Math.random().toString(36).slice(2,7)));libraryOps.push({type:"set",ref:imageLibraryRef(item.id),data:item});});
+    for(let i=0;i<libraryOps.length;i+=350){const batch=writeBatch(db);libraryOps.slice(i,i+350).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));await batch.commit();}
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:deleteField()},{merge:true});
     render();
   }catch(err){
     console.error(err);
@@ -2033,11 +2048,13 @@ async function collectOOFullBackup(){
     getDoc(metaRef()),
     getDocs(accountCol()),
     getDocs(memoryCol()),
-    getDoc(legacyRef())
+    getDoc(legacyRef()),
+    getDocs(imageLibraryCol())
   ]);
 
   const accounts=accountSnap.docs.map(x=>({id:x.id,...x.data()}));
   const itemMemory=memorySnap.docs.map(x=>({id:x.id,...x.data()}));
+  const imageLibrary=librarySnap.docs.map(x=>({id:x.id,...x.data()}));
 
   // Temporary screenshots live in subcollections and are not included when account docs are read.
   const tempShots={};
@@ -2064,14 +2081,16 @@ async function collectOOFullBackup(){
         legacy:"users/{uid}/inventory/main",
         accounts:"users/{uid}/accounts/{accountId}",
         itemMemory:"users/{uid}/itemMemory/{memoryId}",
+        imageLibrary:"users/{uid}/imageLibrary/{imageId}",
         tempShots:"users/{uid}/accounts/{accountId}/tempShots/{shotId}"
       }
     },
     state:{
       accounts,
       itemMemory,
+      imageLibrary,
       updated:meta?.updated||d?.updated||"",
-      meta,
+      meta:Object.fromEntries(Object.entries(meta).filter(([k])=>k!=="imageLibrary")),
       tempShots,
       legacy
     }
@@ -2142,8 +2161,8 @@ async function restorePortableBackup(file){
     if(!okAgain)return;
 
     // Reads after confirmation are safe; no data has been modified yet.
-    const [existingAccounts,existingMemory]=await Promise.all([
-      getDocs(accountCol()),getDocs(memoryCol())
+    const [existingAccounts,existingMemory,existingLibrary]=await Promise.all([
+      getDocs(accountCol()),getDocs(memoryCol()),getDocs(imageLibraryCol())
     ]);
 
     // Collect existing temp-shot docs explicitly because deleting an account document
@@ -2171,6 +2190,10 @@ async function restorePortableBackup(file){
       memoryOps.push({type:"set",ref:memoryRef(id),data:{...m,id}});
     });
 
+    const libraryOps=existingLibrary.docs.map(x=>({type:"delete",ref:x.ref}));
+    const restoredLibrary=Array.isArray(state.imageLibrary)?state.imageLibrary:(Array.isArray(state.meta?.imageLibrary)?state.meta.imageLibrary:[]);
+    restoredLibrary.forEach((item,i)=>{const id=String(item.id||("img_"+i+"_"+Math.random().toString(36).slice(2,7)));libraryOps.push({type:"set",ref:imageLibraryRef(id),data:{...item,id}});});
+
     const tempSetOps=[];
     for(const [accountId,shots] of Object.entries(tempShots)){
       if(!Array.isArray(shots))continue;
@@ -2184,10 +2207,12 @@ async function restorePortableBackup(file){
     await commitBackupOps(tempDeleteOps);
     await commitBackupOps(accountOps);
     await commitBackupOps(memoryOps);
+    await commitBackupOps(libraryOps);
     await commitBackupOps(tempSetOps);
 
     // Restore metadata fields while forcing the current split schema marker.
-    const restoredMeta=(state.meta && typeof state.meta==="object")?state.meta:{};
+    const restoredMeta=(state.meta && typeof state.meta==="object")?{...state.meta}:{};
+    delete restoredMeta.imageLibrary;
     await setDoc(metaRef(),{
       ...restoredMeta,
       schemaVersion:MIGRATION_VERSION,
@@ -2557,6 +2582,10 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
+
 
 
 
