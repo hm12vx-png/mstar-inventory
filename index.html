@@ -377,6 +377,13 @@
 #accounts{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;scroll-behavior:smooth}
 @media(max-width:760px){.main>aside.panel{position:static;max-height:none}#accounts{max-height:42vh;overflow-y:auto}}
 
+
+.imageLibraryPreview{display:grid;grid-template-columns:100px 1fr;gap:12px;align-items:center;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.imageLibraryPreview img{width:100px;height:100px;object-fit:contain;border-radius:9px;background:#eee4dc}
+.imageLibraryFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.imageLibraryFields .field{margin:0}
+.imageLibraryFields input{width:100%;padding:9px;border:1px solid var(--line);border-radius:9px}
+@media(max-width:560px){.imageLibraryPreview{grid-template-columns:76px 1fr}.imageLibraryPreview img{width:76px;height:76px}.imageLibraryFields{grid-template-columns:1fr}}
 .overviewSearch{display:flex;gap:7px;margin:0 0 10px}
 .overviewSearch input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
 #shotDlg select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
@@ -393,7 +400,7 @@
 <button class="btn" id="restoreAllData" type="button" style="flex:1;padding:8px 9px;font-size:12px">♻️ 還原備份</button>
 <input id="restoreBackupFile" type="file" accept=".json,application/json" style="display:none">
 </div></div><div class="accounts" id="accounts"></div></aside>
-<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3></div><div class="lastLoginWrap" id="lastLoginWrap" style="display:none"><input id="lastLoginDate" type="text" placeholder="請輸入日期／文字"><small>最後登入日</small></div>
+<main class="panel"><div class="toolbar"><button class="btn primary" id="newI">＋ 新增物品</button><button class="btn" id="openImageLibrary" type="button">🖼️ 圖片庫</button><button class="btn" id="importShot">📷 匯入截圖</button><button class="btn" id="openTempShots">📌 臨時截圖</button><button class="btn" id="allOverview">🧾 全帳號總覽</button></div><div class="head"><h3 id="title">請先選擇帳號</h3></div><div class="lastLoginWrap" id="lastLoginWrap" style="display:none"><input id="lastLoginDate" type="text" placeholder="請輸入日期／文字"><small>最後登入日</small></div>
 <div id="resourceBox" class="box" style="display:none;margin-top:12px;padding:14px">
   <div style="font-weight:800;margin-bottom:10px">🍬 資源紀錄</div>
   <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
@@ -505,6 +512,23 @@
 <option value="限男">限男</option>
 <option value="限女">限女</option>
 </select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="戒指可自由輸入文字，例如：情侶戒、+10"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
+<dialog id="imageLibraryDlg">
+  <div class="head"><h3 style="margin:0">🖼️ 圖片庫</h3><button class="btn" id="closeImageLibrary" type="button">關閉</button></div>
+  <div class="field"><label>選擇圖片庫項目（下拉選單）</label><select id="imageLibrarySelect"><option value="">請選擇圖片</option></select></div>
+  <div id="imageLibraryPreview" class="imageLibraryPreview" style="display:none">
+    <img id="imageLibraryView" alt="圖片預覽">
+    <div><div id="imageLibraryViewName" style="font-weight:900"></div><div class="meta" id="imageLibraryViewMeta"></div><div class="qty" id="imageLibraryViewQty"></div><div class="actions" style="justify-content:flex-start"><button class="mini del" id="deleteImageLibraryItem" type="button">刪除此項目</button></div></div>
+  </div>
+  <div class="divider" style="border-top:1px dashed var(--line);margin:16px 0"></div>
+  <b>新增圖片庫項目</b>
+  <div class="field"><label>圖片</label><input id="imageLibraryFile" type="file" accept="image/*"></div>
+  <div class="imageLibraryFields">
+    <div class="field"><label>名稱</label><input id="imageLibraryName" placeholder="輸入名稱"></div>
+    <div class="field"><label>顏色</label><input id="imageLibraryColor" placeholder="輸入顏色"></div>
+    <div class="field"><label>數量</label><input id="imageLibraryQty" type="number" min="0" value="1"></div>
+  </div>
+  <div class="actions"><button class="btn primary" id="saveImageLibraryItem" type="button">加入圖片庫</button></div>
+</dialog>
 <dialog id="shotDlg"><h3>📷 匯入 MSTAR 庫存截圖</h3>
 <div class="field"><label>目前要加入哪個帳號</label><div id="shotAccount" style="font-weight:800;padding:8px 0"></div></div>
 <div class="field"><label>辨識後加入分類</label>
@@ -514,7 +538,7 @@
 <div class="field" id="shotGenderWrap" style="display:none"><label>限制</label><select id="shotGender"><option value="限男">限男</option><option value="限女">限女</option></select></div>
 <div id="dropShot" style="border:2px dashed var(--line);border-radius:16px;padding:24px;text-align:center;background:#fff;cursor:pointer">把一張或多張庫存截圖拖到這裡<br><span class="meta">或點一下選擇多張 JPG / PNG</span><input id="shotFile" type="file" accept="image/*" multiple hidden></div>
 <div id="shotPreview" style="display:none;margin-top:12px"><img id="shotImg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#ddd"><div class="note">依 MSTAR 固定道具卡片版型辨識；只讀道具名稱區，不把「查看詳情」、NEW、頁碼等介面文字當成道具。少量或多量道具都可辨識。</div>
-<div style="margin-top:10px;font-weight:800">辨識確認</div><div class="meta">名稱、款式與數量都可在加入前手動修正。</div><div id="recognized" style="margin-top:8px"></div></div>
+<div style="margin-top:10px;font-weight:800">辨識確認</div><div class="meta">優先比對圖片庫；命中時使用圖片庫的名稱、顏色與數量。名稱、顏色與數量都可在加入前手動修正。</div><div id="recognized" style="margin-top:8px"></div></div>
 <div class="actions"><button class="btn" onclick="shotDlg.close()">取消</button><button class="btn primary" id="mockRecognize">辨識這張截圖</button><button class="btn primary" id="confirmRecognized" style="display:none">確認加入庫存</button></div></dialog>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
@@ -669,7 +693,7 @@ async function save(){
       ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
       await batch.commit();
     }
-    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:Array.isArray(d.imageLibrary)?d.imageLibrary:[]},{merge:true});
     render();
   }catch(err){
     console.error(err);
@@ -1023,7 +1047,7 @@ async function saveAccountFields(accountId){
   d.updated=new Date().toLocaleString("zh-TW");
   try{
     await setDoc(accountRef(String(accountId)),a);
-    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:Array.isArray(d.imageLibrary)?d.imageLibrary:[]},{merge:true});
     $("#su").textContent=d.updated;
   }catch(err){
     console.error(err);
@@ -1370,7 +1394,7 @@ function cropGridImage(img,index,cols=4){
 function drawRecognized(){
  $("#recognized").innerHTML=recognizedRows.map((x,i)=>`<div class="recCard">
    ${x.image?`<img class="recPic" src="${x.image}" alt="">`:`<div class="recPic" style="display:grid;place-items:center">🎁</div>`}
-   <div><div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" placeholder="道具名稱" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input type="number" min="1" step="1" inputmode="numeric" data-k="qty" data-i="${i}" value="${Math.max(1,Number(x.qty)||1)}" title="數量" aria-label="數量" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div></div>
+   <div>${x.libraryMatched?'<div class="meta" style="color:#16834a;font-weight:800;margin-bottom:5px">✓ 圖片庫優先辨識</div>':''}<div class="recFields"><input data-k="name" data-i="${i}" value="${e(x.name)}" placeholder="道具名稱" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input data-k="variant" data-i="${i}" value="${e(x.variant)}" placeholder="款式／顏色" style="padding:8px;border:1px solid var(--line);border-radius:9px"><input type="number" min="1" step="1" inputmode="numeric" data-k="qty" data-i="${i}" value="${Math.max(1,Number(x.qty)||1)}" title="數量" aria-label="數量" style="padding:8px;border:1px solid var(--line);border-radius:9px"></div></div>
    <button class="btn danger removeRec" data-i="${i}" style="padding:7px">×</button>
  </div>`).join("");
  document.querySelectorAll("#recognized input").forEach(el=>el.oninput=()=>{
@@ -1699,6 +1723,31 @@ async function learnedNameFor(image){
   const old=candidates.find(x=>!Array.isArray(x.shapeSig)&&x.score<=.90);
   return old?{...old,matchLevel:"legacy"}:null;
 }
+async function buildImageLibraryIndex(){
+  const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+  const index=[];
+  for(const item of rows){
+    if(!item?.image||!String(item.name||"").trim())continue;
+    try{
+      const features=await imageMemoryFeatures(item.image);
+      index.push({item,shapeSig:features.shapeSig,colorSig:features.colorSig});
+    }catch(err){console.warn("圖片庫圖片特徵建立失敗",item?.name,err)}
+  }
+  return index;
+}
+async function matchImageLibraryFirst(image,index){
+  if(!Array.isArray(index)||!index.length)return null;
+  const features=await imageMemoryFeatures(image);
+  const candidates=index.map(entry=>({
+    ...entry,
+    shapeDist:shapeDistance(features.shapeSig,entry.shapeSig),
+    colorDist:colorDistance(features.colorSig,entry.colorSig)
+  })).sort((a,b)=>(a.shapeDist+a.colorDist*.38)-(b.shapeDist+b.colorDist*.38));
+  const best=candidates[0];
+  // 必須同時符合外觀與顏色，避免只因輪廓相似就套用錯誤名稱或庫存數量。
+  if(best&&best.shapeDist<=.72&&best.colorDist<=.82)return best.item;
+  return null;
+}
 async function rememberItemName(image,name,variant=""){
   if(!image||!name||name==="待確認")return;
   d.itemMemory=d.itemMemory||[];
@@ -1789,6 +1838,7 @@ $("#mockRecognize").onclick=async()=>{
     createWorker=mod.createWorker||mod.default?.createWorker;
     if(typeof createWorker!=="function") throw new Error("OCR 工具載入異常");
     worker=await createWorker("chi_tra+eng",1);
+    const imageLibraryIndex=await buildImageLibraryIndex();
 
     const allFound=[];
     for(let shotIndex=0;shotIndex<shotQueue.length;shotIndex++){
@@ -1803,11 +1853,21 @@ $("#mockRecognize").onclick=async()=>{
       for(let row=0;row<g.rows;row++){
         for(let col=0;col<g.cols;col++){
           if(cellLooksEmpty(img,col,row,g)) continue;
-          const bestName=await recognizeBestName(worker,img,col,row,g);
-          let name=bestName.text;
-          const confidence=bestName.confidence;
-          if(ocrLooksBroken(name,confidence)) name="";
-          if(name && !looksLikeItem(name)) name="";
+          const cardImage=cardCrop(img,col,row,g);
+          // 圖片庫優先：先以道具圖片比對，命中後直接採用圖片庫名稱、顏色及數量。
+          const libraryMatch=await matchImageLibraryFirst(cardImage,imageLibraryIndex);
+          let name="",variant="",itemName="",detectedQty=1;
+          if(libraryMatch){
+            itemName=String(libraryMatch.name||"").trim();
+            variant=String(libraryMatch.color||"").trim();
+            detectedQty=Math.max(1,Math.floor(Number(libraryMatch.qty)||1));
+          }else{
+            const bestName=await recognizeBestName(worker,img,col,row,g);
+            name=bestName.text;
+            const confidence=bestName.confidence;
+            if(ocrLooksBroken(name,confidence)) name="";
+            if(name && !looksLikeItem(name)) name="";
+          }
 
           const restrictionImg=cardRestrictionCrop(img,col,row,g);
           let restriction="";
@@ -1819,26 +1879,26 @@ $("#mockRecognize").onclick=async()=>{
             else if(/無限制/.test(rt)) restriction="無限制";
           }catch(_){}
 
-          let itemName=name,variant="";
-          const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
-          if(m){itemName=m[1].trim();variant=m[2].trim()}
-
-          const cardImage=cardCrop(img,col,row,g);
-          const learned=await learnedNameFor(cardImage);
-          if(learned){
-            itemName=learned.name;
-            if(learned.matchLevel!=="shape"&&learned.variant)variant=learned.variant;
-            if(learned.matchLevel==="shape")variant="";
+          let learned=null;
+          if(!libraryMatch){
+            const m=name.match(/^(.*?)[\-－—]\s*([^\-－—]+)$/);
+            if(m){itemName=m[1].trim();variant=m[2].trim()}
+            learned=await learnedNameFor(cardImage);
+            if(learned){
+              itemName=learned.name;
+              if(learned.matchLevel!=="shape"&&learned.variant)variant=learned.variant;
+              if(learned.matchLevel==="shape")variant="";
+            }
+            detectedQty=await recognizeQuantity(worker,img,col,row,g);
           }
-
-          const detectedQty=await recognizeQuantity(worker,img,col,row,g);
           allFound.push({
             name:itemName,
             variant,
             restriction,
             qty:detectedQty,
             image:cardImage,
-            learned:!!learned
+            learned:!!learned,
+            libraryMatched:!!libraryMatch
           });
         }
       }
@@ -1883,7 +1943,7 @@ $("#confirmRecognized").onclick=async()=>{
     // 這裡只寫目前帳號，不再因為一張截圖重寫全部 600 個帳號。
     d.updated=new Date().toLocaleString("zh-TW");
     await setDoc(accountRef(String(a.id)),a);
-    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:Array.isArray(d.imageLibrary)?d.imageLibrary:[]},{merge:true});
 
     // 只補上雲端缺少的辨識記憶，不刪掉整包重建。
     const remoteMemSnap=await getDocs(memoryCol());
@@ -2147,7 +2207,56 @@ async function restorePortableBackup(file){
 
 $("#backupAllData").onclick=exportFullBackup;
 $("#restoreAllData").onclick=()=>$("#restoreBackupFile").click();
+
 $("#restoreBackupFile").onchange=e=>restorePortableBackup(e.target.files?.[0]);
+
+const imageLibraryDlg=$("#imageLibraryDlg");
+function renderImageLibrary(){
+  const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+  const select=$("#imageLibrarySelect"),old=select.value;
+  select.innerHTML='<option value="">請選擇圖片</option>'+rows.map((x,i)=>`<option value="${i}">${e(x.name||"未命名")}｜${e(x.color||"未填顏色")}｜×${Number(x.qty)||0}</option>`).join("");
+  if(old!==""&&rows[Number(old)])select.value=old;
+  showImageLibraryItem();
+}
+function showImageLibraryItem(){
+  const i=$("#imageLibrarySelect").value, x=i===""?null:(d.imageLibrary||[])[Number(i)];
+  $("#imageLibraryPreview").style.display=x?"grid":"none";
+  if(!x)return;
+  $("#imageLibraryView").src=x.image||"";
+  $("#imageLibraryViewName").textContent=x.name||"未命名";
+  $("#imageLibraryViewMeta").textContent="顏色："+(x.color||"未填寫");
+  $("#imageLibraryViewQty").textContent="數量：×"+(Number(x.qty)||0);
+}
+$("#openImageLibrary").onclick=()=>{renderImageLibrary();imageLibraryDlg.showModal()};
+$("#closeImageLibrary").onclick=()=>imageLibraryDlg.close();
+$("#imageLibrarySelect").onchange=showImageLibraryItem;
+async function compressLibraryImage(file){
+  const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
+  const img=await imageFromUrl(data),max=500,scale=Math.min(1,max/Math.max(img.width,img.height));
+  const c=document.createElement("canvas");c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+  c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL("image/jpeg",.78);
+}
+$("#saveImageLibraryItem").onclick=async()=>{
+  const file=$("#imageLibraryFile").files?.[0],name=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim(),qty=Math.max(0,Number($("#imageLibraryQty").value)||0);
+  if(!file)return alert("請先選擇圖片");
+  if(!name)return alert("請輸入名稱");
+  try{
+    const image=await compressLibraryImage(file);
+    d.imageLibrary=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+    d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),image,name,color,qty});
+    await save();
+    $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryColor").value="";$("#imageLibraryQty").value="1";
+    renderImageLibrary();
+  }catch(err){console.error(err);alert("圖片加入失敗："+(err?.message||String(err)))}
+};
+$("#deleteImageLibraryItem").onclick=async()=>{
+  const i=$("#imageLibrarySelect").value;if(i==="")return;
+  const x=d.imageLibrary[Number(i)];
+  if(!confirm(`確定刪除「${x.name||"未命名"}」？`))return;
+  d.imageLibrary.splice(Number(i),1);await save();renderImageLibrary();
+};
+
 
 $("#logout").onclick=()=>signOut(auth);
 getRedirectResult(auth).catch(err=>{
