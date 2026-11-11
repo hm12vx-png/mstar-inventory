@@ -2473,24 +2473,37 @@ $("#saveImageLibraryItem").onclick=async()=>{
   const files=Array.from($("#imageLibraryFile").files||[]),singleName=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim(),category=$("#imageLibraryCategory").value||"家具";
   if(!files.length)return alert("請先選擇圖片");
   if(files.length===1&&!singleName)return alert("請輸入名稱");
+  if(!currentUser||!migrationReady)return alert("雲端資料尚未準備完成，請稍後再試。");
   const button=$("#saveImageLibraryItem");
+  if(button.disabled)return;
   button.disabled=true;
   const originalText=button.textContent;
+  const originalRows=Array.isArray(d.imageLibrary)?d.imageLibrary.slice():[];
   try{
     d.imageLibrary=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
     for(let i=0;i<files.length;i++){
       const file=files[i];
       const name=files.length===1?singleName:file.name.replace(/\.[^.]+$/ ,"").trim();
+      button.textContent=`圖片處理中 ${i+1}/${files.length}`;
       const image=await compressLibraryImage(file);
-      d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),image,name:name||"未命名",color,category,qty:1});
-      button.textContent=`處理中 ${i+1}/${files.length}`;
+      d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,9),image,name:name||"未命名",color,category,qty:1});
     }
-    await save();
+    // 圖片庫獨立存放於 imageLibrary 子集合；新增圖片不必重寫全部帳號與辨識記憶。
+    button.textContent=`正在儲存 ${files.length} 張圖片…`;
+    await saveImageLibraryOnly();
     $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryName").disabled=false;$("#imageLibraryColor").value="";$("#imageLibraryCategory").value="家具";
     renderImageLibrary();
     alert(`已成功加入 ${files.length} 張圖片！`);
-  }catch(err){console.error(err);alert("圖片加入失敗："+(err?.message||String(err)))}
-  finally{button.disabled=false;button.textContent=originalText;}
+  }catch(err){
+    console.error(err);
+    // 儲存失敗時還原本機清單，避免畫面誤以為未完成的圖片已成功加入。
+    d.imageLibrary=originalRows;
+    renderImageLibrary();
+    alert("圖片加入失敗："+(err?.code?err.code+"｜":"")+(err?.message||String(err)));
+  }finally{
+    button.disabled=false;
+    button.textContent=originalText;
+  }
 };
 
 
