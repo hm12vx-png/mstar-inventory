@@ -496,7 +496,7 @@
 <div class="field"><label>款式／顏色</label><input id="editItemVariant"></div>
 <div class="field"><label>數量</label><input id="editItemQty" type="number" min="1"></div>
 <div class="actions"><button class="btn" id="editItemCancel">取消</button><button class="btn primary" id="editItemSave">儲存修改</button></div>
-</div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>物品名稱</label><select id="in"><option value="">請選擇圖片庫物品</option></select></div><div class="field" id="addItemCategoryField"><label>分類</label><select id="ic">
+</div></dialog><dialog id="idg"><h3>新增物品</h3><div class="field"><label>搜尋物品名稱</label><input id="addItemSearch" type="text" placeholder="輸入第一個字即可搜尋" autocomplete="off"></div><div class="field"><label>物品名稱</label><select id="in"><option value="">請選擇圖片庫物品</option></select></div><div class="field" id="addItemCategoryField"><label>分類</label><select id="ic">
 <option value="家具">家具</option>
 <option value="戒指">戒指</option>
 </select></div>
@@ -510,6 +510,7 @@
     <label style="display:flex;align-items:center;gap:6px"><input id="imageLibrarySelectAll" type="checkbox" style="width:auto"> 全選</label>
     <button class="btn danger" id="deleteSelectedImageLibrary" type="button">批次刪除（0）</button>
   </div>
+  <div class="field" style="margin-top:10px"><label>搜尋圖片庫</label><input id="imageLibrarySearch" type="text" placeholder="輸入第一個字即可搜尋" autocomplete="off"></div>
   <div id="imageLibraryList" class="imageLibraryList"></div>
   <div class="divider" style="border-top:1px dashed var(--line);margin:16px 0"></div>
   <b>新增圖片庫項目</b>
@@ -954,17 +955,19 @@ $("#batchSave").onclick=async()=>{
 $("#newA").onclick=()=>ad.showModal();
 $("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
 function populateAddItemLibraryOptions(){
-  const select=$("#in"),rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-  select.innerHTML='<option value="">請選擇圖片庫物品</option>'+rows.map((x,i)=>`<option value="${i}">${e(x.name||"未命名")}${x.color?`（${e(x.color)}）`:""}</option>`).join("");
-  $("#iv").value="";
+  const select=$("#in"),rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[],query=String($("#addItemSearch")?.value||"").trim().toLocaleLowerCase();
+  const filtered=rows.map((x,i)=>({x,i})).filter(({x})=>!query||String(x.name||"").toLocaleLowerCase().includes(query));
+  select.innerHTML='<option value="">請選擇圖片庫物品'+(query?`（搜尋到 ${filtered.length} 項）`:"")+'</option>'+filtered.map(({x,i})=>`<option value="${i}">${e(x.name||"未命名")}${x.color?`（${e(x.color)}）`:""}</option>`).join("");
+  $("#in").value="";$("#iv").value="";
 }
+$("#addItemSearch").oninput=populateAddItemLibraryOptions;
 $("#in").onchange=()=>{
   const item=(Array.isArray(d.imageLibrary)?d.imageLibrary:[])[Number($("#in").value)];
   $("#iv").value=item?.color||"";
   if(item?.category) $("#ic").value=item.category;
   syncAddItemFields();
 };
-$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");populateAddItemLibraryOptions();syncAddItemFields();idg.showModal()};
+$("#newI").onclick=()=>{if(!cur())return alert("先新增或選擇帳號");$("#addItemSearch").value="";populateAddItemLibraryOptions();syncAddItemFields();idg.showModal()};
 $("#is").onclick=async()=>{
   let a=cur(),cat=$("#ic").value||"家具",candyType="";
   const selectedLibraryValue=$("#in").value;
@@ -2223,8 +2226,9 @@ $("#restoreBackupFile").onchange=e=>restorePortableBackup(e.target.files?.[0]);
 const imageLibraryDlg=$("#imageLibraryDlg");
 function renderImageLibrary(){
   const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-  const list=$("#imageLibraryList");
-  list.innerHTML=rows.length?rows.map((x,i)=>`<div class="imageLibraryEntry"><input type="checkbox" class="imageLibraryCheck" data-library-index="${i}" aria-label="選取 ${e(x.name||"未命名")}" style="width:auto"><img src="${e(x.image||"")}" alt=""><div class="entryInfo"><b>${e(x.name||"未命名")}</b><div class="meta">分類：${e(x.category||"家具")}｜顏色：${e(x.color||"未填寫")}</div></div><button class="mini del" type="button" data-delete-library="${i}">刪除</button></div>`).join(""):'<div class="meta">目前尚無圖片庫項目</div>';
+  const list=$("#imageLibraryList"),query=String($("#imageLibrarySearch")?.value||"").trim().toLocaleLowerCase();
+  const filtered=rows.map((x,i)=>({x,i})).filter(({x})=>!query||String(x.name||"").toLocaleLowerCase().includes(query));
+  list.innerHTML=filtered.length?filtered.map(({x,i})=>`<div class="imageLibraryEntry"><input type="checkbox" class="imageLibraryCheck" data-library-index="${i}" aria-label="選取 ${e(x.name||"未命名")}" style="width:auto"><img src="${e(x.image||"")}" alt=""><div class="entryInfo"><b>${e(x.name||"未命名")}</b><div class="meta">分類：${e(x.category||"家具")}｜顏色：${e(x.color||"未填寫")}</div></div><button class="mini del" type="button" data-delete-library="${i}">刪除</button></div>`).join(""):(rows.length?'<div class="meta">沒有符合搜尋的圖片庫項目</div>':'<div class="meta">目前尚無圖片庫項目</div>');
   const updateBatchControls=()=>{
     const checks=[...list.querySelectorAll('.imageLibraryCheck')];
     const selected=checks.filter(x=>x.checked).length;
@@ -2251,7 +2255,8 @@ $("#deleteSelectedImageLibrary").onclick=async()=>{
   selected.sort((a,b)=>b-a).forEach(i=>{if(d.imageLibrary[i])d.imageLibrary.splice(i,1)});
   await save();renderImageLibrary();
 };
-$("#openImageLibrary").onclick=()=>{renderImageLibrary();imageLibraryDlg.showModal()};
+$("#openImageLibrary").onclick=()=>{$("#imageLibrarySearch").value="";renderImageLibrary();imageLibraryDlg.showModal()};
+$("#imageLibrarySearch").oninput=renderImageLibrary;
 $("#closeImageLibrary").onclick=()=>imageLibraryDlg.close();
 // 可批次選取圖片；每張圖片自動以原始檔名（不含副檔名）作為名稱。
 $("#imageLibraryFile").onchange=e=>{
