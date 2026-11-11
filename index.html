@@ -577,26 +577,28 @@ function legacyGallerySourceId(item){
   const id=String(item.id||"");
   return id.startsWith("pg_")?id.slice(3):"";
 }
+// 舊版 productGallery 不再參與刪除流程。
+// 圖片庫已搬到 users/{ADMIN_UID}/imageLibrary；刪除只操作新圖庫，
+// 避免因舊集合 Firestore Rules 沒有 delete 權限而卡在「刪除中」。
 async function deleteLegacyGallerySources(items){
-  const ids=[...new Set((Array.isArray(items)?items:[]).map(legacyGallerySourceId).filter(Boolean))];
-  if(!ids.length)return 0;
-  // 舊版 productGallery 可能只允許讀取、不允許刪除。
-  // 圖片庫已完成搬移且 productGalleryMigrated=true 後，F5 不會再從舊集合補回，
-  // 因此舊來源刪除失敗不能阻止「新圖片庫」本身永久刪除。
-  for(let i=0;i<ids.length;i+=400){
-    try{
-      const batch=writeBatch(db);
-      ids.slice(i,i+400).forEach(id=>batch.delete(productGalleryRef(id)));
-      await batch.commit();
-    }catch(err){
-      if(err?.code==="permission-denied"){
-        console.warn("舊版 productGallery 無刪除權限，略過舊來源刪除；新圖片庫仍會正常永久刪除。",err);
-        continue;
-      }
-      throw err;
-    }
+  return 0;
+}
+
+async function saveImageLibraryOnly(){
+  if(!currentUser||!migrationReady)return;
+  const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+  const remote=await getDocs(imageLibraryCol());
+  const ids=new Set(rows.map((x,i)=>String(x.id||(x.id="img_"+i+"_"+Math.random().toString(36).slice(2,7)))));
+  const ops=[];
+  remote.docs.forEach(x=>{if(!ids.has(x.id))ops.push({type:"delete",ref:x.ref})});
+  rows.forEach(item=>ops.push({type:"set",ref:imageLibraryRef(String(item.id)),data:item}));
+  for(let i=0;i<ops.length;i+=5){
+    const batch=writeBatch(db);
+    ops.slice(i,i+5).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
+    await batch.commit();
   }
-  return ids.length;
+  d.updated=new Date().toLocaleString("zh-TW");
+  await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,productGalleryMigrated:true,updated:d.updated,imageLibrary:deleteField()},{merge:true});
 }
 const tempShotCol=accountId=>collection(db,"users",ADMIN_UID,"accounts",accountId,"tempShots");
 const tempShotRef=(accountId,shotId)=>doc(db,"users",ADMIN_UID,"accounts",accountId,"tempShots",shotId);
@@ -2419,17 +2421,16 @@ function renderImageLibrary(){
   $("#imageLibrarySelectAll").onchange=()=>{list.querySelectorAll('.imageLibraryCheck').forEach(ch=>ch.checked=$("#imageLibrarySelectAll").checked);updateBatchControls()};
   list.querySelectorAll('[data-delete-library]').forEach(btn=>btn.onclick=async()=>{
     const i=Number(btn.dataset.deleteLibrary),x=d.imageLibrary[i];
-    if(!x||!confirm(`確定永久刪除「${x.name||"未命名"}」？\n新圖庫與舊版 productGallery 中對應的資料都會刪除。`))return;
+    if(!x||!confirm(`確定永久刪除「${x.name||"未命名"}」？\n此操作會從目前圖片庫永久移除，無法復原。`))return;
     btn.disabled=true;
     try{
-      await deleteLegacyGallerySources([x]);
       d.imageLibrary.splice(i,1);
-      await save();
+      await saveImageLibraryOnly();
       renderImageLibrary();
     }catch(err){
       console.error(err);
-      alert("刪除失敗，圖片尚未從新圖庫移除。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
-      btn.disabled=false;
+      alert("刪除失敗，圖片尚未從圖片庫移除。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
+      renderImageLibrary();
     }
   });
   updateBatchControls();
@@ -2437,17 +2438,16 @@ function renderImageLibrary(){
 $("#deleteSelectedImageLibrary").onclick=async()=>{
   const selected=[...document.querySelectorAll('#imageLibraryList .imageLibraryCheck:checked')].map(ch=>Number(ch.dataset.libraryIndex)).filter(Number.isInteger);
   if(!selected.length)return;
-  if(!confirm(`確定要永久刪除選取的 ${selected.length} 個圖片庫項目嗎？\n新圖庫與舊版 productGallery 中對應的資料都會刪除。此操作無法復原。`))return;
+  if(!confirm(`確定要永久刪除選取的 ${selected.length} 個圖片庫項目嗎？\n此操作會從目前圖片庫永久移除，無法復原。`))return;
   const button=$("#deleteSelectedImageLibrary");
   button.disabled=true;button.textContent="刪除中…";
   try{
-    const targets=selected.map(i=>d.imageLibrary[i]).filter(Boolean);
-    await deleteLegacyGallerySources(targets);
     selected.sort((a,b)=>b-a).forEach(i=>{if(d.imageLibrary[i])d.imageLibrary.splice(i,1)});
-    await save();renderImageLibrary();
+    await saveImageLibraryOnly();
+    renderImageLibrary();
   }catch(err){
     console.error(err);
-    alert("批次刪除失敗，選取的圖片尚未從新圖庫移除。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
+    alert("批次刪除失敗，圖片尚未從圖片庫移除。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
     renderImageLibrary();
   }
 };
@@ -2753,10 +2753,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
-
-
 
 
 
