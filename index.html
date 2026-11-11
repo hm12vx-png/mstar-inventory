@@ -518,6 +518,10 @@
 </select></div><div class="field" id="itemVariantField"><label>款式</label><input id="iv" placeholder="戒指可自由輸入文字，例如：情侶戒、+10"></div><div class="field"><label>數量</label><input id="iq" type="number" min="1" value="1"></div><div class="actions"><button class="btn" onclick="idg.close()">取消</button><button class="btn primary" id="is">加入庫存</button></div></dialog>
 <dialog id="imageLibraryDlg">
   <div class="head"><h3 style="margin:0">🖼️ 圖片庫</h3><button class="btn" id="closeImageLibrary" type="button">關閉</button></div>
+  <div class="actions" style="justify-content:space-between;align-items:center;margin-top:12px">
+    <label style="display:flex;align-items:center;gap:6px"><input id="imageLibrarySelectAll" type="checkbox" style="width:auto"> 全選</label>
+    <button class="btn danger" id="deleteSelectedImageLibrary" type="button">批次刪除（0）</button>
+  </div>
   <div id="imageLibraryList" class="imageLibraryList"></div>
   <div class="divider" style="border-top:1px dashed var(--line);margin:16px 0"></div>
   <b>新增圖片庫項目</b>
@@ -2227,13 +2231,33 @@ const imageLibraryDlg=$("#imageLibraryDlg");
 function renderImageLibrary(){
   const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
   const list=$("#imageLibraryList");
-  list.innerHTML=rows.length?rows.map((x,i)=>`<div class="imageLibraryEntry"><img src="${e(x.image||"")}" alt=""><div class="entryInfo"><b>${e(x.name||"未命名")}</b><div class="meta">顏色：${e(x.color||"未填寫")}</div></div><button class="mini del" type="button" data-delete-library="${i}">刪除</button></div>`).join(""):'<div class="meta">目前尚無圖片庫項目</div>';
+  list.innerHTML=rows.length?rows.map((x,i)=>`<div class="imageLibraryEntry"><input type="checkbox" class="imageLibraryCheck" data-library-index="${i}" aria-label="選取 ${e(x.name||"未命名")}" style="width:auto"><img src="${e(x.image||"")}" alt=""><div class="entryInfo"><b>${e(x.name||"未命名")}</b><div class="meta">顏色：${e(x.color||"未填寫")}</div></div><button class="mini del" type="button" data-delete-library="${i}">刪除</button></div>`).join(""):'<div class="meta">目前尚無圖片庫項目</div>';
+  const updateBatchControls=()=>{
+    const checks=[...list.querySelectorAll('.imageLibraryCheck')];
+    const selected=checks.filter(x=>x.checked).length;
+    $("#deleteSelectedImageLibrary").textContent=`批次刪除（${selected}）`;
+    $("#deleteSelectedImageLibrary").disabled=selected===0;
+    $("#imageLibrarySelectAll").checked=checks.length>0&&selected===checks.length;
+    $("#imageLibrarySelectAll").indeterminate=selected>0&&selected<checks.length;
+  };
+  list.querySelectorAll('.imageLibraryCheck').forEach(ch=>ch.onchange=updateBatchControls);
+  $("#imageLibrarySelectAll").checked=false;
+  $("#imageLibrarySelectAll").indeterminate=false;
+  $("#imageLibrarySelectAll").onchange=()=>{list.querySelectorAll('.imageLibraryCheck').forEach(ch=>ch.checked=$("#imageLibrarySelectAll").checked);updateBatchControls()};
   list.querySelectorAll('[data-delete-library]').forEach(btn=>btn.onclick=async()=>{
     const i=Number(btn.dataset.deleteLibrary),x=d.imageLibrary[i];
     if(!x||!confirm(`確定刪除「${x.name||"未命名"}」？`))return;
     d.imageLibrary.splice(i,1);await save();renderImageLibrary();
   });
+  updateBatchControls();
 }
+$("#deleteSelectedImageLibrary").onclick=async()=>{
+  const selected=[...document.querySelectorAll('#imageLibraryList .imageLibraryCheck:checked')].map(ch=>Number(ch.dataset.libraryIndex)).filter(Number.isInteger);
+  if(!selected.length)return;
+  if(!confirm(`確定要批次刪除選取的 ${selected.length} 個圖片庫項目嗎？此操作無法復原。`))return;
+  selected.sort((a,b)=>b-a).forEach(i=>{if(d.imageLibrary[i])d.imageLibrary.splice(i,1)});
+  await save();renderImageLibrary();
+};
 $("#openImageLibrary").onclick=()=>{renderImageLibrary();imageLibraryDlg.showModal()};
 $("#closeImageLibrary").onclick=()=>imageLibraryDlg.close();
 // 可批次選取圖片；每張圖片自動以原始檔名（不含副檔名）作為名稱。
@@ -2535,9 +2559,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
-
 
 
 
