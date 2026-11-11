@@ -568,6 +568,24 @@ const imageLibraryCol=()=>collection(db,"users",ADMIN_UID,"imageLibrary");
 const imageLibraryRef=id=>doc(db,"users",ADMIN_UID,"imageLibrary",id);
 // 舊版圖片庫位於 Firestore 根目錄 productGallery。
 const productGalleryCol=()=>collection(db,"productGallery");
+const productGalleryRef=id=>doc(db,"productGallery",String(id));
+// 搬移進新圖庫的項目保留來源文件 ID；刪除時同步刪除舊集合，避免 F5 後舊資料再次出現。
+function legacyGallerySourceId(item){
+  if(item?.sourceCollection!=="productGallery")return "";
+  const sourceId=String(item.sourceDocumentId||"").trim();
+  if(sourceId)return sourceId;
+  const id=String(item.id||"");
+  return id.startsWith("pg_")?id.slice(3):"";
+}
+async function deleteLegacyGallerySources(items){
+  const ids=[...new Set((Array.isArray(items)?items:[]).map(legacyGallerySourceId).filter(Boolean))];
+  for(let i=0;i<ids.length;i+=400){
+    const batch=writeBatch(db);
+    ids.slice(i,i+400).forEach(id=>batch.delete(productGalleryRef(id)));
+    await batch.commit();
+  }
+  return ids.length;
+}
 const tempShotCol=accountId=>collection(db,"users",ADMIN_UID,"accounts",accountId,"tempShots");
 const tempShotRef=(accountId,shotId)=>doc(db,"users",ADMIN_UID,"accounts",accountId,"tempShots",shotId);
 const tempShotsCache=new Map();
@@ -2389,17 +2407,37 @@ function renderImageLibrary(){
   $("#imageLibrarySelectAll").onchange=()=>{list.querySelectorAll('.imageLibraryCheck').forEach(ch=>ch.checked=$("#imageLibrarySelectAll").checked);updateBatchControls()};
   list.querySelectorAll('[data-delete-library]').forEach(btn=>btn.onclick=async()=>{
     const i=Number(btn.dataset.deleteLibrary),x=d.imageLibrary[i];
-    if(!x||!confirm(`確定刪除「${x.name||"未命名"}」？`))return;
-    d.imageLibrary.splice(i,1);await save();renderImageLibrary();
+    if(!x||!confirm(`確定永久刪除「${x.name||"未命名"}」？\n新圖庫與舊版 productGallery 中對應的資料都會刪除。`))return;
+    btn.disabled=true;
+    try{
+      await deleteLegacyGallerySources([x]);
+      d.imageLibrary.splice(i,1);
+      await save();
+      renderImageLibrary();
+    }catch(err){
+      console.error(err);
+      alert("刪除失敗，圖片尚未從新圖庫移除。請確認 Firebase Firestore Rules 允許管理員刪除 productGallery 文件。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
+      btn.disabled=false;
+    }
   });
   updateBatchControls();
 }
 $("#deleteSelectedImageLibrary").onclick=async()=>{
   const selected=[...document.querySelectorAll('#imageLibraryList .imageLibraryCheck:checked')].map(ch=>Number(ch.dataset.libraryIndex)).filter(Number.isInteger);
   if(!selected.length)return;
-  if(!confirm(`確定要批次刪除選取的 ${selected.length} 個圖片庫項目嗎？此操作無法復原。`))return;
-  selected.sort((a,b)=>b-a).forEach(i=>{if(d.imageLibrary[i])d.imageLibrary.splice(i,1)});
-  await save();renderImageLibrary();
+  if(!confirm(`確定要永久刪除選取的 ${selected.length} 個圖片庫項目嗎？\n新圖庫與舊版 productGallery 中對應的資料都會刪除。此操作無法復原。`))return;
+  const button=$("#deleteSelectedImageLibrary");
+  button.disabled=true;button.textContent="刪除中…";
+  try{
+    const targets=selected.map(i=>d.imageLibrary[i]).filter(Boolean);
+    await deleteLegacyGallerySources(targets);
+    selected.sort((a,b)=>b-a).forEach(i=>{if(d.imageLibrary[i])d.imageLibrary.splice(i,1)});
+    await save();renderImageLibrary();
+  }catch(err){
+    console.error(err);
+    alert("批次刪除失敗，選取的圖片尚未從新圖庫移除。請確認 Firebase Firestore Rules 允許管理員刪除 productGallery 文件。\n\n"+(err?.code||"")+" "+(err?.message||String(err)));
+    renderImageLibrary();
+  }
 };
 $("#openImageLibrary").onclick=()=>{$("#imageLibrarySearch").value="";renderImageLibrary();imageLibraryDlg.showModal()};
 $("#imageLibrarySearch").oninput=renderImageLibrary;
@@ -2703,6 +2741,13 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
+
+
+
+
 
 
 
