@@ -584,21 +584,22 @@ async function deleteLegacyGallerySources(items){
   return 0;
 }
 
+// 圖片庫採增量寫入：一般儲存絕不掃描後刪除雲端文件，
+// 避免本機清單尚未同步完整時，把剛上傳的圖片誤刪。
 async function saveImageLibraryOnly(){
-  if(!currentUser||!migrationReady)return;
+  if(!currentUser||!migrationReady)throw new Error("雲端資料尚未準備完成");
   const rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-  const remote=await getDocs(imageLibraryCol());
-  const ids=new Set(rows.map((x,i)=>String(x.id||(x.id="img_"+i+"_"+Math.random().toString(36).slice(2,7)))));
-  const ops=[];
-  remote.docs.forEach(x=>{if(!ids.has(x.id))ops.push({type:"delete",ref:x.ref})});
-  rows.forEach(item=>ops.push({type:"set",ref:imageLibraryRef(String(item.id)),data:item}));
-  for(let i=0;i<ops.length;i+=5){
-    const batch=writeBatch(db);
-    ops.slice(i,i+5).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
-    await batch.commit();
+  for(let i=0;i<rows.length;i++){
+    const item=rows[i];
+    if(!item.id)throw new Error("圖片缺少固定 ID，已停止儲存以避免覆蓋雲端資料");
+    await setDoc(imageLibraryRef(String(item.id)),item,{merge:true});
   }
   d.updated=new Date().toLocaleString("zh-TW");
   await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,productGalleryMigrated:true,updated:d.updated,imageLibrary:deleteField()},{merge:true});
+}
+async function deleteImageLibraryDocs(ids){
+  if(!currentUser||!migrationReady)throw new Error("雲端資料尚未準備完成");
+  for(const id of ids) await deleteDoc(imageLibraryRef(String(id)));
 }
 const tempShotCol=accountId=>collection(db,"users",ADMIN_UID,"accounts",accountId,"tempShots");
 const tempShotRef=(accountId,shotId)=>doc(db,"users",ADMIN_UID,"accounts",accountId,"tempShots",shotId);
@@ -848,14 +849,7 @@ async function save(){
       ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
       await batch.commit();
     }
-    // 圖片庫逐張存成獨立文件，meta 只保存輕量設定與時間。
-    const remoteLibrary=await getDocs(imageLibraryCol());
-    const libraryRows=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
-    const libraryIds=new Set(libraryRows.map((x,i)=>String(x.id||(x.id="img_"+i+"_"+Math.random().toString(36).slice(2,7)))));
-    const libraryOps=[];
-    remoteLibrary.docs.forEach(x=>{if(!libraryIds.has(x.id))libraryOps.push({type:"delete",ref:x.ref});});
-    libraryRows.forEach((item,i)=>{item.id=String(item.id||("img_"+i+"_"+Math.random().toString(36).slice(2,7)));libraryOps.push({type:"set",ref:imageLibraryRef(item.id),data:item});});
-    for(let i=0;i<libraryOps.length;i+=5){const batch=writeBatch(db);libraryOps.slice(i,i+5).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));await batch.commit();}
+    // 帳號／庫存儲存與圖片庫完全分離：此處不得刪除或重寫圖片庫文件。
     await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:deleteField()},{merge:true});
     render();
   }catch(err){
@@ -2431,8 +2425,8 @@ function renderImageLibrary(){
     if(!x||!confirm(`確定永久刪除「${x.name||"未命名"}」？\n此操作會從目前圖片庫永久移除，無法復原。`))return;
     btn.disabled=true;
     try{
+      await deleteImageLibraryDocs([x.id]);
       d.imageLibrary.splice(i,1);
-      await saveImageLibraryOnly();
       renderImageLibrary();
     }catch(err){
       console.error(err);
@@ -2449,8 +2443,9 @@ $("#deleteSelectedImageLibrary").onclick=async()=>{
   const button=$("#deleteSelectedImageLibrary");
   button.disabled=true;button.textContent="刪除中…";
   try{
+    const ids=selected.map(i=>d.imageLibrary[i]?.id).filter(Boolean);
+    await deleteImageLibraryDocs(ids);
     selected.sort((a,b)=>b-a).forEach(i=>{if(d.imageLibrary[i])d.imageLibrary.splice(i,1)});
-    await saveImageLibraryOnly();
     renderImageLibrary();
   }catch(err){
     console.error(err);
