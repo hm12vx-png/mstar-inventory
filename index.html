@@ -2498,7 +2498,10 @@ $("#saveImageLibraryItem").onclick=async()=>{
     // 逐張直接寫入新文件，避免舊圖片庫龐大時整批同步卡住。
     for(let i=0;i<newItems.length;i++){
       button.textContent=`正在儲存 ${i+1}/${newItems.length} 張圖片…`;
-      await setDoc(imageLibraryRef(String(newItems[i].id)),newItems[i]);
+      await Promise.race([
+        setDoc(imageLibraryRef(String(newItems[i].id)),newItems[i]),
+        new Promise((_,reject)=>setTimeout(()=>reject(Object.assign(new Error("Firestore 寫入超過 20 秒沒有回應。請檢查網路連線及 Firestore Rules 是否允許寫入 users/"+ADMIN_UID+"/imageLibrary。"),{code:"write-timeout"})),20000))
+      ]);
     }
     d.imageLibrary=[...(Array.isArray(d.imageLibrary)?d.imageLibrary:[]),...newItems];
     $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryName").disabled=false;$("#imageLibraryColor").value="";$("#imageLibraryCategory").value="家具";
@@ -2512,7 +2515,7 @@ $("#saveImageLibraryItem").onclick=async()=>{
       d.imageLibrary=latest.docs.map(x=>({id:x.id,...x.data()}));
       renderImageLibrary();
     }catch(refreshErr){console.error("重新讀取圖片庫失敗：",refreshErr);}
-    alert("圖片加入失敗："+(err?.code?err.code+"｜":"")+(err?.message||String(err)));
+    alert((err?.code==="write-timeout"?"圖片尚未收到雲端儲存確認：":"圖片加入失敗：")+(err?.code?err.code+"｜":"")+(err?.message||String(err))+"\n\n請注意：逾時不代表雲端一定沒有寫入，請先重新整理圖片庫確認是否已新增，避免重複加入。");
   }finally{
     button.disabled=false;
     button.textContent=originalText;
@@ -2779,14 +2782,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
-
-
-
-
-
-
-
 
 
 
