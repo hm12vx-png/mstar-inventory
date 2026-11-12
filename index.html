@@ -2476,6 +2476,27 @@ async function compressLibraryImage(file){
   c.getContext("2d").drawImage(img,0,0,c.width,c.height);
   return c.toDataURL("image/jpeg",.78);
 }
+// Firestore 雲端請求可能因離線而一直 pending；逾時只停止等待，不代表取消雲端寫入。
+function galleryRequestWithTimeout(promise,ms,label){
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>{timer=setTimeout(()=>reject(Object.assign(new Error(label+`（等待 ${Math.round(ms/1000)} 秒仍未收到 Firebase 回應）`),{code:"gallery-timeout"})),ms)})
+  ]).finally(()=>clearTimeout(timer));
+}
+// 同一檔案每次產生相同文件 ID；重試時覆用同一 ID，避免逾時後重複新增。
+async function stableGalleryId(file){
+  const bytes=await file.arrayBuffer();
+  let digest;
+  if(globalThis.crypto?.subtle){
+    digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))).map(x=>x.toString(16).padStart(2,"0")).join("");
+  }else{
+    let h=2166136261;const view=new Uint8Array(bytes);
+    for(let i=0;i<view.length;i++){h^=view[i];h=Math.imul(h,16777619)}
+    digest=(h>>>0).toString(16)+"_"+file.size+"_"+file.lastModified;
+  }
+  return "img_"+digest.slice(0,64);
+}
 $("#saveImageLibraryItem").onclick=async()=>{
   const files=Array.from($("#imageLibraryFile").files||[]),singleName=$("#imageLibraryName").value.trim(),color=$("#imageLibraryColor").value.trim(),category=$("#imageLibraryCategory").value||"家具";
   if(!files.length)return alert("請先選擇圖片");
@@ -2485,38 +2506,54 @@ $("#saveImageLibraryItem").onclick=async()=>{
   if(button.disabled)return;
   button.disabled=true;
   const originalText=button.textContent;
-  const newItems=[];
+  const newItems=[];let saved=0,already=0;
   try{
-    // 只處理本次新增圖片，不重新讀取、刪除或重寫整個圖片庫。
+    // 先完成圖片壓縮及固定 ID，再逐張上傳；同一檔案重試時仍使用相同 ID。
     for(let i=0;i<files.length;i++){
       const file=files[i];
       const name=files.length===1?singleName:file.name.replace(/\.[^\.]+$/ ,"").trim();
       button.textContent=`圖片處理中 ${i+1}/${files.length}`;
-      const image=await compressLibraryImage(file);
-      newItems.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,9),image,name:name||"未命名",color,category,qty:1});
+      const [image,id]=await Promise.all([compressLibraryImage(file),stableGalleryId(file)]);
+      newItems.push({id,image,name:name||"未命名",color,category,qty:1,originalFileName:file.name});
     }
-    // 逐張直接寫入新文件，避免舊圖片庫龐大時整批同步卡住。
     for(let i=0;i<newItems.length;i++){
+      const item=newItems[i];
+      button.textContent=`檢查雲端 ${i+1}/${newItems.length} 張…`;
+      // 若前一次逾時但實際已寫入，先查固定 ID；存在就不再新增。
+      let existing=null;
+      try{existing=await galleryRequestWithTimeout(getDoc(imageLibraryRef(String(item.id))),12000,"檢查圖片是否已存在逾時");}
+      catch(checkErr){
+        if(checkErr?.code!=="gallery-timeout")throw checkErr;
+        button.textContent=`確認雲端狀態逾時，改用相同 ID 安全重試 ${i+1}/${newItems.length}…`;
+      }
+      if(existing?.exists()){
+        already++;
+        const old={id:existing.id,...existing.data()};
+        if(!Array.isArray(d.imageLibrary))d.imageLibrary=[];
+        if(!d.imageLibrary.some(x=>String(x.id)===String(old.id)))d.imageLibrary.push(old);
+        continue;
+      }
       button.textContent=`正在儲存 ${i+1}/${newItems.length} 張圖片…`;
-      // 不再用 Promise.race 人為設定 20 秒逾時。
-      // 原本的逾時計時器只會讓前端提早顯示失敗，並不會取消仍在背景執行的 Firestore setDoc；
-      // 使用者再次點擊時便可能產生重複文件。現在等待 Firestore SDK 回報真正的成功或錯誤。
-      await setDoc(imageLibraryRef(String(newItems[i].id)),newItems[i]);
+      await galleryRequestWithTimeout(setDoc(imageLibraryRef(String(item.id)),item),25000,"圖片寫入逾時");
+      saved++;
+      d.imageLibrary=[...(Array.isArray(d.imageLibrary)?d.imageLibrary:[]),item];
     }
-    d.imageLibrary=[...(Array.isArray(d.imageLibrary)?d.imageLibrary:[]),...newItems];
     $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryName").disabled=false;$("#imageLibraryColor").value="";$("#imageLibraryCategory").value="家具";
     renderImageLibrary();
-    alert(`已成功加入 ${files.length} 張圖片！`);
+    alert(`處理完成！新增 ${saved} 張，原本已存在／已成功寫入 ${already} 張。`);
   }catch(err){
     console.error(err);
-    // 若中途有部分寫入成功，重新讀取雲端，讓畫面與實際資料一致。
+    // 讀取也設上限，避免錯誤處理階段再次無限停留。
     try{
-      const latest=await getDocs(imageLibraryCol());
+      const latest=await galleryRequestWithTimeout(getDocs(imageLibraryCol()),12000,"重新讀取圖片庫逾時");
       d.imageLibrary=latest.docs.map(x=>({id:x.id,...x.data()}));
       renderImageLibrary();
     }catch(refreshErr){console.error("重新讀取圖片庫失敗：",refreshErr);}
-    const reason=err?.code==="permission-denied"?"Firebase 權限拒絕寫入，請檢查 Firestore Rules。":err?.code==="unavailable"?"Firebase 服務暫時無法連線，請稍後再試。":err?.code==="resource-exhausted"?"Firestore 資源或寫入額度不足，請檢查 Firebase 專案用量。":"請依照 Firebase 回傳的錯誤訊息檢查網路、登入狀態及 Firestore Rules。";
-    alert("圖片加入失敗："+(err?.code?err.code+"｜":"")+(err?.message||String(err))+"\n\n"+reason+"\n\n已重新讀取雲端圖片庫；請先確認清單中是否已有剛才的圖片，再決定是否重新上傳。");
+    let reason="請檢查網路連線、Google 登入狀態及 Firestore Rules。";
+    if(err?.code==="permission-denied")reason="Firebase 權限拒絕寫入，請檢查 Firestore Rules 是否允許此登入帳號寫入 users/管理員UID/imageLibrary。";
+    else if(err?.code==="unavailable")reason="Firebase 服務暫時無法連線，請確認網路後再試。";
+    else if(err?.code==="gallery-timeout")reason="Firebase 沒有在期限內回覆。這不代表沒有寫入；請重新整理圖片庫確認。再次選取相同圖片時會使用相同文件 ID，避免因重試而新增重複項目。";
+    alert("圖片庫儲存未能確認："+(err?.code?err.code+"｜":"")+(err?.message||String(err))+"\n\n"+reason+"\n\n已嘗試重新讀取雲端圖片庫；若目前仍離線，請恢復網路後再重新整理確認。相同圖片重試會沿用固定 ID。已確認新增 "+saved+" 張。");
   }finally{
     button.disabled=false;
     button.textContent=originalText;
@@ -2783,7 +2820,6 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
-
 
 
 
