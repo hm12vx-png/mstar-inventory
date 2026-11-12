@@ -2485,27 +2485,33 @@ $("#saveImageLibraryItem").onclick=async()=>{
   if(button.disabled)return;
   button.disabled=true;
   const originalText=button.textContent;
-  const originalRows=Array.isArray(d.imageLibrary)?d.imageLibrary.slice():[];
+  const newItems=[];
   try{
-    d.imageLibrary=Array.isArray(d.imageLibrary)?d.imageLibrary:[];
+    // 只處理本次新增圖片，不重新讀取、刪除或重寫整個圖片庫。
     for(let i=0;i<files.length;i++){
       const file=files[i];
-      const name=files.length===1?singleName:file.name.replace(/\.[^.]+$/ ,"").trim();
+      const name=files.length===1?singleName:file.name.replace(/\.[^\.]+$/ ,"").trim();
       button.textContent=`圖片處理中 ${i+1}/${files.length}`;
       const image=await compressLibraryImage(file);
-      d.imageLibrary.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,9),image,name:name||"未命名",color,category,qty:1});
+      newItems.push({id:"img_"+Date.now()+"_"+Math.random().toString(36).slice(2,9),image,name:name||"未命名",color,category,qty:1});
     }
-    // 圖片庫獨立存放於 imageLibrary 子集合；新增圖片不必重寫全部帳號與辨識記憶。
-    button.textContent=`正在儲存 ${files.length} 張圖片…`;
-    await saveImageLibraryOnly();
+    // 逐張直接寫入新文件，避免舊圖片庫龐大時整批同步卡住。
+    for(let i=0;i<newItems.length;i++){
+      button.textContent=`正在儲存 ${i+1}/${newItems.length} 張圖片…`;
+      await setDoc(imageLibraryRef(String(newItems[i].id)),newItems[i]);
+    }
+    d.imageLibrary=[...(Array.isArray(d.imageLibrary)?d.imageLibrary:[]),...newItems];
     $("#imageLibraryFile").value="";$("#imageLibraryName").value="";$("#imageLibraryName").disabled=false;$("#imageLibraryColor").value="";$("#imageLibraryCategory").value="家具";
     renderImageLibrary();
     alert(`已成功加入 ${files.length} 張圖片！`);
   }catch(err){
     console.error(err);
-    // 儲存失敗時還原本機清單，避免畫面誤以為未完成的圖片已成功加入。
-    d.imageLibrary=originalRows;
-    renderImageLibrary();
+    // 若中途有部分寫入成功，重新讀取雲端，讓畫面與實際資料一致。
+    try{
+      const latest=await getDocs(imageLibraryCol());
+      d.imageLibrary=latest.docs.map(x=>({id:x.id,...x.data()}));
+      renderImageLibrary();
+    }catch(refreshErr){console.error("重新讀取圖片庫失敗：",refreshErr);}
     alert("圖片加入失敗："+(err?.code?err.code+"｜":"")+(err?.message||String(err)));
   }finally{
     button.disabled=false;
@@ -2773,6 +2779,14 @@ onAuthStateChanged(auth,async user=>{
 });
 
 </script></body></html>
+
+
+
+
+
+
+
+
 
 
 
