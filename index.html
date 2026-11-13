@@ -628,6 +628,20 @@ $("#deleteTempShotConfirm").onclick=async()=>{
 };
 const MIGRATION_VERSION=2;
 let migrationReady=false;
+// 登入時建立雲端快照；後續儲存只比對差異，不再每次 getDocs() 掃描整個集合。
+let cloudAccountBaseline=new Map();
+let cloudMemoryBaseline=new Map();
+let cloudMemoryIdsInLoadOrder=[];
+let cloudMetaCache={};
+function jsonEqual(a,b){
+  try{return JSON.stringify(a)===JSON.stringify(b)}catch(_){return false}
+}
+function rememberAccountBaseline(id,data){
+  cloudAccountBaseline.set(String(id),JSON.parse(JSON.stringify(data)));
+}
+function rememberMemoryBaseline(id,data){
+  cloudMemoryBaseline.set(String(id),JSON.parse(JSON.stringify(data)));
+}
 
 function cur(){return d.accounts.find(a=>a.id===active)}
 function naturalAccountCompare(a,b){
@@ -643,11 +657,15 @@ function stableMemoryId(m,index=0){
   for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)}
   return "m"+(h>>>0).toString(36)+"_"+index;
 }
-async function readSplitCloud(){
+async function readSplitCloud(metaSnapshot=null){
   const [metaSnap,accountSnap,memorySnap,librarySnap]=await Promise.all([
-    getDoc(metaRef()), getDocs(accountCol()), getDocs(memoryCol()), getDocs(imageLibraryCol())
+    metaSnapshot||getDoc(metaRef()), getDocs(accountCol()), getDocs(memoryCol()), getDocs(imageLibraryCol())
   ]);
   const meta=metaSnap.exists()?metaSnap.data():{};
+  cloudMetaCache={...meta};
+  cloudAccountBaseline=new Map(accountSnap.docs.map(x=>[String(x.id),JSON.parse(JSON.stringify(x.data()))]));
+  cloudMemoryBaseline=new Map(memorySnap.docs.map(x=>[String(x.id),JSON.parse(JSON.stringify(x.data()))]));
+  cloudMemoryIdsInLoadOrder=memorySnap.docs.map(x=>String(x.id));
   const cloudLibrary=librarySnap.docs.map(x=>({id:x.id,...x.data()}));
   return {
     accounts:accountSnap.docs.map(x=>x.data()),
@@ -736,19 +754,7 @@ async function migrateProductGallery(existingLibrary=[]){
     await batch.commit();
   }
 
-  // 只驗證本次來源文件的目的文件是否存在，不重新下載整個目的圖片庫。
-  const targetIds=sourceSnap.docs.map(x=>"pg_"+x.id);
-  let verified=0;
-  for(let i=0;i<targetIds.length;i+=10){
-    const refs=targetIds.slice(i,i+10);
-    const snaps=await Promise.all(refs.map(id=>getDoc(imageLibraryRef(id))));
-    verified+=snaps.filter(x=>x.exists()).length;
-    setGalleryProgress(`圖片庫驗證中 ${verified}/${total}…`);
-  }
-  if(verified!==total){
-    throw new Error(`圖片庫搬移驗證失敗：來源 ${total} 張，目的地確認 ${verified} 張。原始 productGallery 未刪除。`);
-  }
-
+  // Firestore batch.commit() 成功即代表本批寫入已確認；不再逐張 getDoc() 重讀目的圖片。
   const newlyMigrated=pending.map(x=>x.data);
   setGalleryProgress(currentUser?.email||"已登入");
   return {count:total,items:newlyMigrated};
@@ -785,7 +791,7 @@ async function migrateLegacyCloud(legacy){
 async function loadCloud(){
   const metaSnap=await getDoc(metaRef());
   if(metaSnap.exists()&&Number(metaSnap.data()?.schemaVersion)>=MIGRATION_VERSION){
-    d=await readSplitCloud();
+    d=await readSplitCloud(metaSnap);
     migrationReady=true;
   }else{
     const legacySnap=await getDoc(legacyRef());
@@ -805,9 +811,7 @@ async function loadCloud(){
   if(!Array.isArray(d.itemMemory))d.itemMemory=[];
   // productGallery 只允許自動搬移一次。完成後即使使用者刪除圖片，
   // 重新整理也不會再從舊集合自動補回已刪除的項目。
-  const galleryMetaSnap=await getDoc(metaRef());
-  const galleryAlreadyMigrated=galleryMetaSnap.exists()
-    && galleryMetaSnap.data()?.productGalleryMigrated===true;
+  const galleryAlreadyMigrated=cloudMetaCache?.productGalleryMigrated===true;
   if(!galleryAlreadyMigrated){
     const galleryMigration=await migrateProductGallery(d.imageLibrary||[]);
     if(galleryMigration.count){
@@ -828,35 +832,66 @@ async function loadCloud(){
   render();
   setTimeout(()=>backfillInventoryMemory(),300);
 }
-async function save(){
-  if(!currentUser||!migrationReady)return;
+async function save(options={}){
+  const silent=!!options.silent;
+  if(!currentUser||!migrationReady)return false;
   d.updated=new Date().toLocaleString("zh-TW");
   saving=true;
   try{
-    // Accounts are separate documents, so the old 1 MiB main-document limit is gone.
-    const remote=await getDocs(accountCol());
-    const localIds=new Set((d.accounts||[]).map(a=>String(a.id)));
     const ops=[];
-    remote.docs.forEach(x=>{if(!localIds.has(x.id))ops.push({type:"delete",ref:x.ref})});
-    (d.accounts||[]).forEach(a=>ops.push({type:"set",ref:accountRef(String(a.id)),data:a}));
-    // Recognition memory is also split into separate documents.
-    const remoteMem=await getDocs(memoryCol());
-    remoteMem.docs.forEach(x=>ops.push({type:"delete",ref:x.ref}));
-    (d.itemMemory||[]).forEach((m,i)=>ops.push({type:"set",ref:memoryRef(stableMemoryId(m,i)),data:m}));
-    // meta 在批次完成後以 merge 更新，避免清掉補記憶版本標記。
+    const localAccountIds=new Set((d.accounts||[]).map(a=>String(a.id)));
+    // 只刪除本機已不存在的帳號文件。
+    for(const [id] of cloudAccountBaseline){
+      if(!localAccountIds.has(id))ops.push({type:"delete",ref:accountRef(id),id,kind:"account"});
+    }
+    // 只寫入新增或內容確實改變的帳號。
+    for(const a of (d.accounts||[])){
+      const id=String(a.id);
+      const previous=cloudAccountBaseline.get(id);
+      if(!previous||!jsonEqual(previous,a))ops.push({type:"set",ref:accountRef(id),data:a,id,kind:"account"});
+    }
+
+    // 辨識記憶使用既有穩定 ID；只寫入差異並刪除本機已移除的記憶。
+    const desiredMemory=new Map();
+    (d.itemMemory||[]).forEach((m,i)=>{
+      const stableId=stableMemoryId(m,i);
+      // 舊版備份還原或外部匯入的記憶可能使用非雜湊文件 ID；沿用登入時同序的既有 ID。
+      const loadedId=cloudMemoryIdsInLoadOrder[i];
+      const id=cloudMemoryBaseline.has(stableId)?stableId:(loadedId&&cloudMemoryBaseline.has(loadedId)?loadedId:stableId);
+      desiredMemory.set(id,m);
+    });
+    for(const [id] of cloudMemoryBaseline){
+      if(!desiredMemory.has(id))ops.push({type:"delete",ref:memoryRef(id),id,kind:"memory"});
+    }
+    for(const [id,m] of desiredMemory){
+      const previous=cloudMemoryBaseline.get(id);
+      if(!previous||!jsonEqual(previous,m))ops.push({type:"set",ref:memoryRef(id),data:m,id,kind:"memory"});
+    }
+
     for(let i=0;i<ops.length;i+=400){
       const batch=writeBatch(db);
       ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
       await batch.commit();
     }
-    // 帳號／庫存儲存與圖片庫完全分離：此處不得刪除或重寫圖片庫文件。
+
+    // 提交成功後才更新快照；失敗時保留舊快照，下一次可安全重試。
+    for(const op of ops){
+      const baseline=op.kind==="account"?cloudAccountBaseline:cloudMemoryBaseline;
+      if(op.type==="delete")baseline.delete(op.id);
+      else baseline.set(op.id,JSON.parse(JSON.stringify(op.data)));
+    }
+    cloudMemoryIdsInLoadOrder=[...desiredMemory.keys()];
     await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated,imageLibrary:deleteField()},{merge:true});
+    cloudMetaCache={...cloudMetaCache,schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated};
     render();
+    return true;
   }catch(err){
     console.error(err);
-    alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
+    if(!silent)alert("雲端儲存失敗｜"+(err?.code||"unknown")+"\n"+(err?.message||String(err)));
+    return false;
   }finally{saving=false}
 }
+
 function migrateCategories(){
   (d.accounts||[]).forEach(a=>{
     a.items=Array.isArray(a.items)?a.items:[];
@@ -1222,7 +1257,9 @@ async function saveAccountFields(accountId){
   d.updated=new Date().toLocaleString("zh-TW");
   try{
     await setDoc(accountRef(String(accountId)),a);
+    rememberAccountBaseline(accountId,a);
     await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+    cloudMetaCache={...cloudMetaCache,schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated};
     $("#su").textContent=d.updated;
   }catch(err){
     console.error(err);
@@ -1950,7 +1987,7 @@ async function backfillInventoryMemory(){
   if(inventoryMemoryBackfillRunning||!currentUser||!migrationReady)return;
   inventoryMemoryBackfillRunning=true;
   try{
-    const metaSnap=await getDoc(metaRef()),meta=metaSnap.exists()?metaSnap.data():{};
+    const meta=cloudMetaCache||{};
     if(Number(meta.inventoryMemoryBackfillVersion||0)>=INVENTORY_MEMORY_BACKFILL_VERSION)return;
     const candidates=[];
     for(const a of (d.accounts||[]))for(const item of (a.items||[])){
@@ -1974,10 +2011,17 @@ async function backfillInventoryMemory(){
         const batch=writeBatch(db);
         newMem.slice(i,i+300).forEach((m,j)=>batch.set(memoryRef(stableMemoryId(m,base+i+j)),m));
         await batch.commit();
+        newMem.slice(i,i+300).forEach((m,j)=>{
+          const id=stableMemoryId(m,base+i+j);
+          rememberMemoryBaseline(id,m);
+          cloudMemoryIdsInLoadOrder.push(id);
+        });
       }
       d.itemMemory.push(...newMem);
     }
-    await setDoc(metaRef(),{inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,inventoryMemoryBackfilledAt:new Date().toISOString(),recognitionEngineVersion:2},{merge:true});
+    const backfillMeta={inventoryMemoryBackfillVersion:INVENTORY_MEMORY_BACKFILL_VERSION,inventoryMemoryBackfilledAt:new Date().toISOString(),recognitionEngineVersion:2};
+    await setDoc(metaRef(),backfillMeta,{merge:true});
+    cloudMetaCache={...cloudMetaCache,...backfillMeta};
   }catch(err){console.error("精準辨識記憶補建失敗",err)}
   finally{inventoryMemoryBackfillRunning=false}
 }
@@ -2122,28 +2166,9 @@ $("#confirmRecognized").onclick=async()=>{
     activeCategory=cat; activeGender=gen; activeCandy="";
     const tempSource=recognizingTempShot;
 
-    // 這裡只寫目前帳號，不再因為一張截圖重寫全部 600 個帳號。
-    d.updated=new Date().toLocaleString("zh-TW");
-    await setDoc(accountRef(String(a.id)),a);
-    await setDoc(metaRef(),{schemaVersion:MIGRATION_VERSION,migratedFromLegacy:true,updated:d.updated},{merge:true});
+    // 透過差異快照只儲存目前變動的帳號與辨識記憶，不再掃描整個雲端集合。
+    if(!await save({silent:true}))throw new Error("雲端儲存未成功，請確認網路後再試一次。");
 
-    // 只補上雲端缺少的辨識記憶，不刪掉整包重建。
-    const remoteMemSnap=await getDocs(memoryCol());
-    const remoteKeys=new Set(remoteMemSnap.docs.map(ds=>{
-      const m=ds.data()||{};
-      return JSON.stringify([m.sig||[],m.shapeSig||[],m.colorSig||[],m.name||"",m.variant||""]);
-    }));
-    const missing=(d.itemMemory||[]).filter(m=>!remoteKeys.has(JSON.stringify([m.sig||[],m.shapeSig||[],m.colorSig||[],m.name||"",m.variant||""])));
-    for(let i=0;i<missing.length;i+=350){
-      const batch=writeBatch(db);
-      missing.slice(i,i+350).forEach((m,j)=>{
-        const idx=(d.itemMemory||[]).indexOf(m);
-        batch.set(memoryRef(stableMemoryId(m,idx<0?i+j:idx)),m);
-      });
-      await batch.commit();
-    }
-
-    render();
     shotDlg.close();
 
     if(tempSource){
@@ -2513,21 +2538,10 @@ $("#saveImageLibraryItem").onclick=async()=>{
     }
     for(let i=0;i<newItems.length;i++){
       const item=newItems[i];
-      button.textContent=`檢查雲端 ${i+1}/${newItems.length} 張…`;
-      // 若前一次逾時但實際已寫入，先查固定 ID；存在就不再新增。
-      let existing=null;
-      try{existing=await galleryRequestWithTimeout(getDoc(imageLibraryRef(String(item.id))),12000,"檢查圖片是否已存在逾時");}
-      catch(checkErr){
-        if(checkErr?.code!=="gallery-timeout")throw checkErr;
-        button.textContent=`確認雲端狀態逾時，改用相同 ID 安全重試 ${i+1}/${newItems.length}…`;
-      }
-      if(existing?.exists()){
-        already++;
-        const old={id:existing.id,...existing.data()};
-        if(!Array.isArray(d.imageLibrary))d.imageLibrary=[];
-        if(!d.imageLibrary.some(x=>String(x.id)===String(old.id)))d.imageLibrary.push(old);
-        continue;
-      }
+      button.textContent=`比對圖片庫 ${i+1}/${newItems.length} 張…`;
+      // 登入時已載入完整圖片庫；使用本機索引比對固定內容 ID，避免每張圖片額外 getDoc。
+      const localExisting=(Array.isArray(d.imageLibrary)?d.imageLibrary:[]).find(x=>String(x.id)===String(item.id));
+      if(localExisting){already++;continue;}
       button.textContent=`正在儲存 ${i+1}/${newItems.length} 張圖片…`;
       await galleryRequestWithTimeout(setDoc(imageLibraryRef(String(item.id)),item),25000,"圖片寫入逾時");
       saved++;
@@ -2538,12 +2552,9 @@ $("#saveImageLibraryItem").onclick=async()=>{
     alert(`處理完成！新增 ${saved} 張，原本已存在／已成功寫入 ${already} 張。`);
   }catch(err){
     console.error(err);
-    // 讀取也設上限，避免錯誤處理階段再次無限停留。
-    try{
-      const latest=await galleryRequestWithTimeout(getDocs(imageLibraryCol()),12000,"重新讀取圖片庫逾時");
-      d.imageLibrary=latest.docs.map(x=>({id:x.id,...x.data()}));
-      renderImageLibrary();
-    }catch(refreshErr){console.error("重新讀取圖片庫失敗：",refreshErr);}
+    // 不在錯誤處理時重讀整個圖片庫；已成功寫入的項目仍保留在本機清單，
+    // 下次登入會重新同步，避免一次失敗又額外產生大量讀取。
+    renderImageLibrary();
     let reason="請檢查網路連線、Google 登入狀態及 Firestore Rules。";
     if(err?.code==="permission-denied")reason="Firebase 權限拒絕寫入，請檢查 Firestore Rules 是否允許此登入帳號寫入 users/管理員UID/imageLibrary。";
     else if(err?.code==="unavailable")reason="Firebase 服務暫時無法連線，請確認網路後再試。";
@@ -2807,7 +2818,7 @@ $("#saveOverviewJpg").onclick=async()=>$("#overviewType").value==="resource"?sav
 onAuthStateChanged(auth,async user=>{
   currentUser=user&&user.uid===ADMIN_UID?user:null;
   if(!currentUser){
-    $("#authGate").classList.remove("hidden");$("#app").style.visibility="hidden";d={accounts:[]};active=null;tempShotsCache.clear();return;
+    $("#authGate").classList.remove("hidden");$("#app").style.visibility="hidden";d={accounts:[]};active=null;tempShotsCache.clear();cloudAccountBaseline.clear();cloudMemoryBaseline.clear();cloudMemoryIdsInLoadOrder=[];cloudMetaCache={};migrationReady=false;return;
   }
   $("#userLabel").textContent=currentUser.email||"已登入";
   $("#authGate").classList.add("hidden");$("#app").style.visibility="visible";
