@@ -1154,6 +1154,7 @@ $("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim
 function populateAddItemLibraryOptions(){
   const select=$("#in"),rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[],query=String($("#addItemSearch")?.value||"").trim().toLocaleLowerCase();
   const filtered=rows.map((x,i)=>({x,i})).filter(({x})=>!query||String(x.name||"").toLocaleLowerCase().includes(query));
+  filtered.sort((a,b)=>String(a.x.name||"未命名").localeCompare(String(b.x.name||"未命名"),"zh-Hant",{numeric:true,sensitivity:"base"}));
   select.innerHTML='<option value="">請選擇圖片庫物品'+(query?`（搜尋到 ${filtered.length} 項）`:"")+'</option>'+filtered.map(({x,i})=>`<option value="${i}">${e(x.name||"未命名")}${x.color?`（${e(x.color)}）`:""}</option>`).join("");
   $("#in").value="";$("#iv").value="";
 }
