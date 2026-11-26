@@ -1166,7 +1166,7 @@ $("#batchSave").onclick=async()=>{
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
   const type=$("#baat").value;
-  ids.forEach((gid,i)=>{const n=newNumbers[i],account=accounts[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,accountChecked:false,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
+  ids.forEach((gid,i)=>{const n=newNumbers[i],account=accounts[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,accountChecked:false,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
