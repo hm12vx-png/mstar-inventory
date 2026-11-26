@@ -373,6 +373,9 @@
 .acc.batchMode{cursor:pointer;align-items:center;gap:8px}
 .acc.batchMode input[type="checkbox"]{width:18px;height:18px;flex:none;accent-color:var(--a)}
 .acc.batchSelected{box-shadow:inset 0 0 0 2px var(--a);background:#c7a894}
+.accountStatusCheck{width:16px;height:16px;margin-left:6px;vertical-align:middle;accent-color:var(--a);cursor:pointer}
+.accountStatusCheck:focus{outline:2px solid #b58a72;outline-offset:1px}
+
 
 #accounts{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;scroll-behavior:smooth}
 @media(max-width:760px){.main>aside.panel{position:static;max-height:none}#accounts{max-height:42vh;overflow-y:auto}}
@@ -916,13 +919,31 @@ function render(){
   let a=cur();
   const shownAccounts=d.accounts.filter(x=>(!accountTypeFilter||((x.accountType==="女號"||x.accountType==="男號")?x.accountType:"男號")===accountTypeFilter)&&(!accountGenderFilter||(x.accountGender||"")===accountGenderFilter));
   document.querySelectorAll(".accountTypeTab").forEach(b=>b.classList.toggle("active",(b.dataset.accountType||"")===accountTypeFilter));
-  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active ":""}${batchDeleteMode?"batchMode ":""}${batchDeleteSelected.has(x.id)?"batchSelected":""}" data-id="${x.id}">${batchDeleteMode?`<input type="checkbox" class="batchAccountCheck" data-id="${x.id}" ${batchDeleteSelected.has(x.id)?"checked":""} aria-label="選取帳號">`:""}<span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}${x.account?`<br><small>帳號：${e(x.account)}</small>`:""}<br><small>${e((x.accountType==="女號"||x.accountType==="男號")?x.accountType:"男號")}${x.accountGender?`｜${e(x.accountGender)}`:""}</small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).filter(i=>!noQuantityCategories.has(i.category)).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
+  $("#accounts").innerHTML=shownAccounts.length?shownAccounts.map(x=>`<div class="acc ${x.id===active?"active ":""}${batchDeleteMode?"batchMode ":""}${batchDeleteSelected.has(x.id)?"batchSelected":""}" data-id="${x.id}">${batchDeleteMode?`<input type="checkbox" class="batchAccountCheck" data-id="${x.id}" ${batchDeleteSelected.has(x.id)?"checked":""} aria-label="選取帳號">`:""}<span>${e(x.number||x.name||"未命名")} ${x.gameId?`｜${e(x.gameId)}`:""}${x.account?`<br><small>帳號：${e(x.account)}</small>`:""}<br><small>${e((x.accountType==="女號"||x.accountType==="男號")?x.accountType:"男號")}${x.accountGender?`｜${e(x.accountGender)}`:""}<input type="checkbox" class="accountStatusCheck" data-id="${x.id}" ${x.accountChecked===true?"checked":""} aria-label="帳號勾選"></small></span><span style="display:flex;align-items:center;gap:6px"><small>${(x.items||[]).filter(i=>!noQuantityCategories.has(i.category)).reduce((n,i)=>n+(Number(i.qty)||0),0)}件</small></span></div>`).join(""):'<div class="empty">這個分類目前沒有帳號</div>';
   document.querySelectorAll(".batchAccountCheck").forEach(cb=>cb.onclick=ev=>{
     ev.stopPropagation();
     const id=cb.dataset.id;
     if(cb.checked)batchDeleteSelected.add(id);else batchDeleteSelected.delete(id);
     updateBatchDeleteBar();
   });
+  document.querySelectorAll(".accountStatusCheck").forEach(cb=>cb.onchange=async ev=>{
+    ev.stopPropagation();
+    const id=cb.dataset.id;
+    const account=d.accounts.find(x=>x.id===id);
+    if(!account)return;
+    account.accountChecked=!!cb.checked;
+    try{
+      if(!await save({silent:true})){
+        throw new Error("雲端儲存未成功");
+      }
+    }catch(err){
+      console.error(err);
+      cb.checked=!cb.checked;
+      account.accountChecked=!!cb.checked;
+      alert("勾選狀態儲存失敗，請確認網路後再試一次。");
+    }
+  });
+  document.querySelectorAll(".accountStatusCheck").forEach(cb=>cb.onclick=ev=>ev.stopPropagation());
   document.querySelectorAll(".acc").forEach(x=>x.onclick=ev=>{
     // Allow selecting/copying account text without the account-card click re-render clearing the selection.
     const selectedText=window.getSelection?.().toString();
@@ -1145,12 +1166,12 @@ $("#batchSave").onclick=async()=>{
   const dupExisting=ids.find(id=>existingIds.has(id));
   if(dupExisting)return alert(`ID「${dupExisting}」已經存在倉庫中。`);
   const type=$("#baat").value;
-  ids.forEach((gid,i)=>{const n=newNumbers[i],account=accounts[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
+  ids.forEach((gid,i)=>{const n=newNumbers[i],account=accounts[i];d.accounts.push({id:crypto.randomUUID(),name:n,number:n,gameId:gid,account,accountType:type,accountChecked:false,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]})});
   active=d.accounts[d.accounts.length-ids.length].id;
   batchAd.close();await save();
 };
 $("#newA").onclick=()=>ad.showModal();
-$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
+$("#as").onclick=async()=>{let n=$("#an").value.trim(),gid=$("#agid").value.trim();if(!n)return alert("請輸入編號");let id=crypto.randomUUID();d.accounts.push({id,name:n,number:n,gameId:gid,accountType:$("#aat").value,accountGender:$("#aag").value,accountChecked:false,resources:{candy:"",eventCandy:"",birth:"",card:"",luckyStone:"",...Object.fromEntries(Array.from({length:12},(_,i)=>[`fragment${i+1}`,""]))},lastLoginDate:"",items:[]});active=id;$("#an").value="";$("#agid").value="";ad.close();await save()};
 function populateAddItemLibraryOptions(){
   const select=$("#in"),rows=Array.isArray(d.imageLibrary)?d.imageLibrary:[],query=String($("#addItemSearch")?.value||"").trim().toLocaleLowerCase();
   const filtered=rows.map((x,i)=>({x,i})).filter(({x})=>!query||String(x.name||"").toLocaleLowerCase().includes(query));
